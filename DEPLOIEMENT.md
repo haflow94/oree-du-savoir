@@ -18,12 +18,20 @@ docker compose up -d --build
 administrateur initial (idempotent : ne touche plus rien une fois le compte
 créé).
 
+Une fois connecté avec ce compte, **changez son mot de passe** et créez les
+comptes de l'équipe depuis *Administration*.
+
 ## Variables et secrets
 
 Toutes les variables sont documentées dans `.env.example`. `.env` n'est
 jamais committé (voir `.gitignore`). En production, ces valeurs peuvent aussi
 être fournies comme secrets de l'orchestrateur plutôt que via un fichier
 `.env` sur disque.
+
+`TZ` détermine le « jour courant » de l'application (séances du jour, délai
+de correction des présences) et vaut `Europe/Paris` par défaut. Un conteneur
+sans ce réglage tourne en UTC : le jour basculerait à 2h du matin heure
+française.
 
 ## Volumes persistants
 
