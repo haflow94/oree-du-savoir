@@ -1,7 +1,9 @@
 // Phase 0 : fondations (auth, rôles, années scolaires).
 // Phase 1 : fiche étudiant + responsables légaux, cours + classes.
-// Les entités suivantes (Inscription, Paiement, etc.) seront ajoutées
-// phase par phase, une fois les décisions en attente validées (voir plan).
+// Phase 4/5 : dossier annuel minimal (montant dû saisi manuellement, pas de
+// tarification par cours), paiements/échéances/chèques, trésorerie.
+// L'inscription complète (préinscription publique, génération du dossier
+// officiel, documents) reste Phase 2 — en attente du gabarit du dossier.
 
 generator client {
   provider = "prisma-client"
@@ -59,7 +61,8 @@ model AnneeScolaire {
   dateFin   DateTime
   active    Boolean  @default(false)
 
-  classes Classe[]
+  classes         Classe[]
+  dossiersAnnuels DossierAnnuel[]
 
   @@map("annees_scolaires")
 }
@@ -95,7 +98,8 @@ model Etudiant {
   creeLe            DateTime  @default(now())
   misAJourLe        DateTime  @updatedAt
 
-  responsables ResponsableLegal[]
+  responsables    ResponsableLegal[]
+  dossiersAnnuels DossierAnnuel[]
 
   @@index([nom, prenom])
   @@map("etudiants")
@@ -182,6 +186,123 @@ model ClasseEnseignant {
 
   @@id([classeId, utilisateurId])
   @@map("classe_enseignants")
+}
+
+enum MoyenPaiement {
+  ESPECES
+  CHEQUE
+  VIREMENT
+  CB
+}
+
+// Ancrage minimal pour les paiements (montant dû global saisi à la main),
+// en attendant l'inscription complète (préinscription, cours suivis,
+// génération du dossier officiel — Phase 2, en attente du gabarit). Pas de
+// tarification par cours pour le MVP : aucune donnée de prix n'existe dans
+// l'existant, cette règle serait inventée.
+model DossierAnnuel {
+  id              String   @id @default(cuid())
+  etudiantId      String
+  etudiant        Etudiant @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  anneeScolaireId String
+  anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
+  montantDu       Decimal  @db.Decimal(10, 2)
+  creeLe          DateTime @default(now())
+
+  echeances Echeance[]
+
+  @@unique([etudiantId, anneeScolaireId])
+  @@map("dossiers_annuels")
+}
+
+model Echeance {
+  id              String        @id @default(cuid())
+  dossierAnnuelId String
+  dossierAnnuel   DossierAnnuel @relation(fields: [dossierAnnuelId], references: [id], onDelete: Cascade)
+  libelle         String?
+  montant         Decimal       @db.Decimal(10, 2)
+  dateEcheance    DateTime
+  creeLe          DateTime      @default(now())
+
+  paiements Paiement[]
+
+  @@index([dossierAnnuelId])
+  @@map("echeances")
+}
+
+model Paiement {
+  id           String        @id @default(cuid())
+  echeanceId   String
+  echeance     Echeance      @relation(fields: [echeanceId], references: [id], onDelete: Cascade)
+  moyen        MoyenPaiement
+  montant      Decimal       @db.Decimal(10, 2)
+  datePaiement DateTime      @default(now())
+  creeLe       DateTime      @default(now())
+
+  cheque Cheque?
+
+  @@index([echeanceId])
+  @@map("paiements")
+}
+
+enum StatutCheque {
+  RECU
+  DEPOSE
+  ENCAISSE
+  REJETE
+}
+
+// Détails spécifiques au chèque, en 1-1 avec le paiement (uniquement quand
+// Paiement.moyen = CHEQUE).
+model Cheque {
+  id               String       @id @default(cuid())
+  paiementId       String       @unique
+  paiement         Paiement     @relation(fields: [paiementId], references: [id], onDelete: Cascade)
+  banque           String?
+  numero           String?
+  titulaire        String?
+  statut           StatutCheque @default(RECU)
+  dateDepot        DateTime?
+  dateEncaissement DateTime?
+  motifRejet       String?
+
+  @@map("cheques")
+}
+
+enum TypeMouvement {
+  RECETTE
+  DEPENSE
+}
+
+// Liste éditable par le Bureau plutôt que texte libre, pour garder les
+// mouvements exploitables en rapport (voir Projet/03_Analyse_existant_Excel.md §5).
+model CategorieMouvement {
+  id     String  @id @default(cuid())
+  nom    String  @unique
+  actif  Boolean @default(true)
+  creeLe DateTime @default(now())
+
+  mouvements MouvementTresorerie[]
+
+  @@map("categories_mouvement")
+}
+
+// Trésorerie volontairement simple (pas de comptabilité complète) : le solde
+// est calculé en cumul à la lecture, jamais stocké.
+model MouvementTresorerie {
+  id            String              @id @default(cuid())
+  date          DateTime
+  libelle       String
+  type          TypeMouvement
+  moyen         MoyenPaiement
+  montant       Decimal             @db.Decimal(10, 2)
+  categorieId   String?
+  categorie     CategorieMouvement? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
+  justificatif  String? // chemin/référence du fichier séparé, pas de contenu en base
+  creeLe        DateTime            @default(now())
+
+  @@index([date])
+  @@map("mouvements_tresorerie")
 }
 
 // Traçabilité transverse (validation dossier, modification présence validée,
