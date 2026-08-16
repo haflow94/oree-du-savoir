@@ -1,6 +1,6 @@
 // Phase 0 : fondations (auth, rôles, années scolaires).
-// Phase 1 : fiche étudiant + responsables légaux.
-// Les entités suivantes (Cours, Classe, Paiement, etc.) seront ajoutées
+// Phase 1 : fiche étudiant + responsables légaux, cours + classes.
+// Les entités suivantes (Inscription, Paiement, etc.) seront ajoutées
 // phase par phase, une fois les décisions en attente validées (voir plan).
 
 generator client {
@@ -31,8 +31,9 @@ model Utilisateur {
   creeLe         DateTime  @default(now())
   dernierLogin   DateTime?
 
-  sessions     Session[]
-  journalAudit JournalAudit[]
+  sessions          Session[]
+  journalAudit      JournalAudit[]
+  classesEnseignees ClasseEnseignant[]
 
   @@map("utilisateurs")
 }
@@ -57,6 +58,8 @@ model AnneeScolaire {
   dateDebut DateTime
   dateFin   DateTime
   active    Boolean  @default(false)
+
+  classes Classe[]
 
   @@map("annees_scolaires")
 }
@@ -116,6 +119,69 @@ model ResponsableLegal {
 
   @@index([etudiantId])
   @@map("responsables_legaux")
+}
+
+// Un cours peut être enseigné par plusieurs classes/groupes (ex. plusieurs
+// créneaux/niveaux du même cours). Ne pas confondre avec Classe : le cours
+// est la matière, la classe est le groupe concret relié au planning.
+model Cours {
+  id          String  @id @default(cuid())
+  nom         String  @unique
+  description String?
+  creeLe      DateTime @default(now())
+
+  classes Classe[]
+
+  @@map("cours")
+}
+
+enum JourSemaine {
+  LUNDI
+  MARDI
+  MERCREDI
+  JEUDI
+  VENDREDI
+  SAMEDI
+  DIMANCHE
+}
+
+// Groupe concret relié au planning (voir 03_Analyse_existant_Excel.md §3.5 :
+// ne jamais stocker la classe comme simple texte sur l'étudiant).
+//
+// Décisions MVP validées avec l'association :
+// - niveau = attribut texte simple sur la classe (pas de référentiel séparé) ;
+// - un seul créneau hebdomadaire par classe (jour + heure début/fin) ;
+// - plusieurs enseignants possibles par classe (table de liaison).
+model Classe {
+  id              String   @id @default(cuid())
+  coursId         String
+  cours           Cours    @relation(fields: [coursId], references: [id], onDelete: Restrict)
+  anneeScolaireId String
+  anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
+  niveau          String?
+  semestre        String? // ex. "1", "2" ; null = classe valable toute l'année
+  jour            JourSemaine
+  heureDebut      String // "HH:MM"
+  heureFin        String // "HH:MM"
+  salle           String?
+  capacite        Int?
+  creeLe          DateTime @default(now())
+
+  enseignants ClasseEnseignant[]
+
+  @@index([anneeScolaireId])
+  @@index([coursId])
+  @@map("classes")
+}
+
+model ClasseEnseignant {
+  classeId      String
+  classe        Classe      @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  utilisateurId String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  @@id([classeId, utilisateurId])
+  @@map("classe_enseignants")
 }
 
 // Traçabilité transverse (validation dossier, modification présence validée,
