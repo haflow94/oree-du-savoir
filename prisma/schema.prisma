@@ -1,5 +1,6 @@
-// Schéma Phase 0 — fondations uniquement (auth, rôles, années scolaires).
-// Les entités métier (Étudiant, Cours, Classe, Paiement, etc.) seront ajoutées
+// Phase 0 : fondations (auth, rôles, années scolaires).
+// Phase 1 : fiche étudiant + responsables légaux.
+// Les entités suivantes (Cours, Classe, Paiement, etc.) seront ajoutées
 // phase par phase, une fois les décisions en attente validées (voir plan).
 
 generator client {
@@ -58,6 +59,63 @@ model AnneeScolaire {
   active    Boolean  @default(false)
 
   @@map("annees_scolaires")
+}
+
+enum Civilite {
+  M
+  MME
+}
+
+// Fiche unique par personne (voir 02_Modele_metier.md, règle 1). L'historique
+// des inscriptions/cours par année arrive avec les modèles Cours/Classe
+// (phase suivante) ; cette table ne porte que l'identité et les coordonnées.
+//
+// Le champ `DDF` présent dans l'ancienne BDD Excel n'est pas repris : sa
+// signification doit être confirmée avec l'association avant intégration
+// (voir Projet/03_Analyse_existant_Excel.md, section 3.3). Ne pas deviner.
+model Etudiant {
+  id                String    @id @default(cuid())
+  civilite          Civilite?
+  nom               String
+  prenom            String
+  dateNaissance     DateTime?
+  villeNaissance    String?
+  telephoneMobile   String?
+  telephoneFixe     String?
+  email             String?
+  adresse           String?
+  complementAdresse String?
+  profession        String?
+  niveauEtudes      String?
+  dernierDiplome    String?
+  remarque          String?
+  creeLe            DateTime  @default(now())
+  misAJourLe        DateTime  @updatedAt
+
+  responsables ResponsableLegal[]
+
+  @@index([nom, prenom])
+  @@map("etudiants")
+}
+
+// Parent/tuteur. Rattaché directement à l'étudiant : le partage d'un même
+// responsable entre plusieurs étudiants (fratrie) n'est pas géré en Phase 1,
+// faute de besoin confirmé — à revisiter si nécessaire.
+model ResponsableLegal {
+  id         String    @id @default(cuid())
+  etudiantId String
+  etudiant   Etudiant  @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  civilite   Civilite?
+  nom        String
+  prenom     String
+  lien       String // ex. "Père", "Mère", "Tuteur"
+  telephone  String?
+  email      String?
+  adresse    String?
+  creeLe     DateTime  @default(now())
+
+  @@index([etudiantId])
+  @@map("responsables_legaux")
 }
 
 // Traçabilité transverse (validation dossier, modification présence validée,
