@@ -1,6 +1,6 @@
-import type { Role } from "@/generated/prisma/client";
+import type { Role } from "@/generated/prisma/enums";
 
-export { Role } from "@/generated/prisma/client";
+export { Role } from "@/generated/prisma/enums";
 
 export const ROLE_LABELS: Record<Role, string> = {
   BUREAU: "Bureau / Président",

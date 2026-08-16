@@ -7,7 +7,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/session-token";
 // uniquement) : la validation réelle du token et du rôle est donc faite
 // côté Server Component, dans requireSession()/requireRole() (src/lib/auth.ts),
 // qui restent la véritable frontière de sécurité.
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const hasSessionCookie = request.cookies.has(SESSION_COOKIE_NAME);
 
   if (!hasSessionCookie) {

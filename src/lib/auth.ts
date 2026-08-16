@@ -129,8 +129,8 @@ export async function getSession(): Promise<SessionUser | null> {
 
 // Garde d'accès pour les Server Components protégés : redirige vers /login
 // si personne n'est connecté, ou vers /acces-refuse si le rôle ne convient
-// pas. Utilisée dans les layouts/pages, pas dans le middleware Edge (qui ne
-// peut pas interroger Postgres) — voir middleware.ts pour le détail.
+// pas. Utilisée dans les layouts/pages, pas dans le proxy Edge (qui ne
+// peut pas interroger Postgres) — voir proxy.ts pour le détail.
 export async function requireSession(): Promise<SessionUser> {
   const session = await getSession();
   if (!session) {
