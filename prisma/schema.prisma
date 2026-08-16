@@ -1,0 +1,78 @@
+// Schéma Phase 0 — fondations uniquement (auth, rôles, années scolaires).
+// Les entités métier (Étudiant, Cours, Classe, Paiement, etc.) seront ajoutées
+// phase par phase, une fois les décisions en attente validées (voir plan).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  BUREAU
+  ADMINISTRATION
+  ACCUEIL
+  TRESORIER
+  ENSEIGNANT
+}
+
+model Utilisateur {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  motDePasseHash String
+  nom            String
+  prenom         String
+  role           Role
+  actif          Boolean   @default(true)
+  creeLe         DateTime  @default(now())
+  dernierLogin   DateTime?
+
+  sessions     Session[]
+  journalAudit JournalAudit[]
+
+  @@map("utilisateurs")
+}
+
+// Sessions stockées en base (pas de JWT) : révocation immédiate possible
+// (désactivation d'un utilisateur = invalidation de toutes ses sessions).
+model Session {
+  id            String   @id @default(cuid())
+  tokenHash     String   @unique
+  utilisateurId String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  creeLe        DateTime @default(now())
+  expireLe      DateTime
+
+  @@index([utilisateurId])
+  @@map("sessions")
+}
+
+model AnneeScolaire {
+  id        String   @id @default(cuid())
+  libelle   String   @unique // ex. "2026/2027"
+  dateDebut DateTime
+  dateFin   DateTime
+  active    Boolean  @default(false)
+
+  @@map("annees_scolaires")
+}
+
+// Traçabilité transverse (validation dossier, modification présence validée,
+// saisie paiement, etc.) — alimentée au fil des phases suivantes.
+model JournalAudit {
+  id            String       @id @default(cuid())
+  utilisateurId String?
+  utilisateur   Utilisateur? @relation(fields: [utilisateurId], references: [id], onDelete: SetNull)
+  action        String
+  entite        String
+  entiteId      String?
+  details       Json?
+  horodatage    DateTime     @default(now())
+
+  @@index([utilisateurId])
+  @@index([entite, entiteId])
+  @@map("journal_audit")
+}

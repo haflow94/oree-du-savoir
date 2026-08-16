@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prototype interactif — Association</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;background:#f5f7fa;color:#172033}.app{display:flex;min-height:100vh}.side{width:235px;background:#172033;color:#fff;padding:18px 12px;flex:none}.brand{font-weight:700;font-size:19px;padding:6px 10px 20px}.nav button{display:block;width:100%;border:0;background:none;color:#d9e2ef;text-align:left;padding:11px 12px;border-radius:8px;margin:3px 0;cursor:pointer}.nav button:hover,.nav button.active{background:#2b3a54;color:white}.main{flex:1;min-width:0}.top{height:64px;background:white;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:5}.top h1{font-size:19px;margin:0}.year{border:1px solid #d1d5db;background:white;padding:8px;border-radius:7px}.content{padding:24px;max-width:1450px;margin:auto}.screen{display:none}.screen.active{display:block}.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.two{grid-template-columns:2fr 1fr}.three{grid-template-columns:repeat(3,minmax(0,1fr))}.card{background:white;border:1px solid #e3e7ed;border-radius:10px;padding:18px}.metric{font-size:28px;font-weight:700;margin-top:8px}.muted{color:#6b7280;font-size:13px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.input,.select,.btn{border:1px solid #ccd3dd;background:white;padding:9px 11px;border-radius:7px}.input{min-width:230px}.btn{cursor:pointer}.primary{background:#263a59;color:white;border-color:#263a59}.danger{background:#fdecec}.warn{background:#fff5d8}.ok{background:#e8f5ec}.badge{display:inline-block;border-radius:999px;padding:4px 8px;font-size:12px}.tablewrap{overflow:auto;border:1px solid #e3e7ed;border-radius:10px;background:white}.table{border-collapse:collapse;width:100%;min-width:850px}.table th,.table td{padding:11px;border-bottom:1px solid #edf0f3;text-align:left;font-size:13px}.table th{background:#f8fafc}.click{cursor:pointer}.click:hover{background:#f7f9fc}.row{display:flex;justify-content:space-between;gap:16px;padding:10px 0;border-bottom:1px solid #edf0f3}.tabs{display:flex;gap:3px;overflow:auto;border-bottom:1px solid #ddd;margin:10px 0}.tabs button{border:0;background:none;padding:10px 12px;white-space:nowrap;cursor:pointer}.tabs button.active{font-weight:700;border-bottom:2px solid #263a59}.tabcontent{display:none}.tabcontent.active{display:block}.classcard{cursor:pointer}.classcard:hover{border-color:#9aa4b2}.modal{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;padding:20px;z-index:20}.modal.show{display:flex}.modalbox{width:min(620px,100%);background:white;border-radius:12px;padding:22px}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}.field input,.field select{width:100%;padding:9px;border:1px solid #ccd3dd;border-radius:7px}.field.full{grid-column:1/-1}.steps{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}.step{padding:6px 9px;border-radius:999px;background:#edf1f5;font-size:12px}.step.active{background:#263a59;color:white}.hidden{display:none}.toast{position:fixed;right:20px;bottom:20px;background:#172033;color:white;padding:12px 15px;border-radius:8px;display:none;z-index:30}.footer{font-size:12px;color:#6b7280;margin-top:25px}
+@media(max-width:950px){.side{width:72px}.brand{font-size:0}.nav button{text-align:center;font-size:0}.nav button:first-letter{font-size:18px}.cards,.three{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:620px){.side{display:none}.content{padding:14px}.cards,.three,.formgrid{grid-template-columns:1fr}.top{padding:0 14px}.input{min-width:180px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="brand">ASSOCIATION</div>
+<nav class="nav">
+<button class="active" data-go="dashboard">🏠 Accueil</button>
+<button data-go="students">👥 Étudiants</button>
+<button data-go="registrations">📝 Inscriptions</button>
+<button data-go="classes">🏫 Classes</button>
+<button data-go="payments">💳 Paiements</button>
+<button data-go="treasury">💰 Trésorerie</button>
+<button data-go="documents">📄 Documents</button>
+<button data-go="admin">⚙ Administration</button>
+</nav>
+</aside>
+<main class="main">
+<header class="top"><h1 id="pageTitle">Tableau de bord</h1><select class="year"><option>2026 / 2027</option><option>2025 / 2026</option></select></header>
+<div class="content">
+
+<section class="screen active" id="dashboard">
+<div class="grid cards">
+<div class="card">👥 Étudiants<div class="metric">198</div><div class="muted">année active</div></div>
+<div class="card">🏫 Classes<div class="metric">10</div><div class="muted">2 presque complètes</div></div>
+<div class="card">💳 Paiements<div class="metric">152</div><div class="muted">suivis</div></div>
+<div class="card">📁 Dossiers<div class="metric">12</div><div class="muted">à compléter</div></div>
+</div>
+<div class="grid two" style="margin-top:16px">
+<div class="card"><h3>⚠ À traiter</h3><div class="row"><span>Dossiers incomplets</span><strong>12</strong></div><div class="row"><span>Paiements en attente</span><strong>8</strong></div><div class="row"><span>Documents manquants</span><strong>4</strong></div><div class="row"><span>Absences à vérifier</span><strong>3</strong></div></div>
+<div class="card"><h3>📅 Prochains événements</h3><p>Réunion Bureau — à définir</p><p>Prochaine séance — samedi</p><p class="muted">Les rappels pourront être automatisés par n8n.</p></div>
+</div>
+<div class="card" style="margin-top:16px"><h3>Accès rapides</h3><div class="toolbar"><button class="btn primary" onclick="go('registrations')">+ Nouvelle inscription</button><button class="btn" onclick="go('payments')">Voir les impayés</button><button class="btn" onclick="go('treasury')">Nouvelle dépense</button></div></div>
+</section>
+
+<section class="screen" id="students">
+<h2>Étudiants</h2>
+<div class="toolbar"><input id="search" class="input" placeholder="🔍 Nom, prénom, téléphone, email"><select class="select"><option>Tous les cours</option><option>Arabe</option><option>Coran</option></select><select class="select"><option>Tous les statuts</option><option>Actif</option><option>Ancien</option></select><button class="btn primary" onclick="openStudentModal()">+ Ajouter</button></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Nom</th><th>Prénom</th><th>Contact</th><th>Cours</th><th>Classe(s)</th><th>Statut</th></tr></thead><tbody id="studentsBody">
+<tr class="click" data-search="ahmed dupont 06 email arabe coran" onclick="showStudent()"><td>Dupont</td><td>Ahmed</td><td>06 XX XX XX XX</td><td>Arabe + Coran</td><td>A2 / C1</td><td><span class="badge ok">Actif</span></td></tr>
+<tr class="click" data-search="sarah martin email arabe" onclick="showGenericStudent('Sarah Martin')"><td>Martin</td><td>Sarah</td><td>06 XX XX XX XX</td><td>Arabe</td><td>A1</td><td><span class="badge ok">Actif</span></td></tr>
+<tr class="click" data-search="youssef benali email coran" onclick="showGenericStudent('Youssef Benali')"><td>Benali</td><td>Youssef</td><td>06 XX XX XX XX</td><td>Coran</td><td>C2</td><td><span class="badge ok">Actif</span></td></tr>
+</tbody></table></div>
+<p class="muted">Prototype : les données sont fictives.</p>
+</section>
+
+<section class="screen" id="student-detail">
+<button class="btn" onclick="go('students')">← Retour aux étudiants</button>
+<div class="card" style="margin-top:12px"><h2 id="studentName">Ahmed Dupont</h2><p class="muted">06 XX XX XX XX · email@email.fr · Adresse / Ville</p>
+<div class="tabs"><button class="active" onclick="tab(this,'t-info')">Informations</button><button onclick="tab(this,'t-insc')">Inscriptions</button><button onclick="tab(this,'t-pay')">Paiements</button><button onclick="tab(this,'t-pres')">Présence</button><button onclick="tab(this,'t-docs')">Documents</button><button onclick="tab(this,'t-hist')">Historique</button></div>
+<div class="tabcontent active" id="t-info"><div class="row"><span>Date de naissance</span><strong>—</strong></div><div class="row"><span>Profession</span><strong>—</strong></div><div class="row"><span>Responsable légal</span><strong>—</strong></div><div class="row"><span>Contact d'urgence</span><strong>—</strong></div></div>
+<div class="tabcontent" id="t-insc"><h3>2026/2027</h3><div class="row"><span>Arabe</span><strong>Classe A2</strong></div><div class="row"><span>Coran</span><strong>Classe C1</strong></div><h3>2025/2026</h3><div class="row"><span>Arabe</span><strong>Classe B</strong></div><div class="row"><span>Coran</span><strong>Classe C</strong></div></div>
+<div class="tabcontent" id="t-pay"><div class="row"><span>Montant dû</span><strong>450 €</strong></div><div class="row"><span>Encaissé</span><strong>300 €</strong></div><div class="row"><span>Reste</span><strong>150 €</strong></div><p>Échéance 1 — 150 € ✓ Chèque</p><p>Échéance 2 — 150 € ✓ Chèque</p><p>Échéance 3 — 150 € ⏳ Prélèvement prévu</p></div>
+<div class="tabcontent" id="t-pres"><p>2026/2027 — 2 absences, 1 justifiée.</p><p class="muted">La liste détaillée sera accessible depuis la classe.</p></div>
+<div class="tabcontent" id="t-docs"><p>✓ Pièce d'identité</p><p>✓ Photo</p><p>✓ Assurance</p><p>⚠ Fiche sanitaire à renouveler</p><p>✓ Dossier signé</p></div>
+<div class="tabcontent" id="t-hist"><p>2024/2025 — Arabe</p><p>2025/2026 — Arabe + Coran</p><p>2026/2027 — Arabe + Coran</p></div>
+</div></section>
+
+<section class="screen" id="registrations">
+<h2>Inscriptions</h2>
+<div class="toolbar"><button class="btn primary" onclick="openRegistration()">+ Nouvelle inscription</button><button class="btn" onclick="openReRegistration()">↻ Réinscrire un ancien étudiant</button></div>
+<div class="card"><h3>Parcours d'une nouvelle inscription</h3><div class="steps"><span class="step active">1. Formulaire</span><span class="step">2. Dossier</span><span class="step">3. Documents + paiement</span><span class="step">4. Validation</span><span class="step">5. Cours / classes</span></div><p class="muted">La maquette considère documents et moyen de paiement comme une étape commune de finalisation.</p></div>
+<div class="tablewrap" style="margin-top:16px"><table class="table"><thead><tr><th>Étudiant</th><th>Type</th><th>Documents</th><th>Paiement</th><th>État</th></tr></thead><tbody><tr><td>Ahmed Dupont</td><td>Réinscription</td><td>✓</td><td>✓</td><td><span class="badge ok">À valider</span></td></tr><tr><td>Sarah Martin</td><td>Nouvelle</td><td>⚠</td><td>⏳</td><td><span class="badge warn">Incomplet</span></td></tr></tbody></table></div>
+</section>
+
+<section class="screen" id="classes">
+<h2>Classes</h2><div class="toolbar"><select class="select"><option>2026/2027</option></select><select class="select"><option>Toutes les sections</option><option>Arabe</option><option>Coran</option></select></div>
+<div class="grid three">
+<div class="card classcard" onclick="openClass('Arabe débutant','Samedi 09h00 — Salle 1','17 / 19')"><h3>Arabe débutant</h3><p>Samedi 09h00 — Salle 1</p><strong>17 / 19</strong></div>
+<div class="card classcard" onclick="openClass('Arabe moyen','Samedi 14h00 — Salle 2','16 / 19')"><h3>Arabe moyen</h3><p>Samedi 14h00 — Salle 2</p><strong>16 / 19</strong></div>
+<div class="card classcard" onclick="openClass('Coran','Samedi 14h00 — Salle 3','19 / 19')"><h3>Coran</h3><p>Samedi 14h00 — Salle 3</p><strong>19 / 19</strong> <span class="badge danger">Complet</span></div>
+</div>
+<div class="card" style="margin-top:16px"><h3>Présence</h3><p class="muted">Depuis une classe : sélectionner une séance puis utiliser la liste préremplie.</p></div>
+</section>
+
+<section class="screen" id="payments">
+<h2>Paiements — 2026/2027</h2>
+<div class="toolbar"><input class="input" placeholder="🔍 Étudiant / téléphone"><select class="select"><option>Tous les statuts</option><option>Impayés</option><option>Partiellement payés</option><option>Payés</option></select><select class="select"><option>Tous les moyens</option><option>Chèque</option><option>Prélèvement</option></select><button class="btn" onclick="toast('Filtre Impayés activé dans le prototype')">Voir les impayés</button></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Étudiant</th><th>Cours</th><th>Dû</th><th>Éch.1</th><th>Éch.2</th><th>Éch.3</th><th>Encaissé</th><th>Reste</th><th>Statut</th></tr></thead><tbody><tr><td>Ahmed</td><td>Arabe + Coran</td><td>450 €</td><td>150 ✓</td><td>150 ✓</td><td>150 ⏳</td><td>300 €</td><td>150 €</td><td><span class="badge warn">Partiel</span></td></tr><tr><td>Sarah</td><td>Arabe</td><td>300 €</td><td>300 ✓</td><td>—</td><td>—</td><td>300 €</td><td>0 €</td><td><span class="badge ok">Payé</span></td></tr></tbody></table></div>
+<div class="card" style="margin-top:16px"><h3>Enregistrer un paiement</h3><div class="formgrid"><div class="field"><label>Étudiant</label><input value="Ahmed Dupont"></div><div class="field"><label>Échéance</label><select><option>Échéance 3 — 150 €</option></select></div><div class="field"><label>Montant encaissé</label><input value="150"></div><div class="field"><label>Moyen</label><select><option>Chèque</option><option>Prélèvement</option></select></div></div><div class="toolbar"><button class="btn primary" onclick="toast('Paiement enregistré — prototype')">Enregistrer</button><button class="btn" onclick="toast('Détail chèque : n° / banque / titulaire / dépôt / encaissement')">Détail chèque</button></div></div>
+</section>
+
+<section class="screen" id="treasury">
+<h2>Trésorerie — 2026</h2><div class="toolbar"><button class="btn primary" onclick="openMovement('Recette')">+ Recette</button><button class="btn" onclick="openMovement('Dépense')">+ Dépense</button></div>
+<div class="card"><span class="muted">Solde actuel</span><div class="metric">— €</div></div>
+<div class="tablewrap" style="margin-top:16px"><table class="table"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Recette</th><th>Dépense</th><th>Justificatif</th></tr></thead><tbody><tr><td>05/09</td><td>Cotisation</td><td>Cours</td><td>300 €</td><td></td><td>📎</td></tr><tr><td>08/09</td><td>Fournitures</td><td>Frais généraux</td><td></td><td>45 €</td><td>📎</td></tr></tbody></table></div>
+</section>
+
+<section class="screen" id="documents">
+<h2>Documents</h2><div class="toolbar"><input class="input" placeholder="🔍 Rechercher étudiant / document"><select class="select"><option>Tous les types</option><option>Identité</option><option>Assurance</option><option>Justificatif financier</option></select></div>
+<div class="grid three"><div class="card"><h3>📄 Pièces d'identité</h3><p class="muted">Documents liés aux dossiers étudiants.</p></div><div class="card"><h3>📷 Photos</h3></div><div class="card"><h3>🛡 Assurances</h3></div><div class="card"><h3>📋 Fiches sanitaires</h3></div><div class="card"><h3>🧾 Justificatifs financiers</h3><p class="muted">Factures et justificatifs de trésorerie.</p></div><div class="card"><h3>✍ Dossiers signés</h3></div></div>
+</section>
+
+<section class="screen" id="admin">
+<h2>Administration</h2><div class="grid two"><div class="card"><h3>Utilisateurs & droits</h3><p>Président / Bureau — accès large</p><p>Administration — dossiers / inscriptions / classes</p><p>Accueil — accès limité</p><p>Trésorier — finances</p></div><div class="card"><h3>Référentiels</h3><p>Années scolaires</p><p>Sections / niveaux</p><p>Classes / salles</p><p>Enseignants</p></div></div><div class="card" style="margin-top:16px"><h3>Sécurité</h3><p>Journal des modifications · Sauvegardes · Gestion des accès</p></div></section>
+
+<div class="footer">Prototype fonctionnel — données fictives — aucune donnée réelle à saisir.</div>
+</div></main></div>
+
+<div class="modal" id="modal"><div class="modalbox"><h2 id="modalTitle"></h2><div id="modalContent"></div><div class="toolbar" style="justify-content:flex-end"><button class="btn" onclick="closeModal()">Fermer</button><button class="btn primary" onclick="saveModal()">Enregistrer</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const titles={dashboard:"Tableau de bord",students:"Étudiants","student-detail":"Fiche étudiant",registrations:"Inscriptions",classes:"Classes",payments:"Paiements",treasury:"Trésorerie",documents:"Documents",admin:"Administration"};
+document.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('[data-go]').forEach(b=>b.classList.toggle('active',b.dataset.go===id));document.getElementById('pageTitle').textContent=titles[id]||'';window.scrollTo(0,0)}
+function showStudent(){go('student-detail')}
+function showGenericStudent(n){document.getElementById('studentName').textContent=n;go('student-detail')}
+function tab(btn,id){btn.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');document.querySelectorAll('#student-detail .tabcontent').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function modal(title,body){document.getElementById('modalTitle').textContent=title;document.getElementById('modalContent').innerHTML=body;document.getElementById('modal').classList.add('show')}
+function closeModal(){document.getElementById('modal').classList.remove('show')}
+function saveModal(){closeModal();toast('Enregistré dans le prototype')}
+function openStudentModal(){modal('Ajouter un étudiant',`<div class="formgrid"><div class="field"><label>Nom</label><input></div><div class="field"><label>Prénom</label><input></div><div class="field"><label>Téléphone</label><input></div><div class="field"><label>Email</label><input></div><div class="field full"><label>Adresse</label><input></div></div>`)}
+function openRegistration(){modal('Nouvelle inscription',`<div class="steps"><span class="step active">1 Formulaire</span><span class="step">2 Dossier</span><span class="step">3 Documents + paiement</span><span class="step">4 Validation</span></div><div class="formgrid"><div class="field"><label>Nom</label><input></div><div class="field"><label>Prénom</label><input></div><div class="field full"><label>Cours souhaités</label><input placeholder="Ex. Arabe, Coran"></div><div class="field"><label>Documents</label><select><option>À compléter</option><option>Complet</option></select></div><div class="field"><label>Moyen de paiement</label><select><option>Chèque</option><option>Prélèvement</option></select></div></div>`)}
+function openReRegistration(){modal('Réinscription',`<div class="field"><label>Rechercher un ancien étudiant</label><input placeholder="Nom / prénom / téléphone"></div><p class="muted">La fiche existante et l'historique seront retrouvés avant la mise à jour des informations.</p><div class="field"><label>Cours souhaités</label><input placeholder="Arabe + Coran"></div><p><strong>Documents + paiement</strong> seront demandés pour la nouvelle inscription.</p>`)}
+function openClass(name,time,count){modal(name,`<p>${time}</p><p><strong>${count}</strong> étudiants</p><hr><h3>Séance</h3><div class="field"><label>Date</label><input type="date"></div><div class="toolbar"><button class="btn primary" onclick="closeModal();toast('Liste de présence ouverte')">Ouvrir la présence</button></div>`)}
+function openMovement(type){modal('Nouvelle '+type,`<div class="formgrid"><div class="field"><label>Date</label><input type="date"></div><div class="field"><label>Montant</label><input type="number"></div><div class="field full"><label>Libellé</label><input></div><div class="field"><label>Catégorie</label><select><option>Frais généraux</option><option>Cours</option><option>Salaires</option></select></div><div class="field"><label>Justificatif</label><input type="file"></div></div>`)}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2500)}
+document.getElementById('search').addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('#studentsBody tr').forEach(r=>r.style.display=r.dataset.search.includes(q)?'':'none')})
+</script>
+</body>
+</html>

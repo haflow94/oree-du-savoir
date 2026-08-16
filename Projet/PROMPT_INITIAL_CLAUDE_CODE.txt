@@ -1,0 +1,23 @@
+Analyse entièrement ce dossier avant de coder.
+
+Utilise ton skill de planification. Ne commence pas le développement.
+
+1. Analyse les 4 documents de référence, la maquette et les Excel.
+2. Repère les contradictions ou informations manquantes.
+3. Propose une architecture technique simple et maintenable.
+4. Propose modèle de données, permissions, stockage fichiers, sauvegardes, préinscription, génération du dossier, présence/QR, paiements, trésorerie et n8n.
+5. Découpe le développement en phases et tests.
+6. Signale toute décision métier que tu serais tenté de prendre.
+
+Contraintes :
+- zéro usine à gaz ;
+- ne pas reproduire les Excel comme modèle de données ;
+- ne pas transformer la trésorerie en logiciel comptable ;
+- un étudiant peut suivre plusieurs cours ;
+- MVP fonctionnel sans dépendre de n8n ;
+- hébergement local privilégié ;
+- fichiers séparés de la BDD ;
+- UI/UX moderne, logique, jolie et responsive ;
+- ne pas modifier silencieusement les règles métier.
+
+Retour attendu d'abord : plan technique complet + décisions à valider, sans code.

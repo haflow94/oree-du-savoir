@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maquette — Gestion Association</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f5f6f8;color:#1f2937}
+.app{display:flex;min-height:100vh}.side{width:220px;background:#172033;color:#fff;padding:18px 12px}.brand{font-weight:700;font-size:18px;padding:8px 10px 22px}.nav button{width:100%;border:0;background:transparent;color:#dbe3ef;text-align:left;padding:11px 12px;border-radius:8px;margin:2px 0;cursor:pointer;font-size:14px}.nav button:hover,.nav button.active{background:#2d3b55;color:#fff}
+.main{flex:1}.top{height:64px;background:#fff;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between;padding:0 24px}.top strong{font-size:18px}.year{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;background:#fff}
+.content{padding:24px;max-width:1400px;margin:auto}.screen{display:none}.screen.active{display:block}.grid{display:grid;gap:16px}.cards{grid-template-columns:repeat(4,minmax(0,1fr))}.card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px}.card .num{font-size:27px;font-weight:700;margin-top:8px}.muted{color:#6b7280;font-size:13px}.alert{padding:12px;border-bottom:1px solid #eee}.two{grid-template-columns:2fr 1fr}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.input,.select,.btn{padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;background:#fff}.btn{cursor:pointer}.primary{background:#263a59;color:#fff;border-color:#263a59}.tablewrap{overflow:auto;background:#fff;border:1px solid #e5e7eb;border-radius:10px}.table{width:100%;border-collapse:collapse;min-width:760px}.table th,.table td{padding:11px;border-bottom:1px solid #eee;text-align:left;font-size:13px}.table th{background:#f8fafc;font-weight:600}.badge{display:inline-block;padding:4px 7px;border-radius:999px;background:#eef2f7;font-size:12px}.ok{background:#e8f5ec}.warn{background:#fff5d8}.danger{background:#fdecec}.tabs{display:flex;gap:4px;border-bottom:1px solid #ddd;margin:12px 0}.tabs button{border:0;background:transparent;padding:10px 12px;cursor:pointer}.tabs button.active{border-bottom:2px solid #263a59;font-weight:600}.detail{display:none}.detail.active{display:block}.back{margin-bottom:10px}.classgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.classcard{cursor:pointer}.classcard:hover{border-color:#9ca3af}.modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;padding:20px}.modal.show{display:flex}.modalbox{background:#fff;border-radius:12px;max-width:520px;width:100%;padding:22px}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}.footer{margin-top:24px;color:#6b7280;font-size:12px}
+@media(max-width:900px){.side{width:72px}.brand{font-size:0}.nav button{font-size:0;text-align:center}.nav button:first-letter{font-size:18px}.cards,.classgrid{grid-template-columns:repeat(2,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:600px){.side{display:none}.content{padding:14px}.cards,.classgrid{grid-template-columns:1fr}.top{padding:0 14px}.top strong{font-size:16px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<div class="brand">ASSOCIATION</div>
+<div class="nav">
+<button class="active" data-screen="dashboard">🏠 Accueil</button>
+<button data-screen="students">👥 Étudiants</button>
+<button data-screen="registrations">📝 Inscriptions</button>
+<button data-screen="classes">🏫 Classes</button>
+<button data-screen="payments">💳 Paiements</button>
+<button data-screen="treasury">💰 Trésorerie</button>
+<button data-screen="documents">📄 Documents</button>
+<button data-screen="admin">⚙ Administration</button>
+</div>
+</aside>
+<main class="main">
+<header class="top"><strong id="title">Tableau de bord</strong><select class="year"><option>2026 / 2027</option><option>2025 / 2026</option></select></header>
+<div class="content">
+
+<section id="dashboard" class="screen active">
+<div class="grid cards">
+<div class="card">👥 Étudiants<div class="num">198</div></div>
+<div class="card">🏫 Classes<div class="num">10</div></div>
+<div class="card">💳 Paiements<div class="num">152</div></div>
+<div class="card">💰 Solde<div class="num">— €</div><div class="muted">à renseigner</div></div>
+</div>
+<div class="grid two" style="margin-top:16px">
+<div class="card"><h3>⚠ À traiter</h3>
+<div class="alert">12 dossiers incomplets</div><div class="alert">8 paiements en attente</div><div class="alert">4 documents manquants</div><div class="alert">3 absences à vérifier</div></div>
+<div class="card"><h3>📅 Prochains événements</h3><p class="muted">À définir avec l'association.</p></div>
+</div>
+</section>
+
+<section id="students" class="screen">
+<h2>Étudiants</h2><div class="toolbar"><input class="input" placeholder="🔍 Nom, téléphone, email..." id="studentSearch"><button class="btn primary">+ Ajouter</button></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Nom</th><th>Prénom</th><th>Cours</th><th>Classe</th><th>Statut</th></tr></thead><tbody id="studentRows">
+<tr data-name="Ahmed Dupont"><td>Dupont</td><td>Ahmed</td><td>Arabe + Coran</td><td>A2 / C1</td><td><span class="badge ok">Actif</span></td></tr>
+<tr data-name="Sarah Martin"><td>Martin</td><td>Sarah</td><td>Arabe</td><td>A1</td><td><span class="badge ok">Actif</span></td></tr>
+<tr data-name="Youssef Benali"><td>Benali</td><td>Youssef</td><td>Coran</td><td>C2</td><td><span class="badge ok">Actif</span></td></tr>
+</tbody></table></div>
+<div class="card" style="margin-top:16px"><h3>Exemple : fiche Ahmed Dupont</h3><button class="btn primary" onclick="showStudent()">Ouvrir la fiche</button></div>
+</section>
+
+<section id="student-detail" class="screen">
+<button class="btn back" onclick="go('students')">← Retour</button><div class="card">
+<h2>Ahmed Dupont</h2><p class="muted">06 XX XX XX XX · email@email.fr · Adresse / Ville</p>
+<div class="tabs"><button class="active" onclick="tab(this,'info')">Informations</button><button onclick="tab(this,'insc')">Inscriptions</button><button onclick="tab(this,'pay')">Paiements</button><button onclick="tab(this,'pres')">Présence</button><button onclick="tab(this,'docs')">Documents</button><button onclick="tab(this,'hist')">Historique</button></div>
+<div id="info" class="detail active"><div class="row"><span>Date de naissance</span><strong>—</strong></div><div class="row"><span>Profession</span><strong>—</strong></div><div class="row"><span>Contact d'urgence</span><strong>—</strong></div></div>
+<div id="insc" class="detail"><h3>2026/2027</h3><p>Arabe → Classe A2</p><p>Coran → Classe C1</p><h3>2025/2026</h3><p>Arabe → Classe B</p></div>
+<div id="pay" class="detail"><div class="row"><span>Montant dû</span><strong>450 €</strong></div><div class="row"><span>Encaissé</span><strong>300 €</strong></div><div class="row"><span>Reste</span><strong>150 €</strong></div><p>Échéance 1 : 150 € ✓</p><p>Échéance 2 : 150 € ✓</p><p>Échéance 3 : 150 € ⏳</p></div>
+<div id="pres" class="detail"><p>Historique des séances à venir.</p></div>
+<div id="docs" class="detail"><p>✓ Pièce d'identité</p><p>✓ Photo</p><p>✓ Assurance</p><p>⚠ Fiche sanitaire à renouveler</p></div>
+<div id="hist" class="detail"><p>2024/2025 — Arabe</p><p>2025/2026 — Arabe + Coran</p><p>2026/2027 — Arabe + Coran</p></div>
+</div></section>
+
+<section id="registrations" class="screen">
+<h2>Inscriptions</h2><div class="toolbar"><button class="btn primary" onclick="openModal()">+ Nouvelle inscription</button><input class="input" placeholder="🔍 Rechercher un ancien étudiant"></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Étudiant</th><th>Documents</th><th>Paiement</th><th>État</th></tr></thead><tbody>
+<tr><td>Ahmed Dupont</td><td>✓</td><td>✓</td><td><span class="badge ok">À valider</span></td></tr>
+<tr><td>Sarah Martin</td><td>⚠</td><td>⏳</td><td><span class="badge warn">Incomplet</span></td></tr></tbody></table></div>
+</section>
+
+<section id="classes" class="screen"><h2>Classes</h2><div class="grid classgrid">
+<div class="card classcard"><h3>Arabe débutant</h3><p>Samedi 09h00 — Salle 1</p><strong>17 / 19</strong></div>
+<div class="card classcard"><h3>Arabe moyen</h3><p>Samedi 14h00 — Salle 2</p><strong>16 / 19</strong></div>
+<div class="card classcard"><h3>Coran</h3><p>Samedi 14h00 — Salle 3</p><strong>19 / 19</strong><span class="badge danger" style="margin-left:8px">Complet</span></div>
+</div><div class="card" style="margin-top:16px"><h3>Présence</h3><p class="muted">Depuis une classe : séance → liste préremplie → présent / absent / justifié.</p></div></section>
+
+<section id="payments" class="screen"><h2>Paiements — 2026/2027</h2><div class="toolbar"><input class="input" placeholder="🔍 Rechercher"><select class="select"><option>Tous les statuts</option><option>Impayés</option><option>Partiellement payés</option><option>Payés</option></select><select class="select"><option>Tous les moyens</option><option>Chèque</option><option>Prélèvement</option></select></div>
+<div class="tablewrap"><table class="table"><thead><tr><th>Étudiant</th><th>Cours</th><th>Dû</th><th>Éch.1</th><th>Éch.2</th><th>Éch.3</th><th>Encaissé</th><th>Reste</th><th>Statut</th></tr></thead><tbody>
+<tr><td>Ahmed</td><td>Arabe + Coran</td><td>450 €</td><td>150 ✓</td><td>150 ✓</td><td>150 ⏳</td><td>300 €</td><td>150 €</td><td><span class="badge warn">Partiel</span></td></tr>
+<tr><td>Sarah</td><td>Arabe</td><td>300 €</td><td>300 ✓</td><td>—</td><td>—</td><td>300 €</td><td>0 €</td><td><span class="badge ok">Payé</span></td></tr>
+</tbody></table></div><div class="card" style="margin-top:16px"><h3>Enregistrer un paiement</h3><div class="row"><span>Échéance</span><strong>3 — 150 €</strong></div><div class="row"><span>Encaissé</span><input class="input" value="150"></div><div class="row"><span>Moyen</span><span><label><input type="radio" name="m" checked> Chèque</label> <label><input type="radio" name="m"> Prélèvement</label></span></div><button class="btn primary" onclick="alert('Prototype : paiement enregistré')">Enregistrer</button></div></section>
+
+<section id="treasury" class="screen"><h2>Trésorerie — 2026</h2><div class="toolbar"><button class="btn primary" onclick="openModal('recette')">+ Recette</button><button class="btn" onclick="openModal('depense')">+ Dépense</button></div><div class="card"><h3>Solde : — €</h3></div><div class="tablewrap" style="margin-top:16px"><table class="table"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Recette</th><th>Dépense</th><th>Justificatif</th></tr></thead><tbody><tr><td>05/09</td><td>Cotisation</td><td>Cours</td><td>300 €</td><td></td><td>📎</td></tr><tr><td>08/09</td><td>Fournitures</td><td>Général</td><td></td><td>45 €</td><td>📎</td></tr></tbody></table></div></section>
+
+<section id="documents" class="screen"><h2>Documents</h2><div class="toolbar"><input class="input" placeholder="🔍 Rechercher un document / étudiant"></div><div class="grid classgrid"><div class="card">📄<h3>Pièces d'identité</h3><p class="muted">Documents étudiants</p></div><div class="card">📷<h3>Photos</h3></div><div class="card">🛡<h3>Assurances</h3></div><div class="card">📋<h3>Fiches sanitaires</h3></div><div class="card">🧾<h3>Justificatifs financiers</h3></div></div></section>
+
+<section id="admin" class="screen"><h2>Administration</h2><div class="grid two"><div class="card"><h3>Utilisateurs & droits</h3><p>Président / Bureau</p><p>Administration</p><p>Accueil</p><p>Trésorier</p></div><div class="card"><h3>Système</h3><p>Années scolaires</p><p>Sections / niveaux</p><p>Classes / salles</p><p>Journal des modifications</p><p>Sauvegardes</p></div></div></section>
+
+<div class="footer">Maquette interactive fonctionnelle — données fictives. Ce prototype ne constitue pas encore l'application finale.</div>
+</div></main></div>
+
+<div class="modal" id="modal"><div class="modalbox"><h2 id="modalTitle">Nouvelle inscription</h2><p>Prototype : ce parcours sera détaillé et validé avec l'association.</p><div class="row"><span>Étudiant</span><input class="input" placeholder="Nom / prénom"></div><div class="row"><span>Cours</span><input class="input" placeholder="Arabe, Coran..."></div><div class="row"><span>Documents</span><strong>À renseigner</strong></div><div class="row"><span>Paiement</span><strong>Chèque / Prélèvement</strong></div><div style="margin-top:16px;text-align:right"><button class="btn" onclick="closeModal()">Fermer</button></div></div></div>
+
+<script>
+const titles={dashboard:"Tableau de bord",students:"Étudiants","student-detail":"Fiche étudiant",registrations:"Inscriptions",classes:"Classes",payments:"Paiements",treasury:"Trésorerie",documents:"Documents",admin:"Administration"};
+function go(id){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('active',x.dataset.screen===id));document.getElementById('title').textContent=titles[id]||""}
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>go(b.dataset.screen));
+function showStudent(){go('student-detail')}
+function tab(btn,id){btn.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('active'));btn.classList.add('active');btn.parentElement.parentElement.querySelectorAll('.detail').forEach(x=>x.classList.remove('active'));document.getElementById(id).classList.add('active')}
+function openModal(type){document.getElementById('modalTitle').textContent=type==="recette"?"Nouvelle recette":type==="depense"?"Nouvelle dépense":"Nouvelle inscription";document.getElementById('modal').classList.add('show')}
+function closeModal(){document.getElementById('modal').classList.remove('show')}
+document.getElementById('studentSearch').addEventListener('input',e=>{const q=e.target.value.toLowerCase();document.querySelectorAll('#studentRows tr').forEach(r=>r.style.display=r.dataset.name.toLowerCase().includes(q)?"":"none")});
+</script>
+</body></html>
