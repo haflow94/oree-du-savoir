@@ -3,6 +3,9 @@
 // Ne fait jamais que compléter : il ne réinitialise jamais un mot de passe
 // existant ni ne duplique de données.
 
+// Charge .env pour l'exécution locale (`npm run db:seed`) ; en conteneur les
+// variables sont déjà dans l'environnement et dotenv ne les écrase pas.
+import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/password";
