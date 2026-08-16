@@ -17,6 +17,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/etudiants", label: "Étudiants", icon: "👥" },
   { href: "/inscriptions", label: "Inscriptions", icon: "📝" },
   { href: "/classes", label: "Classes", icon: "🏫" },
+  { href: "/presences", label: "Présences", icon: "✅" },
   { href: "/paiements", label: "Paiements", icon: "💳" },
   { href: "/tresorerie", label: "Trésorerie", icon: "💰" },
   { href: "/documents", label: "Documents", icon: "📄" },

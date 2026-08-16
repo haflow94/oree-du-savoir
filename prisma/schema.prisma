@@ -2,6 +2,8 @@
 // Phase 1 : fiche étudiant + responsables légaux, cours + classes.
 // Phase 4/5 : dossier annuel minimal (montant dû saisi manuellement, pas de
 // tarification par cours), paiements/échéances/chèques, trésorerie.
+// Phase 3 : participation étudiant↔classe, périodes de fermeture, séances
+// générées depuis le planning, présences.
 // L'inscription complète (préinscription publique, génération du dossier
 // officiel, documents) reste Phase 2 — en attente du gabarit du dossier.
 
@@ -36,6 +38,7 @@ model Utilisateur {
   sessions          Session[]
   journalAudit      JournalAudit[]
   classesEnseignees ClasseEnseignant[]
+  seancesValidees   Seance[]
 
   @@map("utilisateurs")
 }
@@ -61,10 +64,27 @@ model AnneeScolaire {
   dateFin   DateTime
   active    Boolean  @default(false)
 
-  classes         Classe[]
-  dossiersAnnuels DossierAnnuel[]
+  classes           Classe[]
+  dossiersAnnuels   DossierAnnuel[]
+  periodesFermeture PeriodeFermeture[]
 
   @@map("annees_scolaires")
+}
+
+// Vacances et fermetures saisies en début d'année : aucune séance n'est
+// générée sur ces dates. Complémentaire à l'annulation ponctuelle d'une
+// séance (Seance.statut = ANNULEE) pour les imprévus.
+model PeriodeFermeture {
+  id              String        @id @default(cuid())
+  anneeScolaireId String
+  anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+  libelle         String // ex. "Vacances de février"
+  dateDebut       DateTime
+  dateFin         DateTime
+  creeLe          DateTime      @default(now())
+
+  @@index([anneeScolaireId])
+  @@map("periodes_fermeture")
 }
 
 enum Civilite {
@@ -100,6 +120,8 @@ model Etudiant {
 
   responsables    ResponsableLegal[]
   dossiersAnnuels DossierAnnuel[]
+  inscriptions    InscriptionClasse[]
+  presences       Presence[]
 
   @@index([nom, prenom])
   @@map("etudiants")
@@ -169,13 +191,36 @@ model Classe {
   heureFin        String // "HH:MM"
   salle           String?
   capacite        Int?
+  // Jeton du QR affiché en salle : raccourci d'accès vers la séance du jour,
+  // jamais une authentification (règle non négociable). L'enseignant doit
+  // être connecté ; le QR ne fait que lui éviter de chercher sa séance.
+  qrToken         String   @unique @default(cuid())
   creeLe          DateTime @default(now())
 
-  enseignants ClasseEnseignant[]
+  enseignants  ClasseEnseignant[]
+  inscriptions InscriptionClasse[]
+  seances      Seance[]
 
   @@index([anneeScolaireId])
   @@index([coursId])
   @@map("classes")
+}
+
+// « Participation à un cours » du modèle métier, en version minimale : le
+// rattachement d'un étudiant à une classe, nécessaire pour constituer la
+// liste d'appel. L'inscription complète (dossier, documents, validation)
+// reste Phase 2, en attente du gabarit du dossier officiel.
+model InscriptionClasse {
+  id         String   @id @default(cuid())
+  etudiantId String
+  etudiant   Etudiant @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  classeId   String
+  classe     Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  creeLe     DateTime @default(now())
+
+  @@unique([etudiantId, classeId])
+  @@index([classeId])
+  @@map("inscriptions_classe")
 }
 
 model ClasseEnseignant {
@@ -186,6 +231,62 @@ model ClasseEnseignant {
 
   @@id([classeId, utilisateurId])
   @@map("classe_enseignants")
+}
+
+enum StatutSeance {
+  PREVUE
+  VALIDEE
+  ANNULEE
+}
+
+// Séances générées depuis le planning de la classe (règle 7), en sautant les
+// périodes de fermeture. Une séance peut aussi être annulée ponctuellement.
+model Seance {
+  id                String       @id @default(cuid())
+  classeId          String
+  classe            Classe       @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  date              DateTime     @db.Date
+  statut            StatutSeance @default(PREVUE)
+  motifAnnulation   String?
+  valideeLe         DateTime?
+  valideeParId      String?
+  valideePar        Utilisateur? @relation(fields: [valideeParId], references: [id], onDelete: SetNull)
+  // Trace la saisie a posteriori depuis la feuille papier de secours, pour
+  // distinguer une validation faite en séance d'une reprise administrative.
+  saisieViaPapier   Boolean      @default(false)
+  creeLe            DateTime     @default(now())
+
+  presences Presence[]
+
+  @@unique([classeId, date])
+  @@index([date])
+  @@map("seances")
+}
+
+// Statuts repris de l'existant (Modele présence.xlsx) : P, R, RE, A, AE.
+enum StatutPresence {
+  PRESENT
+  RETARD
+  RETARD_EXCUSE
+  ABSENT
+  ABSENT_EXCUSE
+}
+
+// Une présence par étudiant et par séance. Ne jamais deviner les absents
+// (règle non négociable) : les présences ne sont écrites qu'au moment où
+// l'enseignant valide explicitement la feuille.
+model Presence {
+  id         String         @id @default(cuid())
+  seanceId   String
+  seance     Seance         @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  etudiantId String
+  etudiant   Etudiant       @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  statut     StatutPresence
+  misAJourLe DateTime       @updatedAt
+
+  @@unique([seanceId, etudiantId])
+  @@index([etudiantId])
+  @@map("presences")
 }
 
 enum MoyenPaiement {

@@ -47,6 +47,11 @@ services:
       DOCUMENTS_DIR: /data/documents
       NODE_ENV: production
       PORT: "3000"
+      # Le conteneur tourne en UTC par défaut : sans ce réglage, « aujourd'hui »
+      # côté serveur bascule à minuit UTC, soit 2h du matin à Paris en été.
+      # Les séances du jour et le délai de correction des présences seraient
+      # alors calculés sur le mauvais jour.
+      TZ: ${TZ:-Europe/Paris}
     ports:
       - "3000:3000"
     volumes:

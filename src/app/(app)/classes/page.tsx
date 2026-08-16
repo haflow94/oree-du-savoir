@@ -86,7 +86,9 @@ export default async function ClassesPage() {
             {classes.map((c) => (
               <tr key={c.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium text-slate-800">
-                  {c.cours.nom}
+                  <Link href={`/classes/${c.id}`} className="hover:underline">
+                    {c.cours.nom}
+                  </Link>
                 </td>
                 <td className="px-4 py-3 text-slate-600">
                   {c.niveau ?? "—"}
