@@ -1,11 +1,19 @@
 // Phase 0 : fondations (auth, rôles, années scolaires).
 // Phase 1 : fiche étudiant + responsables légaux, cours + classes.
-// Phase 4/5 : dossier annuel minimal (montant dû saisi manuellement, pas de
-// tarification par cours), paiements/échéances/chèques, trésorerie.
+// Sections (Jeunes, Études Islamiques, Langue Arabe, Études Coraniques) :
+// référentiel de tarification et barème de remboursement par section,
+// repris des dossiers d'inscription papier. Le cours est rattaché à une
+// section ; le montant dû du dossier annuel reste saisi manuellement pour
+// le MVP (un dossier peut combiner plusieurs sections/cours).
+// Phase 4/5 : dossier annuel minimal (montant dû saisi manuellement),
+// paiements/échéances/chèques, trésorerie.
 // Phase 3 : participation étudiant↔classe, périodes de fermeture, séances
 // générées depuis le planning, présences.
-// L'inscription complète (préinscription publique, génération du dossier
-// officiel, documents) reste Phase 2 — en attente du gabarit du dossier.
+// Phase 2 : préinscription publique (Etudiant.statutInscription : PREINSCRIT
+// jusqu'au contrôle sur place, puis VALIDE), documents (métadonnées en base,
+// fichiers sous DOCUMENTS_DIR), génération du dossier officiel en PDF.
+// Réinscription multi-années : réutilise DossierAnnuel (une ligne par
+// étudiant × année, déjà unique) sans modèle dédié.
 
 generator client {
   provider = "prisma-client"
@@ -39,6 +47,7 @@ model Utilisateur {
   journalAudit      JournalAudit[]
   classesEnseignees ClasseEnseignant[]
   seancesValidees   Seance[]
+  documentsAjoutes  Document[]
 
   @@map("utilisateurs")
 }
@@ -92,6 +101,14 @@ enum Civilite {
   MME
 }
 
+// PREINSCRIT : créé via le formulaire public de préinscription, en attente
+// du contrôle sur place (signature, documents, paiement). VALIDE : dossier
+// confirmé par le staff, ou créé directement en interne (valeur par défaut).
+enum StatutInscription {
+  PREINSCRIT
+  VALIDE
+}
+
 // Fiche unique par personne (voir 02_Modele_metier.md, règle 1). L'historique
 // des inscriptions/cours par année arrive avec les modèles Cours/Classe
 // (phase suivante) ; cette table ne porte que l'identité et les coordonnées.
@@ -100,7 +117,7 @@ enum Civilite {
 // signification doit être confirmée avec l'association avant intégration
 // (voir Projet/03_Analyse_existant_Excel.md, section 3.3). Ne pas deviner.
 model Etudiant {
-  id                String    @id @default(cuid())
+  id                String            @id @default(cuid())
   civilite          Civilite?
   nom               String
   prenom            String
@@ -115,13 +132,15 @@ model Etudiant {
   niveauEtudes      String?
   dernierDiplome    String?
   remarque          String?
-  creeLe            DateTime  @default(now())
-  misAJourLe        DateTime  @updatedAt
+  statutInscription StatutInscription @default(VALIDE)
+  creeLe            DateTime          @default(now())
+  misAJourLe        DateTime          @updatedAt
 
   responsables    ResponsableLegal[]
   dossiersAnnuels DossierAnnuel[]
   inscriptions    InscriptionClasse[]
   presences       Presence[]
+  documents       Document[]
 
   @@index([nom, prenom])
   @@map("etudiants")
@@ -147,17 +166,76 @@ model ResponsableLegal {
   @@map("responsables_legaux")
 }
 
+enum TypeDocument {
+  PIECE_IDENTITE
+  PHOTO
+  DOSSIER_GENERE
+  DOSSIER_SIGNE
+  JUSTIFICATIF_PAIEMENT
+  AUTRE
+}
+
+// Fichiers stockés séparément de la base (DOCUMENTS_DIR, jamais en base —
+// règle non négociable). Cette table ne porte que les métadonnées et le
+// chemin relatif ; le fichier réel vit sur le disque/NAS.
+model Document {
+  id            String        @id @default(cuid())
+  etudiantId    String
+  etudiant      Etudiant      @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  type          TypeDocument
+  nomFichier    String
+  cheminRelatif String // relatif à DOCUMENTS_DIR
+  mimeType      String
+  tailleOctets  Int
+  creeLe        DateTime      @default(now())
+  creeParId     String?
+  creePar       Utilisateur?  @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+
+  @@index([etudiantId])
+  @@map("documents")
+}
+
+// Les 4 sections de l'association (Jeunes, Études Islamiques, Langue Arabe,
+// Études Coraniques), reprises des dossiers d'inscription papier 2025-2026.
+// Tarification et volume horaire par section, pas par cours : c'est ainsi
+// que l'association facture (voir Projet/Dossiers-inscriptions).
+//
+// Barème de remboursement en cas d'annulation après le début des cours,
+// propre à chaque section (ex. Jeunes : 75%/50%, Adultes : 50%/25%) :
+// - avant le début des cours : 100% des frais de formation (implicite,
+//   les frais de dossier ne sont eux jamais remboursés) ;
+// - entre le 1er et le 15e jour après le début : remboursementAvant15Jours ;
+// - entre le 15e et le 29e jour après le début : remboursementAvant29Jours ;
+// - après le 29e jour : 0% (implicite).
+model Section {
+  id                        String   @id @default(cuid())
+  nom                       String   @unique
+  fraisFormation            Decimal  @db.Decimal(10, 2)
+  fraisDossier              Decimal  @db.Decimal(10, 2)
+  volumeHoraireAnnuel       Int? // heures indicatives par an, ex. 120
+  remboursementAvant15Jours Int // % des frais de formation remboursé
+  remboursementAvant29Jours Int // % des frais de formation remboursé
+  creeLe                    DateTime @default(now())
+
+  cours Cours[]
+
+  @@map("sections")
+}
+
 // Un cours peut être enseigné par plusieurs classes/groupes (ex. plusieurs
 // créneaux/niveaux du même cours). Ne pas confondre avec Classe : le cours
 // est la matière, la classe est le groupe concret relié au planning.
 model Cours {
   id          String  @id @default(cuid())
+  sectionId   String
+  section     Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   nom         String  @unique
   description String?
   creeLe      DateTime @default(now())
 
   classes Classe[]
 
+  @@index([sectionId])
   @@map("cours")
 }
 
@@ -298,9 +376,10 @@ enum MoyenPaiement {
 
 // Ancrage minimal pour les paiements (montant dû global saisi à la main),
 // en attendant l'inscription complète (préinscription, cours suivis,
-// génération du dossier officiel — Phase 2, en attente du gabarit). Pas de
-// tarification par cours pour le MVP : aucune donnée de prix n'existe dans
-// l'existant, cette règle serait inventée.
+// génération du dossier officiel — Phase 2, en attente du gabarit). La
+// tarification par section existe désormais (voir Section) mais le calcul
+// automatique du montant dû à partir des sections/cours suivis reste à
+// faire (Phase 2) ; en attendant, montantDu est saisi manuellement.
 model DossierAnnuel {
   id              String   @id @default(cuid())
   etudiantId      String

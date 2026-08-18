@@ -19,6 +19,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/password";
 import { datesDesSeances, normaliserDateUTC } from "../src/lib/presences";
 import type { JourSemaine, StatutPresence } from "../src/generated/prisma/enums";
+import { SECTIONS_REFERENCE } from "./sections-reference";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -124,6 +125,17 @@ async function main() {
   console.log("[demo] Nettoyage des données métier existantes…");
   await viderDonneesMetier();
 
+  // --- Sections -------------------------------------------------------------
+  // Référentiel stable (tarification officielle) : jamais vidé par le
+  // nettoyage ci-dessus, seulement complété s'il manque une section.
+  for (const section of SECTIONS_REFERENCE) {
+    await prisma.section.upsert({
+      where: { nom: section.nom },
+      create: section,
+      update: {},
+    });
+  }
+
   // --- Année scolaire -----------------------------------------------------
   // On couvre la date du jour pour que la démonstration ait des séances
   // passées (avec présences) et une séance à faire aujourd'hui.
@@ -163,28 +175,33 @@ async function main() {
 
   // --- Cours et classes ---------------------------------------------------
   const definitions = [
-    { cours: "Arabe", classes: [
+    { cours: "Arabe", section: "Langue Arabe", classes: [
       { niveau: "Débutant", jour: "SAMEDI", debut: "09:00", fin: "10:15", salle: "A1", capacite: 15 },
       { niveau: "Intermédiaire", jour: "SAMEDI", debut: "10:30", fin: "11:45", salle: "A1", capacite: 15 },
       { niveau: "Avancé", jour: "DIMANCHE", debut: "09:00", fin: "10:15", salle: "A2", capacite: 12 },
     ]},
-    { cours: "Coran", classes: [
+    { cours: "Coran", section: "Études Coraniques", classes: [
       { niveau: "Niveau 1", jour: "SAMEDI", debut: "12:00", fin: "13:15", salle: "B1", capacite: 20 },
       { niveau: "Niveau 2", jour: "DIMANCHE", debut: "10:30", fin: "11:45", salle: "B1", capacite: 20 },
     ]},
-    { cours: "Soutien scolaire", classes: [
+    { cours: "Soutien scolaire", section: "Jeunes", classes: [
       // Une classe en semaine : garantit une séance les jours ouvrés.
       { niveau: "Collège", jour: "LUNDI", debut: "17:30", fin: "19:00", salle: "C3", capacite: 10 },
       { niveau: "Primaire", jour: "MERCREDI", debut: "14:00", fin: "15:30", salle: "C3", capacite: 12 },
     ]},
   ] as const;
 
+  const sections = await prisma.section.findMany();
+  const sectionIdParNom = new Map(sections.map((s) => [s.nom, s.id]));
+
   const classesCreees: Array<{ id: string; jour: JourSemaine }> = [];
   // Répartition en tourniquet plutôt qu'au hasard : chaque enseignant a des
   // classes, sinon se connecter avec certains comptes ne montrerait rien.
   let indexEnseignant = 0;
   for (const def of definitions) {
-    const cours = await prisma.cours.create({ data: { nom: def.cours } });
+    const sectionId = sectionIdParNom.get(def.section);
+    if (!sectionId) throw new Error(`Section inconnue : ${def.section}`);
+    const cours = await prisma.cours.create({ data: { nom: def.cours, sectionId } });
     for (const c of def.classes) {
       const titulaire = enseignants[indexEnseignant % enseignants.length];
       indexEnseignant += 1;

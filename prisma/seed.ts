@@ -9,6 +9,7 @@ import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/password";
+import { SECTIONS_REFERENCE } from "./sections-reference";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -61,9 +62,23 @@ async function seedAnneeScolaire() {
   console.log(`[seed] Année scolaire ${libelle} créée et activée.`);
 }
 
+// Ne crée que les sections manquantes : une fois créée, une section peut être
+// ajustée manuellement (tarif révisé, etc.) sans être écrasée au redémarrage.
+async function seedSections() {
+  let creees = 0;
+  for (const section of SECTIONS_REFERENCE) {
+    const existante = await prisma.section.findUnique({ where: { nom: section.nom } });
+    if (existante) continue;
+    await prisma.section.create({ data: section });
+    creees += 1;
+  }
+  console.log(`[seed] ${creees} section(s) créée(s) (${SECTIONS_REFERENCE.length} au total).`);
+}
+
 async function main() {
   await seedAdmin();
   await seedAnneeScolaire();
+  await seedSections();
 }
 
 main()
