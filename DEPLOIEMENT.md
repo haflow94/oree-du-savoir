@@ -62,3 +62,29 @@ Produit deux fichiers horodatés : un dump PostgreSQL (format custom
 Écrase la base et les documents actuels après confirmation interactive, puis
 redémarre le service `app`. Testé de bout en bout (modification témoin →
 sauvegarde → restauration → état d'origine confirmé).
+
+### Automatiser la sauvegarde (important)
+
+`scripts/backup.sh` ne s'exécute jamais tout seul : sans planification, il
+n'y a de sauvegarde que le jour où quelqu'un pense à le lancer à la main. À
+faire une fois sur le serveur de production, en root ou l'utilisateur qui a
+lancé `docker compose up -d` :
+
+```bash
+crontab -e
+# ajouter, par exemple pour une sauvegarde chaque nuit à 3h :
+0 3 * * * cd /chemin/vers/Application && ./scripts/backup.sh /chemin/vers/backups >> /var/log/oree-backup.log 2>&1
+```
+
+Copiez aussi régulièrement le contenu de `/chemin/vers/backups` **ailleurs
+que sur ce même serveur** (disque externe, autre machine) : une sauvegarde
+qui reste sur la machine qu'elle est censée protéger ne survit pas à une
+panne de disque.
+
+### Sauvegarder le code source séparément
+
+Les scripts de sauvegarde ci-dessus protègent les *données* (base +
+documents), pas le *code* de l'application. Tant qu'aucun dépôt Git distant
+n'est configuré, le code n'existe que sur le poste où il a été développé —
+pensez à en garder une copie ailleurs (dépôt distant privé recommandé, ou à
+défaut une archive du dépôt Git copiée sur un support externe).

@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# L'Orée du Savoir — Application de gestion
 
-## Getting Started
+Application de gestion administrative pour l'association L'Orée du Savoir :
+étudiants, inscriptions, classes/présences, paiements, trésorerie, comptes.
+Remplace les fichiers Excel utilisés auparavant.
 
-First, run the development server:
+Écrite pour être reprise par n'importe quel développeur web généraliste,
+sans connaissance préalable du projet — aucune technologie exotique.
+
+## Pile technique
+
+- **Next.js** (App Router) + React + TypeScript
+- **PostgreSQL** via **Prisma**
+- Déploiement **Docker Compose** (voir `DEPLOIEMENT.md`)
+- Pas de dépendance à un service externe payant (pas de SaaS tiers requis
+  pour faire tourner l'application)
+
+## Démarrer en local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env   # éditer les valeurs (voir DEPLOIEMENT.md)
+npm install
+npm run db:migrate     # applique le schéma Prisma
+npm run db:seed        # crée le compte administrateur initial
+npm run dev             # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Autres commandes utiles :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build            # build de production
+npm run lint              # ESLint
+npm run test               # tests (vitest)
+npm run db:seed:demo     # jeu de données de démonstration (destructif, voir le script)
+npm run db:studio          # explorateur de base de données Prisma
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Où trouver quoi
 
-## Learn More
+| Besoin | Où regarder |
+| --- | --- |
+| Déployer, sauvegarder, restaurer | `DEPLOIEMENT.md` |
+| Cahier des charges / règles métier d'origine | `Projet/` (à lire dans l'ordre indiqué par `Projet/README_CLAUDE.md`) |
+| Schéma de base de données | `prisma/schema.prisma` (commenté phase par phase) |
+| Rôles et qui peut faire quoi | `src/lib/roles.ts` (rôles) + `requireRole(...)` en tête de chaque action serveur (`src/app/**/actions.ts`) — c'est la source de vérité, pas un tableau séparé |
+| Une page/écran donné | `src/app/(app)/<nom-de-la-page>/page.tsx` — l'arborescence des dossiers correspond à l'URL |
 
-To learn more about Next.js, take a look at the following resources:
+## Points importants pour un développeur qui découvre le projet
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **La tarification n'est pas codée en dur.** Les frais et le barème de
+  remboursement par section (Jeunes, Langue Arabe, Études Coraniques, Études
+  Islamiques) sont des données en base, modifiables depuis *Administration →
+  Sections*. Si un tarif semble faux, corrigez-le là, pas dans le code.
+- **Le dossier d'inscription officiel** est un PDF généré à la demande
+  (`src/lib/dossier-officiel.tsx`, librairie `@react-pdf/renderer`) à partir
+  des données de l'étudiant et de la section — pas de PDF pré-fabriqué, pas
+  d'automatisation n8n.
+- **Les fichiers uploadés** (pièce d'identité, documents…) ne sont jamais en
+  base : seules les métadonnées le sont (table `Document`), les fichiers
+  vivent sous `DOCUMENTS_DIR` (voir `src/lib/documents.ts`).
+- **5 rôles fixes** (Bureau, Administration, Accueil, Trésorier, Enseignant),
+  volontairement pas de système de permissions configurable — voir
+  `src/lib/roles.ts`. Administration a les mêmes droits que Bureau partout
+  sauf la gestion des comptes utilisateurs, qui reste réservée à Bureau.
+- **Toutes les actions sensibles sont tracées** dans le journal d'audit
+  (*Administration → Journal d'audit*, table `JournalAudit`).
+- **`/preinscription`** est une page publique, accessible sans compte (voir
+  l'exception dans `src/proxy.ts`) — attention à ne jamais y exposer de
+  donnée ou d'action réservée au staff.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Continuité si aucun développeur n'est disponible
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- L'usage quotidien (inscriptions, présences, paiements, trésorerie) ne
+  dépend d'aucun outil externe : c'est une application web autonome.
+- Les données sont sauvegardables/restaurables via `scripts/backup.sh` et
+  `scripts/restore.sh` (voir `DEPLOIEMENT.md`) — **mais ces scripts ne
+  sauvegardent pas le code source**, seulement les données.
+- Le code source doit lui-même être sauvegardé séparément (dépôt Git distant
+  recommandé) : sans lui, même une sauvegarde de données parfaite ne permet
+  pas de corriger un bug ou de redéployer sur un nouveau serveur.
