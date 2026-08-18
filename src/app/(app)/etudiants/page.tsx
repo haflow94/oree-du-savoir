@@ -8,10 +8,10 @@ const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 export default async function EtudiantsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; supprime?: string }>;
 }) {
   const session = await requireSession();
-  const { q } = await searchParams;
+  const { q, supprime } = await searchParams;
   const recherche = q?.trim() ?? "";
 
   const etudiants = await prisma.etudiant.findMany({
@@ -46,6 +46,12 @@ export default async function EtudiantsPage({
         )}
       </div>
 
+      {supprime && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Fiche supprimée.
+        </p>
+      )}
+
       <form className="flex gap-2" action="/etudiants" method="GET">
         <input
           type="search"
@@ -60,7 +66,17 @@ export default async function EtudiantsPage({
         >
           Rechercher
         </button>
+        <a
+          href={`/etudiants/export${recherche ? `?q=${encodeURIComponent(recherche)}` : ""}`}
+          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          Exporter en CSV
+        </a>
       </form>
+      <p className="text-xs text-slate-500">
+        L&apos;export reprend le résultat de la recherche ci-dessus (laissez
+        vide pour tout exporter).
+      </p>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">

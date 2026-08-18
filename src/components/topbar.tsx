@@ -54,6 +54,14 @@ export function Topbar({ nom, prenom, role, anneeActive }: TopbarProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          <form action="/recherche" method="GET" className="hidden sm:block">
+            <input
+              type="search"
+              name="q"
+              placeholder="Rechercher…"
+              className="w-40 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:w-56 focus:border-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-400 transition-all"
+            />
+          </form>
           {anneeActive && (
             <span className="hidden rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 sm:inline-block">
               Année active : {anneeActive}

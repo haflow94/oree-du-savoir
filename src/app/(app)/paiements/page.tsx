@@ -9,14 +9,17 @@ const PEUT_CREER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BURE
 export default async function PaiementsPage() {
   const session = await requireSession();
 
-  const dossiers = await prisma.dossierAnnuel.findMany({
-    orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
-    include: {
-      etudiant: true,
-      anneeScolaire: true,
-      echeances: { include: { paiements: true } },
-    },
-  });
+  const [dossiers, annees] = await Promise.all([
+    prisma.dossierAnnuel.findMany({
+      orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
+      include: {
+        etudiant: true,
+        anneeScolaire: true,
+        echeances: { include: { paiements: true } },
+      },
+    }),
+    prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -29,14 +32,41 @@ export default async function PaiementsPage() {
             fiche pour les échéances et le détail des paiements).
           </p>
         </div>
-        {hasRole(session.role, PEUT_CREER) && (
-          <Link
-            href="/paiements/nouveau"
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-          >
-            + Nouveau dossier
-          </Link>
-        )}
+        <div className="flex flex-wrap items-end gap-2">
+          <form action="/paiements/export" method="GET" className="flex items-end gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Exporter (année)
+              </label>
+              <select
+                name="anneeScolaireId"
+                defaultValue=""
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              >
+                <option value="">Toutes les années</option>
+                {annees.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.libelle}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Exporter en CSV
+            </button>
+          </form>
+          {hasRole(session.role, PEUT_CREER) && (
+            <Link
+              href="/paiements/nouveau"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+            >
+              + Nouveau dossier
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -55,9 +85,11 @@ export default async function PaiementsPage() {
           <tbody className="divide-y divide-slate-100">
             {dossiers.map((d) => {
               const du = Number.parseFloat(d.montantDu.toString());
-              const encaisse = d.echeances
-                .flatMap((e) => e.paiements)
-                .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
+              const paiements = d.echeances.flatMap((e) => e.paiements);
+              const encaisse = paiements.reduce(
+                (total, p) => total + Number.parseFloat(p.montant.toString()),
+                0,
+              );
               const reste = du - encaisse;
               const statut =
                 reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
@@ -82,7 +114,7 @@ export default async function PaiementsPage() {
                     {formaterMontant(du)}
                   </td>
                   <td className="px-4 py-3 text-slate-500">
-                    {d.echeances.length}
+                    {paiements.length} paiement(s) / {d.echeances.length} échéance(s)
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {formaterMontant(encaisse)}
