@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Role } from "@/lib/roles";
 import { creerDossierAction } from "./actions";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -10,10 +11,10 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default async function NouveauDossierPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; etudiantId?: string }>;
 }) {
-  await requireSession();
-  const { error } = await searchParams;
+  await requireRole([Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU]);
+  const { error, etudiantId } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
   const [etudiants, annees] = await Promise.all([
@@ -59,6 +60,7 @@ export default async function NouveauDossierPage({
               id="etudiantId"
               name="etudiantId"
               required
+              defaultValue={etudiantId}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
             >
               {etudiants.map((e) => (

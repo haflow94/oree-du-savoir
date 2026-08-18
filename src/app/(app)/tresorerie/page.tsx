@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -7,21 +8,31 @@ import {
   TYPE_MOUVEMENT_LABELS,
   formaterMontant,
 } from "@/lib/paiements";
-import { creerCategorieAction, creerMouvementAction } from "./actions";
+import { Role, hasRole } from "@/lib/roles";
+import {
+  creerCategorieAction,
+  modifierCategorieAction,
+  changerActivationCategorieAction,
+  creerMouvementAction,
+} from "./actions";
+
+const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 
 export default async function TresoreriePage() {
-  await requireSession();
+  const session = await requireSession();
+  const peutGerer = hasRole(session.role, PEUT_GERER);
 
-  const [mouvements, categories] = await Promise.all([
+  const [mouvements, toutesCategories] = await Promise.all([
     prisma.mouvementTresorerie.findMany({
       orderBy: [{ date: "asc" }, { creeLe: "asc" }],
       include: { categorie: true },
     }),
     prisma.categorieMouvement.findMany({
-      where: { actif: true },
       orderBy: { nom: "asc" },
     }),
   ]);
+  const categoriesActives = toutesCategories.filter((c) => c.actif);
+  const categories = peutGerer ? toutesCategories : categoriesActives;
 
   const lignes = mouvements.reduce<
     Array<{
@@ -76,12 +87,55 @@ export default async function TresoreriePage() {
           {categories.length === 0 && (
             <p className="text-sm text-slate-400">Aucune catégorie enregistrée.</p>
           )}
-          {categories.map((c) => (
-            <span key={c.id} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">
-              {c.nom}
-            </span>
-          ))}
+          {categories.map((c) =>
+            peutGerer ? (
+              <details
+                key={c.id}
+                className={`rounded-lg border px-3 py-1.5 ${
+                  c.actif ? "border-slate-200" : "border-slate-200 opacity-50"
+                }`}
+              >
+                <summary className="cursor-pointer text-sm text-slate-700">
+                  {c.nom}
+                  {!c.actif && <span className="ml-1 text-xs text-slate-400">(désactivée)</span>}
+                </summary>
+                <form action={modifierCategorieAction} className="mt-3 flex items-center gap-2">
+                  <input type="hidden" name="categorieId" value={c.id} />
+                  <input
+                    name="nom"
+                    required
+                    defaultValue={c.nom}
+                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  />
+                  <button
+                    type="submit"
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Renommer
+                  </button>
+                </form>
+                <form action={changerActivationCategorieAction} className="mt-2">
+                  <input type="hidden" name="categorieId" value={c.id} />
+                  <input type="hidden" name="actif" value={c.actif ? "0" : "1"} />
+                  <button
+                    type="submit"
+                    className="text-xs font-medium text-slate-600 hover:underline"
+                  >
+                    {c.actif ? "Désactiver" : "Réactiver"}
+                  </button>
+                </form>
+              </details>
+            ) : (
+              <span
+                key={c.id}
+                className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+              >
+                {c.nom}
+              </span>
+            ),
+          )}
         </div>
+        {peutGerer && (
         <form action={creerCategorieAction} className="mt-4 flex gap-2">
           <input
             type="text"
@@ -97,8 +151,10 @@ export default async function TresoreriePage() {
             Ajouter
           </button>
         </form>
+        )}
       </div>
 
+      {peutGerer && (
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-800">
           Nouveau mouvement
@@ -168,7 +224,7 @@ export default async function TresoreriePage() {
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
             >
               <option value="">—</option>
-              {categories.map((c) => (
+              {categoriesActives.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.nom}
                 </option>
@@ -196,6 +252,7 @@ export default async function TresoreriePage() {
           </div>
         </form>
       </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
@@ -215,7 +272,15 @@ export default async function TresoreriePage() {
                 <td className="px-4 py-3 text-slate-500">
                   {new Date(m.date).toLocaleDateString("fr-FR")}
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-800">{m.libelle}</td>
+                <td className="px-4 py-3 font-medium text-slate-800">
+                  {peutGerer ? (
+                    <Link href={`/tresorerie/${m.id}`} className="hover:underline">
+                      {m.libelle}
+                    </Link>
+                  ) : (
+                    m.libelle
+                  )}
+                </td>
                 <td className="px-4 py-3 text-slate-500">{m.categorieNom ?? "—"}</td>
                 <td className="px-4 py-3 text-slate-500">{MOYEN_LABELS[m.moyen]}</td>
                 <td

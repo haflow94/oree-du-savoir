@@ -1,9 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, TypeMouvement } from "@/generated/prisma/enums";
+import { Role } from "@/lib/roles";
+
+const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -13,7 +17,7 @@ function champTexte(formData: FormData, nom: string): string | null {
 }
 
 export async function creerCategorieAction(formData: FormData): Promise<void> {
-  await requireSession();
+  await requireRole(PEUT_GERER);
   const nom = champTexte(formData, "nom");
   if (!nom) return;
 
@@ -21,8 +25,28 @@ export async function creerCategorieAction(formData: FormData): Promise<void> {
   revalidatePath("/tresorerie");
 }
 
+export async function modifierCategorieAction(formData: FormData): Promise<void> {
+  await requireRole(PEUT_GERER);
+  const categorieId = champTexte(formData, "categorieId");
+  const nom = champTexte(formData, "nom");
+  if (!categorieId || !nom) return;
+
+  await prisma.categorieMouvement.update({ where: { id: categorieId }, data: { nom } });
+  revalidatePath("/tresorerie");
+}
+
+export async function changerActivationCategorieAction(formData: FormData): Promise<void> {
+  await requireRole(PEUT_GERER);
+  const categorieId = champTexte(formData, "categorieId");
+  const actif = formData.get("actif") === "1";
+  if (!categorieId) return;
+
+  await prisma.categorieMouvement.update({ where: { id: categorieId }, data: { actif } });
+  revalidatePath("/tresorerie");
+}
+
 export async function creerMouvementAction(formData: FormData): Promise<void> {
-  await requireSession();
+  await requireRole(PEUT_GERER);
 
   const date = champTexte(formData, "date");
   const libelle = champTexte(formData, "libelle");
@@ -55,4 +79,88 @@ export async function creerMouvementAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/tresorerie");
+}
+
+function retourMouvement(mouvementId: string, erreur?: string): never {
+  redirect(
+    erreur
+      ? `/tresorerie/${mouvementId}?error=${erreur}`
+      : `/tresorerie/${mouvementId}?ok=1`,
+  );
+}
+
+export async function modifierMouvementAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER);
+
+  const mouvementId = champTexte(formData, "mouvementId");
+  const date = champTexte(formData, "date");
+  const libelle = champTexte(formData, "libelle");
+  const typeBrut = champTexte(formData, "type");
+  const moyenBrut = champTexte(formData, "moyen");
+  const montant = champTexte(formData, "montant");
+  if (!mouvementId) redirect("/tresorerie");
+
+  if (
+    !date ||
+    !libelle ||
+    !montant ||
+    !typeBrut ||
+    !(typeBrut in TypeMouvement) ||
+    !moyenBrut ||
+    !(moyenBrut in MoyenPaiement)
+  ) {
+    retourMouvement(mouvementId, "CHAMPS_INVALIDES");
+  }
+
+  await prisma.$transaction([
+    prisma.mouvementTresorerie.update({
+      where: { id: mouvementId },
+      data: {
+        date: new Date(date),
+        libelle,
+        montant,
+        type: typeBrut as TypeMouvement,
+        moyen: moyenBrut as MoyenPaiement,
+        categorieId: champTexte(formData, "categorieId"),
+        justificatif: champTexte(formData, "justificatif"),
+      },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_mouvement",
+        entite: "MouvementTresorerie",
+        entiteId: mouvementId,
+      },
+    }),
+  ]);
+
+  revalidatePath("/tresorerie");
+  retourMouvement(mouvementId);
+}
+
+export async function supprimerMouvementAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER);
+
+  const mouvementId = champTexte(formData, "mouvementId");
+  if (!mouvementId) redirect("/tresorerie");
+
+  const cible = await prisma.mouvementTresorerie.findUnique({ where: { id: mouvementId } });
+  if (!cible) redirect("/tresorerie");
+
+  await prisma.$transaction([
+    prisma.mouvementTresorerie.delete({ where: { id: mouvementId } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "suppression_mouvement",
+        entite: "MouvementTresorerie",
+        entiteId: mouvementId,
+        details: { libelle: cible.libelle, montant: cible.montant.toString() },
+      },
+    }),
+  ]);
+
+  revalidatePath("/tresorerie");
+  redirect("/tresorerie?ok=1");
 }

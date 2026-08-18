@@ -1,9 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque } from "@/generated/prisma/enums";
+import { Role } from "@/lib/roles";
+
+const PEUT_SAISIR = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
+const PEUT_GERER_CHEQUE = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -13,7 +17,7 @@ function champTexte(formData: FormData, nom: string): string | null {
 }
 
 export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
-  await requireSession();
+  await requireRole(PEUT_SAISIR);
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const montant = champTexte(formData, "montant");
@@ -33,7 +37,7 @@ export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
 }
 
 export async function enregistrerPaiementAction(formData: FormData): Promise<void> {
-  const session = await requireSession();
+  const session = await requireRole(PEUT_SAISIR);
 
   const echeanceId = champTexte(formData, "echeanceId");
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
@@ -76,8 +80,66 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
   revalidatePath("/paiements");
 }
 
+export async function modifierMontantDuAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER_CHEQUE);
+
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  const montantDu = champTexte(formData, "montantDu");
+  if (!dossierAnnuelId || !montantDu) return;
+
+  const cible = await prisma.dossierAnnuel.findUnique({ where: { id: dossierAnnuelId } });
+  if (!cible) return;
+
+  await prisma.$transaction([
+    prisma.dossierAnnuel.update({
+      where: { id: dossierAnnuelId },
+      data: { montantDu },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_montant_du",
+        entite: "DossierAnnuel",
+        entiteId: dossierAnnuelId,
+        details: { avant: cible.montantDu.toString(), apres: montantDu },
+      },
+    }),
+  ]);
+
+  revalidatePath(`/paiements/${dossierAnnuelId}`);
+  revalidatePath("/paiements");
+}
+
+export async function modifierPaiementAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER_CHEQUE);
+
+  const paiementId = champTexte(formData, "paiementId");
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  const montant = champTexte(formData, "montant");
+  if (!paiementId || !dossierAnnuelId || !montant) return;
+
+  const cible = await prisma.paiement.findUnique({ where: { id: paiementId } });
+  if (!cible) return;
+
+  await prisma.$transaction([
+    prisma.paiement.update({ where: { id: paiementId }, data: { montant } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_paiement",
+        entite: "Paiement",
+        entiteId: paiementId,
+        details: { avant: cible.montant.toString(), apres: montant },
+      },
+    }),
+  ]);
+
+  revalidatePath(`/paiements/${dossierAnnuelId}`);
+  revalidatePath("/paiements");
+}
+
 export async function mettreAJourChequeAction(formData: FormData): Promise<void> {
-  await requireSession();
+  await requireRole(PEUT_GERER_CHEQUE);
 
   const chequeId = champTexte(formData, "chequeId");
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");

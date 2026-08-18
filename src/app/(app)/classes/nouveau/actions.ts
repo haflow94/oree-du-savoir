@@ -1,9 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { JourSemaine } from "@/generated/prisma/enums";
+import { Role } from "@/lib/roles";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -17,7 +18,7 @@ function estJourValide(valeur: string | null): valeur is JourSemaine {
 }
 
 export async function creerClasseAction(formData: FormData): Promise<void> {
-  await requireSession();
+  await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
 
   const coursId = champTexte(formData, "coursId");
   const anneeScolaireId = champTexte(formData, "anneeScolaireId");

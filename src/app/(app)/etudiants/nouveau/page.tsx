@@ -1,8 +1,9 @@
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
+import { Role } from "@/lib/roles";
 import { EtudiantForm } from "./etudiant-form";
 
 export default async function NouvelEtudiantPage() {
-  await requireSession();
+  await requireRole([Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU]);
 
   return (
     <div className="max-w-3xl space-y-6">

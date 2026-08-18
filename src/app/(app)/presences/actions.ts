@@ -120,6 +120,62 @@ export async function creerPeriodeFermetureAction(
   revalidatePath("/presences/fermetures");
 }
 
+export async function modifierPeriodeFermetureAction(
+  formData: FormData,
+): Promise<void> {
+  const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
+
+  const periodeId = champTexte(formData, "periodeId");
+  const libelle = champTexte(formData, "libelle");
+  const dateDebut = champTexte(formData, "dateDebut");
+  const dateFin = champTexte(formData, "dateFin");
+  if (!periodeId || !libelle || !dateDebut || !dateFin) return;
+
+  await prisma.$transaction([
+    prisma.periodeFermeture.update({
+      where: { id: periodeId },
+      data: { libelle, dateDebut: new Date(dateDebut), dateFin: new Date(dateFin) },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_fermeture",
+        entite: "PeriodeFermeture",
+        entiteId: periodeId,
+      },
+    }),
+  ]);
+
+  revalidatePath("/presences/fermetures");
+}
+
+export async function supprimerPeriodeFermetureAction(
+  formData: FormData,
+): Promise<void> {
+  const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
+
+  const periodeId = champTexte(formData, "periodeId");
+  if (!periodeId) return;
+
+  const cible = await prisma.periodeFermeture.findUnique({ where: { id: periodeId } });
+  if (!cible) return;
+
+  await prisma.$transaction([
+    prisma.periodeFermeture.delete({ where: { id: periodeId } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "suppression_fermeture",
+        entite: "PeriodeFermeture",
+        entiteId: periodeId,
+        details: { libelle: cible.libelle },
+      },
+    }),
+  ]);
+
+  revalidatePath("/presences/fermetures");
+}
+
 /**
  * Valide la feuille de présence d'une séance. Chaque étudiant inscrit doit
  * avoir un statut explicite : on ne devine jamais les absents (règle non

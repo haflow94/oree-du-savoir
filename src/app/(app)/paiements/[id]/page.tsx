@@ -12,7 +12,13 @@ import {
   ajouterEcheanceAction,
   enregistrerPaiementAction,
   mettreAJourChequeAction,
+  modifierMontantDuAction,
+  modifierPaiementAction,
 } from "./actions";
+import { Role, hasRole } from "@/lib/roles";
+
+const PEUT_SAISIR = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
+const PEUT_GERER_CHEQUE = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 
 const ERROR_MESSAGES: Record<string, string> = {
   DOSSIER_EXISTANT: "Un dossier existe déjà pour cet étudiant sur cette année.",
@@ -25,7 +31,9 @@ export default async function DossierPaiementPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
+  const peutSaisir = hasRole(session.role, PEUT_SAISIR);
+  const peutGererCheque = hasRole(session.role, PEUT_GERER_CHEQUE);
   const { id } = await params;
   const { error } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
@@ -75,6 +83,31 @@ export default async function DossierPaiementPage({
           <div className="mt-1 text-lg font-semibold text-slate-800">
             {formaterMontant(du)}
           </div>
+          {peutGererCheque && (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-slate-500 hover:underline">
+                Corriger
+              </summary>
+              <form action={modifierMontantDuAction} className="mt-2 flex items-center gap-2">
+                <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="montantDu"
+                  required
+                  defaultValue={du}
+                  className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+                <button
+                  type="submit"
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  OK
+                </button>
+              </form>
+            </details>
+          )}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-xs uppercase text-slate-400">Encaissé</div>
@@ -125,8 +158,37 @@ export default async function DossierPaiementPage({
                             {STATUT_CHEQUE_LABELS[p.cheque.statut]}
                           </span>
                         )}
+                        {peutGererCheque && (
+                          <details>
+                            <summary className="cursor-pointer text-xs text-slate-400 hover:underline">
+                              Corriger le montant
+                            </summary>
+                            <form
+                              action={modifierPaiementAction}
+                              className="mt-1 flex items-center gap-2"
+                            >
+                              <input type="hidden" name="paiementId" value={p.id} />
+                              <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                name="montant"
+                                required
+                                defaultValue={p.montant.toString()}
+                                className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                              />
+                              <button
+                                type="submit"
+                                className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                              >
+                                OK
+                              </button>
+                            </form>
+                          </details>
+                        )}
                       </div>
-                      {p.cheque && (
+                      {p.cheque && peutGererCheque && (
                         <form action={mettreAJourChequeAction} className="mt-2 flex flex-wrap items-center gap-2">
                           <input type="hidden" name="chequeId" value={p.cheque.id} />
                           <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
@@ -161,6 +223,7 @@ export default async function DossierPaiementPage({
                 </ul>
               )}
 
+              {peutSaisir && (
               <form action={enregistrerPaiementAction} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
                 <input type="hidden" name="echeanceId" value={e.id} />
                 <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
@@ -220,6 +283,7 @@ export default async function DossierPaiementPage({
                   Enregistrer le paiement
                 </button>
               </form>
+              )}
             </div>
           );
         })}
@@ -231,6 +295,7 @@ export default async function DossierPaiementPage({
         )}
       </div>
 
+      {peutSaisir && (
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-800">
           Ajouter une échéance
@@ -274,6 +339,7 @@ export default async function DossierPaiementPage({
           </button>
         </form>
       </div>
+      )}
     </div>
   );
 }

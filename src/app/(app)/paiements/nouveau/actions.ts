@@ -1,11 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Role } from "@/lib/roles";
 
 export async function creerDossierAction(formData: FormData): Promise<void> {
-  await requireSession();
+  await requireRole([Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU]);
 
   const etudiantId = String(formData.get("etudiantId") ?? "").trim();
   const anneeScolaireId = String(formData.get("anneeScolaireId") ?? "").trim();

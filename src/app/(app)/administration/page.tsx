@@ -29,14 +29,17 @@ export default async function AdministrationPage({
   // Double vérification : le lien est déjà masqué pour les autres rôles
   // dans la barre latérale, mais l'accès direct à l'URL doit aussi être
   // bloqué ici (défense en profondeur).
-  const session = await requireRole([Role.BUREAU]);
+  const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
+  const estBureau = session.role === Role.BUREAU;
   const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
-  const utilisateurs = await prisma.utilisateur.findMany({
-    orderBy: [{ actif: "desc" }, { nom: "asc" }],
-    include: { _count: { select: { sessions: true } } },
-  });
+  const utilisateurs = estBureau
+    ? await prisma.utilisateur.findMany({
+        orderBy: [{ actif: "desc" }, { nom: "asc" }],
+        include: { _count: { select: { sessions: true } } },
+      })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -44,15 +47,33 @@ export default async function AdministrationPage({
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Administration</h2>
           <p className="text-sm text-slate-500">
-            Comptes, rôles, activation et révocation.
+            {estBureau
+              ? "Comptes, rôles, activation et révocation."
+              : "Référentiels : sections, année scolaire."}
           </p>
         </div>
-        <Link
-          href="/administration/journal"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Journal d&apos;audit
-        </Link>
+        <div className="flex gap-3">
+          <Link
+            href="/administration/sections"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Sections
+          </Link>
+          <Link
+            href="/administration/annees-scolaires"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Année scolaire
+          </Link>
+          {estBureau && (
+            <Link
+              href="/administration/journal"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Journal d&apos;audit
+            </Link>
+          )}
+        </div>
       </div>
 
       {message && (
@@ -66,6 +87,7 @@ export default async function AdministrationPage({
         </p>
       )}
 
+      {estBureau && (
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-sm font-semibold text-slate-800">
           Créer un compte
@@ -151,7 +173,9 @@ export default async function AdministrationPage({
           </div>
         </form>
       </div>
+      )}
 
+      {estBureau && (
       <div className="space-y-3">
         {utilisateurs.map((u) => {
           const soiMeme = u.id === session.id;
@@ -278,6 +302,7 @@ export default async function AdministrationPage({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

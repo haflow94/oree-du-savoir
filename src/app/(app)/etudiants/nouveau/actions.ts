@@ -1,8 +1,9 @@
 "use server";
 
-import { requireSession } from "@/lib/auth";
+import { requireSession, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
+import { Role } from "@/lib/roles";
 
 export type Doublon = {
   id: string;
@@ -72,7 +73,7 @@ export async function rechercherDoublonsAction(
 export async function creerEtudiantAction(
   formData: FormData,
 ): Promise<{ id: string }> {
-  const session = await requireSession();
+  const session = await requireRole([Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU]);
 
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");

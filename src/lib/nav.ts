@@ -9,9 +9,10 @@ export type NavItem = {
 };
 
 // Reprend l'arborescence de la maquette (05_Maquette_interactive.html).
-// Le contenu de chaque écran reste à construire phase par phase ; seule
-// l'Administration est déjà restreinte au rôle Bureau (démonstration du
-// contrôle d'accès par rôle attendu en Phase 0).
+// Administration est ouverte à Bureau et Administration (référentiels :
+// sections, année scolaire) ; la gestion des comptes/rôles utilisateurs,
+// à l'intérieur de cette page, reste filtrée au seul Bureau (voir
+// administration/page.tsx).
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Tableau de bord", icon: "🏠" },
   { href: "/etudiants", label: "Étudiants", icon: "👥" },
@@ -25,6 +26,6 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/administration",
     label: "Administration",
     icon: "⚙",
-    rolesAllowed: [Role.BUREAU],
+    rolesAllowed: [Role.BUREAU, Role.ADMINISTRATION],
   },
 ];

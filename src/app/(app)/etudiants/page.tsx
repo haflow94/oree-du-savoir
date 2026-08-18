@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Role, hasRole } from "@/lib/roles";
+
+const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 
 export default async function EtudiantsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireSession();
+  const session = await requireSession();
   const { q } = await searchParams;
   const recherche = q?.trim() ?? "";
 
@@ -33,12 +36,14 @@ export default async function EtudiantsPage({
             Fiche unique par personne, réinscription multi-années à venir.
           </p>
         </div>
-        <Link
-          href="/etudiants/nouveau"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-        >
-          + Nouvel étudiant
-        </Link>
+        {hasRole(session.role, PEUT_CREER) && (
+          <Link
+            href="/etudiants/nouveau"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+          >
+            + Nouvel étudiant
+          </Link>
+        )}
       </div>
 
       <form className="flex gap-2" action="/etudiants" method="GET">

@@ -3,22 +3,36 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
+import { Role, hasRole } from "@/lib/roles";
 import { estAdministratif } from "@/lib/acces-presence";
-import { JOUR_LABELS } from "@/lib/planning";
+import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import {
   genererSeancesAction,
   inscrireEtudiantAction,
   retirerEtudiantAction,
 } from "../../presences/actions";
+import { modifierClasseAction, supprimerClasseAction } from "./actions";
+
+const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
+
+const MESSAGES: Record<string, string> = {
+  CHAMPS_MANQUANTS: "Jour et horaires sont obligatoires.",
+  CLASSE_UTILISEE:
+    "Impossible de supprimer : des séances ou des inscriptions existent déjà pour cette classe.",
+};
 
 export default async function ClasseDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const session = await requireSession();
+  const peutGerer = hasRole(session.role, PEUT_GERER);
   const { id } = await params;
+  const { error, ok } = await searchParams;
+  const message = error ? MESSAGES[error] : undefined;
 
   const classe = await prisma.classe.findUnique({
     where: { id },
@@ -30,7 +44,7 @@ export default async function ClasseDetailPage({
         include: { etudiant: true },
         orderBy: { etudiant: { nom: "asc" } },
       },
-      _count: { select: { seances: true } },
+      _count: { select: { seances: true, inscriptions: true } },
     },
   });
 
@@ -40,6 +54,15 @@ export default async function ClasseDetailPage({
 
   const administratif = estAdministratif(session.role);
   const peutInscrire = administratif || session.role === Role.ACCUEIL;
+
+  const enseignantsDisponibles = peutGerer
+    ? await prisma.utilisateur.findMany({
+        where: { role: Role.ENSEIGNANT, actif: true },
+        orderBy: [{ nom: "asc" }],
+      })
+    : [];
+  const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
+  const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
 
   const dejaInscrits = new Set(classe.inscriptions.map((i) => i.etudiantId));
   const etudiantsDisponibles = peutInscrire
@@ -84,6 +107,159 @@ export default async function ClasseDetailPage({
             : "—"}
         </p>
       </div>
+
+      {message && (
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {message}
+        </p>
+      )}
+      {ok && !message && (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          Modification enregistrée.
+        </p>
+      )}
+
+      {peutGerer && (
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-800">Modifier la classe</h3>
+            <form action={supprimerClasseAction}>
+              <input type="hidden" name="classeId" value={classe.id} />
+              <button
+                type="submit"
+                disabled={!peutSupprimer}
+                title={
+                  !peutSupprimer
+                    ? "Des séances ou des inscriptions existent déjà : impossible de supprimer cette classe."
+                    : undefined
+                }
+                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Supprimer la classe
+              </button>
+            </form>
+          </div>
+          <form action={modifierClasseAction} className="space-y-4">
+            <input type="hidden" name="classeId" value={classe.id} />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Niveau</label>
+                <input
+                  name="niveau"
+                  defaultValue={classe.niveau ?? ""}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  Semestre (optionnel)
+                </label>
+                <select
+                  name="semestre"
+                  defaultValue={classe.semestre ?? ""}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                >
+                  <option value="">Toute l&apos;année</option>
+                  <option value="1">Semestre 1</option>
+                  <option value="2">Semestre 2</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Salle</label>
+                <input
+                  name="salle"
+                  defaultValue={classe.salle ?? ""}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Jour</label>
+                <select
+                  name="jour"
+                  required
+                  defaultValue={classe.jour}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                >
+                  {JOURS_ORDONNES.map((j) => (
+                    <option key={j} value={j}>
+                      {JOUR_LABELS[j]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  Heure de début
+                </label>
+                <input
+                  type="time"
+                  name="heureDebut"
+                  required
+                  defaultValue={classe.heureDebut}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">
+                  Heure de fin
+                </label>
+                <input
+                  type="time"
+                  name="heureFin"
+                  required
+                  defaultValue={classe.heureFin}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Capacité</label>
+                <input
+                  type="number"
+                  min={0}
+                  name="capacite"
+                  defaultValue={classe.capacite ?? ""}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Enseignant(s)
+              </label>
+              {enseignantsDisponibles.length === 0 ? (
+                <p className="text-sm text-slate-400">Aucun compte Enseignant actif.</p>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {enseignantsDisponibles.map((e) => (
+                    <label
+                      key={e.id}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        name="enseignants"
+                        value={e.id}
+                        defaultChecked={enseignantsAssignes.has(e.id)}
+                      />
+                      {e.prenom} {e.nom}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Enregistrer
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

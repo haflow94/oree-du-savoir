@@ -2,9 +2,12 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formaterMontant } from "@/lib/paiements";
+import { Role, hasRole } from "@/lib/roles";
+
+const PEUT_CREER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 
 export default async function PaiementsPage() {
-  await requireSession();
+  const session = await requireSession();
 
   const dossiers = await prisma.dossierAnnuel.findMany({
     orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
@@ -26,12 +29,14 @@ export default async function PaiementsPage() {
             fiche pour les échéances et le détail des paiements).
           </p>
         </div>
-        <Link
-          href="/paiements/nouveau"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-        >
-          + Nouveau dossier
-        </Link>
+        {hasRole(session.role, PEUT_CREER) && (
+          <Link
+            href="/paiements/nouveau"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+          >
+            + Nouveau dossier
+          </Link>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

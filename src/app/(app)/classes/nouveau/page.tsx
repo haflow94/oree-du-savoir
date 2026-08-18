@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
@@ -14,7 +14,7 @@ export default async function NouvelleClassePage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  await requireSession();
+  await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
   const { error } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
