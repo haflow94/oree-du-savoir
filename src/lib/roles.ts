@@ -18,6 +18,11 @@ export const ALL_ROLES: Role[] = [
   "ENSEIGNANT",
 ];
 
+// Comptes "staff" (Administration > Comptes) : les enseignants ont leur
+// propre onglet (Administration > Enseignants), pour ne pas mélanger les
+// deux populations dans la même liste.
+export const ROLES_STAFF: Role[] = ["BUREAU", "ADMINISTRATION", "ACCUEIL", "TRESORIER"];
+
 export function hasRole(userRole: Role, allowed: Role[]): boolean {
   return allowed.includes(userRole);
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, ROLE_LABELS, ALL_ROLES } from "@/lib/roles";
+import { Role, ROLE_LABELS, ROLES_STAFF } from "@/lib/roles";
 import {
   creerUtilisateurAction,
   changerActivationAction,
@@ -34,8 +34,11 @@ export default async function AdministrationPage({
   const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
+  // Les enseignants ont leur propre onglet (Administration > Enseignants) :
+  // exclus ici pour ne pas mélanger les deux populations de comptes.
   const utilisateurs = estBureau
     ? await prisma.utilisateur.findMany({
+        where: { role: { in: ROLES_STAFF } },
         orderBy: [{ actif: "desc" }, { nom: "asc" }],
         include: { _count: { select: { sessions: true } } },
       })
@@ -65,6 +68,14 @@ export default async function AdministrationPage({
           >
             Année scolaire
           </Link>
+          {estBureau && (
+            <Link
+              href="/administration/enseignants"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Enseignants
+            </Link>
+          )}
           {estBureau && (
             <Link
               href="/administration/journal"
@@ -136,10 +147,10 @@ export default async function AdministrationPage({
               id="role"
               name="role"
               required
-              defaultValue={Role.ENSEIGNANT}
+              defaultValue={Role.ACCUEIL}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
             >
-              {ALL_ROLES.map((r) => (
+              {ROLES_STAFF.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
                 </option>
@@ -227,7 +238,7 @@ export default async function AdministrationPage({
                       defaultValue={u.role}
                       className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
                     >
-                      {ALL_ROLES.map((r) => (
+                      {ROLES_STAFF.map((r) => (
                         <option key={r} value={r}>
                           {ROLE_LABELS[r]}
                         </option>

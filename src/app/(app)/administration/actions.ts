@@ -18,8 +18,13 @@ function estRole(valeur: string | null): valeur is Role {
   return valeur !== null && valeur in Role;
 }
 
-function retour(erreur?: string): never {
-  redirect(erreur ? `/administration?error=${erreur}` : "/administration?ok=1");
+// Ces actions sont partagées entre Administration > Comptes et
+// Administration > Enseignants : le champ caché "from" ramène vers la page
+// d'où l'action a été déclenchée plutôt que de toujours revenir sur la
+// première (voir administration/page.tsx et enseignants/page.tsx).
+function retour(formData: FormData, erreur?: string): never {
+  const base = champTexte(formData, "from") ?? "/administration";
+  redirect(erreur ? `${base}?error=${erreur}` : `${base}?ok=1`);
 }
 
 /**
@@ -43,15 +48,15 @@ export async function creerUtilisateurAction(formData: FormData): Promise<void> 
   const motDePasse = formData.get("motDePasse");
 
   if (!email || !nom || !prenom || !estRole(role)) {
-    retour("CHAMPS_MANQUANTS");
+    retour(formData, "CHAMPS_MANQUANTS");
   }
   if (typeof motDePasse !== "string" || motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
-    retour("MOT_DE_PASSE_TROP_COURT");
+    retour(formData, "MOT_DE_PASSE_TROP_COURT");
   }
 
   const existant = await prisma.utilisateur.findUnique({ where: { email } });
   if (existant) {
-    retour("EMAIL_DEJA_UTILISE");
+    retour(formData, "EMAIL_DEJA_UTILISE");
   }
 
   const cree = await prisma.utilisateur.create({
@@ -75,7 +80,8 @@ export async function creerUtilisateurAction(formData: FormData): Promise<void> 
   });
 
   revalidatePath("/administration");
-  retour();
+  revalidatePath("/administration/enseignants");
+  retour(formData);
 }
 
 export async function changerActivationAction(formData: FormData): Promise<void> {
@@ -83,17 +89,17 @@ export async function changerActivationAction(formData: FormData): Promise<void>
 
   const utilisateurId = champTexte(formData, "utilisateurId");
   const activer = formData.get("activer") === "1";
-  if (!utilisateurId) retour("CHAMPS_MANQUANTS");
+  if (!utilisateurId) retour(formData, "CHAMPS_MANQUANTS");
 
   const cible = await prisma.utilisateur.findUnique({ where: { id: utilisateurId } });
-  if (!cible) retour("INTROUVABLE");
+  if (!cible) retour(formData, "INTROUVABLE");
 
   if (!activer) {
     if (cible.id === session.id) {
-      retour("AUTO_DESACTIVATION");
+      retour(formData, "AUTO_DESACTIVATION");
     }
     if (cible.role === Role.BUREAU && (await bureauxActifsSauf(cible.id)) === 0) {
-      retour("DERNIER_BUREAU");
+      retour(formData, "DERNIER_BUREAU");
     }
   }
 
@@ -116,7 +122,8 @@ export async function changerActivationAction(formData: FormData): Promise<void>
   ]);
 
   revalidatePath("/administration");
-  retour();
+  revalidatePath("/administration/enseignants");
+  retour(formData);
 }
 
 export async function changerRoleAction(formData: FormData): Promise<void> {
@@ -124,11 +131,11 @@ export async function changerRoleAction(formData: FormData): Promise<void> {
 
   const utilisateurId = champTexte(formData, "utilisateurId");
   const role = champTexte(formData, "role");
-  if (!utilisateurId || !estRole(role)) retour("CHAMPS_MANQUANTS");
+  if (!utilisateurId || !estRole(role)) retour(formData, "CHAMPS_MANQUANTS");
 
   const cible = await prisma.utilisateur.findUnique({ where: { id: utilisateurId } });
-  if (!cible) retour("INTROUVABLE");
-  if (cible.role === role) retour();
+  if (!cible) retour(formData, "INTROUVABLE");
+  if (cible.role === role) retour(formData);
 
   // Retirer le rôle Bureau au dernier Bureau actif condamnerait l'accès à
   // cette page pour tout le monde.
@@ -137,7 +144,7 @@ export async function changerRoleAction(formData: FormData): Promise<void> {
     cible.actif &&
     (await bureauxActifsSauf(cible.id)) === 0
   ) {
-    retour("DERNIER_BUREAU");
+    retour(formData, "DERNIER_BUREAU");
   }
 
   await prisma.$transaction([
@@ -154,7 +161,8 @@ export async function changerRoleAction(formData: FormData): Promise<void> {
   ]);
 
   revalidatePath("/administration");
-  retour();
+  revalidatePath("/administration/enseignants");
+  retour(formData);
 }
 
 export async function reinitialiserMotDePasseAction(
@@ -164,9 +172,9 @@ export async function reinitialiserMotDePasseAction(
 
   const utilisateurId = champTexte(formData, "utilisateurId");
   const motDePasse = formData.get("motDePasse");
-  if (!utilisateurId) retour("CHAMPS_MANQUANTS");
+  if (!utilisateurId) retour(formData, "CHAMPS_MANQUANTS");
   if (typeof motDePasse !== "string" || motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
-    retour("MOT_DE_PASSE_TROP_COURT");
+    retour(formData, "MOT_DE_PASSE_TROP_COURT");
   }
 
   // Changer le mot de passe déconnecte partout : une session ouverte avec
@@ -188,14 +196,15 @@ export async function reinitialiserMotDePasseAction(
   ]);
 
   revalidatePath("/administration");
-  retour();
+  revalidatePath("/administration/enseignants");
+  retour(formData);
 }
 
 export async function revoquerSessionsAction(formData: FormData): Promise<void> {
   const session = await requireRole([Role.BUREAU]);
 
   const utilisateurId = champTexte(formData, "utilisateurId");
-  if (!utilisateurId) retour("CHAMPS_MANQUANTS");
+  if (!utilisateurId) retour(formData, "CHAMPS_MANQUANTS");
 
   await prisma.$transaction([
     prisma.session.deleteMany({ where: { utilisateurId } }),
@@ -210,5 +219,6 @@ export async function revoquerSessionsAction(formData: FormData): Promise<void> 
   ]);
 
   revalidatePath("/administration");
-  retour();
+  revalidatePath("/administration/enseignants");
+  retour(formData);
 }
