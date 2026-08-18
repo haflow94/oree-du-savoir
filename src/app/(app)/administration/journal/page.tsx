@@ -41,6 +41,9 @@ const ACTION_LABELS: Record<string, string> = {
   validation_inscription: "Validation d'une inscription",
   televersement_document: "Téléversement d'un document",
   suppression_document: "Suppression d'un document",
+  suppression_etudiant: "Suppression d'une fiche étudiant",
+  modification_echeance: "Modification d'une échéance",
+  suppression_echeance: "Suppression d'une échéance",
 };
 
 export default async function JournalAuditPage({

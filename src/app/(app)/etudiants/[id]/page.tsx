@@ -15,15 +15,19 @@ import {
   validerInscriptionAction,
   televerserDocumentAction,
   supprimerDocumentAction,
+  supprimerEtudiantAction,
 } from "./actions";
 
 const PEUT_MODIFIER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 const PEUT_CREER_DOSSIER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
+const PEUT_SUPPRIMER = [Role.ADMINISTRATION, Role.BUREAU];
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Le nom et le prénom sont obligatoires.",
   FICHIER_MANQUANT: "Choisissez un fichier et un type de document.",
   INTROUVABLE: "Ce document n'existe plus.",
+  ETUDIANT_UTILISE:
+    "Impossible de supprimer : un dossier annuel, une inscription ou des présences existent déjà pour cet étudiant.",
 };
 
 function versChampDate(date: Date | null): string {
@@ -91,6 +95,10 @@ export default async function EtudiantDetailPage({
           orderBy: { anneeScolaire: { libelle: "desc" } },
         },
         documents: { orderBy: { creeLe: "desc" } },
+        // Une inscription peut être retirée sans effacer les présences déjà
+        // enregistrées (relation séparée) : à compter à part pour le
+        // garde-fou de suppression, voir supprimerEtudiantAction.
+        _count: { select: { presences: true } },
       },
     }),
     prisma.section.findMany({ orderBy: { nom: "asc" } }),
@@ -99,6 +107,12 @@ export default async function EtudiantDetailPage({
   if (!etudiant) {
     notFound();
   }
+
+  const peutSupprimer = hasRole(session.role, PEUT_SUPPRIMER);
+  const etudiantSupprimable =
+    etudiant.dossiersAnnuels.length === 0 &&
+    etudiant.inscriptions.length === 0 &&
+    etudiant._count.presences === 0;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -116,17 +130,36 @@ export default async function EtudiantDetailPage({
             )}
           </h2>
         </div>
-        {peutModifier && etudiant.statutInscription === "PREINSCRIT" && (
-          <form action={validerInscriptionAction}>
-            <input type="hidden" name="etudiantId" value={etudiant.id} />
-            <button
-              type="submit"
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-            >
-              Valider l&apos;inscription
-            </button>
-          </form>
-        )}
+        <div className="flex items-center gap-2">
+          {peutModifier && etudiant.statutInscription === "PREINSCRIT" && (
+            <form action={validerInscriptionAction}>
+              <input type="hidden" name="etudiantId" value={etudiant.id} />
+              <button
+                type="submit"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+              >
+                Valider l&apos;inscription
+              </button>
+            </form>
+          )}
+          {peutSupprimer && (
+            <form action={supprimerEtudiantAction}>
+              <input type="hidden" name="etudiantId" value={etudiant.id} />
+              <button
+                type="submit"
+                disabled={!etudiantSupprimable}
+                title={
+                  !etudiantSupprimable
+                    ? "Un dossier annuel, une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
+                    : undefined
+                }
+                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Supprimer la fiche
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       {message && (

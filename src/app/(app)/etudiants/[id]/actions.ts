@@ -9,6 +9,7 @@ import { Civilite, TypeDocument } from "@/generated/prisma/enums";
 import { enregistrerDocumentEtudiant, supprimerFichierDocument } from "@/lib/documents";
 
 const PEUT_MODIFIER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
+const PEUT_SUPPRIMER = [Role.ADMINISTRATION, Role.BUREAU];
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -173,6 +174,56 @@ export async function supprimerDocumentAction(formData: FormData): Promise<void>
 
   revalidatePath(`/etudiants/${etudiantId}`);
   retour(etudiantId);
+}
+
+export async function supprimerEtudiantAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_SUPPRIMER);
+
+  const etudiantId = champTexte(formData, "etudiantId");
+  if (!etudiantId) redirect("/etudiants");
+
+  // Le contrôle et la suppression doivent être dans la même transaction :
+  // sinon un dossier/une inscription/une présence créée entre les deux
+  // passerait sous le radar (cascade silencieuse malgré le garde-fou).
+  const documentsASupprimer = await prisma.$transaction(async (tx) => {
+    const cible = await tx.etudiant.findUnique({
+      where: { id: etudiantId },
+      include: {
+        documents: true,
+        // Une inscription peut être retirée (retirerEtudiantAction) sans
+        // effacer les présences déjà enregistrées : il faut les compter à
+        // part, sinon un étudiant retiré d'une classe après y avoir eu des
+        // présences validées redeviendrait « supprimable ».
+        _count: { select: { dossiersAnnuels: true, inscriptions: true, presences: true } },
+      },
+    });
+    if (!cible) redirect("/etudiants");
+
+    if (
+      cible._count.dossiersAnnuels > 0 ||
+      cible._count.inscriptions > 0 ||
+      cible._count.presences > 0
+    ) {
+      retour(etudiantId, "ETUDIANT_UTILISE");
+    }
+
+    await tx.etudiant.delete({ where: { id: etudiantId } });
+    await tx.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "suppression_etudiant",
+        entite: "Etudiant",
+        entiteId: etudiantId,
+        details: { nom: cible.nom, prenom: cible.prenom },
+      },
+    });
+
+    return cible.documents;
+  });
+  await Promise.all(documentsASupprimer.map((d) => supprimerFichierDocument(d.cheminRelatif)));
+
+  revalidatePath("/etudiants");
+  redirect("/etudiants?supprime=1");
 }
 
 export async function ajouterResponsableAction(formData: FormData): Promise<void> {

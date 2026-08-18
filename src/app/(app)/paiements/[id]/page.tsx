@@ -14,6 +14,8 @@ import {
   mettreAJourChequeAction,
   modifierMontantDuAction,
   modifierPaiementAction,
+  modifierEcheanceAction,
+  supprimerEcheanceAction,
 } from "./actions";
 import { Role, hasRole } from "@/lib/roles";
 
@@ -143,6 +145,74 @@ export default async function DossierPaiementPage({
                 </span>
               </div>
 
+              {peutGererCheque && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-slate-500 hover:underline">
+                    Corriger cette échéance
+                  </summary>
+                  <form
+                    action={modifierEcheanceAction}
+                    className="mt-2 flex flex-wrap items-end gap-2"
+                  >
+                    <input type="hidden" name="echeanceId" value={e.id} />
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Libellé</label>
+                      <input
+                        type="text"
+                        name="libelle"
+                        defaultValue={e.libelle ?? ""}
+                        className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">Montant</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        name="montant"
+                        required
+                        defaultValue={montantEcheance}
+                        className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        Date d&apos;échéance
+                      </label>
+                      <input
+                        type="date"
+                        name="dateEcheance"
+                        required
+                        defaultValue={new Date(e.dateEcheance).toISOString().slice(0, 10)}
+                        className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                    >
+                      Enregistrer
+                    </button>
+                  </form>
+                  <form action={supprimerEcheanceAction} className="mt-2">
+                    <input type="hidden" name="echeanceId" value={e.id} />
+                    <button
+                      type="submit"
+                      disabled={e.paiements.length > 0}
+                      title={
+                        e.paiements.length > 0
+                          ? "Des paiements existent déjà sur cette échéance : impossible de la supprimer."
+                          : undefined
+                      }
+                      className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
+                    >
+                      Supprimer cette échéance
+                    </button>
+                  </form>
+                </details>
+              )}
+
               {e.paiements.length > 0 && (
                 <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3">
                   {e.paiements.map((p) => (
@@ -168,7 +238,6 @@ export default async function DossierPaiementPage({
                               className="mt-1 flex items-center gap-2"
                             >
                               <input type="hidden" name="paiementId" value={p.id} />
-                              <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                               <input
                                 type="number"
                                 step="0.01"
@@ -191,7 +260,6 @@ export default async function DossierPaiementPage({
                       {p.cheque && peutGererCheque && (
                         <form action={mettreAJourChequeAction} className="mt-2 flex flex-wrap items-center gap-2">
                           <input type="hidden" name="chequeId" value={p.cheque.id} />
-                          <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                           <select
                             name="statut"
                             defaultValue={p.cheque.statut}
@@ -226,7 +294,6 @@ export default async function DossierPaiementPage({
               {peutSaisir && (
               <form action={enregistrerPaiementAction} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
                 <input type="hidden" name="echeanceId" value={e.id} />
-                <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-600">Montant</label>
                   <input
