@@ -24,8 +24,9 @@ export const config = {
     /*
      * Toutes les routes sauf :
      * - /login (page de connexion elle-même)
+     * - /preinscription (formulaire public, sans compte)
      * - ressources statiques Next.js et favicon
      */
-    "/((?!login|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|preinscription|_next/static|_next/image|favicon.ico).*)",
   ],
 };
