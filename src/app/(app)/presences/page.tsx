@@ -6,9 +6,10 @@ import { estAdministratif } from "@/lib/acces-presence";
 import { JOUR_LABELS } from "@/lib/planning";
 import { aujourdhuiUTC, STATUT_SEANCE_LABELS } from "@/lib/presences";
 import { Card } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AutoSubmitInput } from "@/components/ui/auto-submit";
 
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 const CONTROL_CLASSES =
@@ -72,7 +73,7 @@ export default async function PresencesPage({
           <label htmlFor="date" className={LABEL_XS_CLASSES}>
             Date
           </label>
-          <input
+          <AutoSubmitInput
             id="date"
             type="date"
             name="date"
@@ -80,9 +81,6 @@ export default async function PresencesPage({
             className={CONTROL_CLASSES}
           />
         </div>
-        <Button type="submit" variant="secondary">
-          Afficher
-        </Button>
       </form>
 
       <div className="space-y-3">

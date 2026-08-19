@@ -27,6 +27,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ChampSelectAuto } from "@/components/ui/auto-submit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const PEUT_MODIFIER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
@@ -449,17 +450,14 @@ export default async function EtudiantDetailPage({
         {peutInscrire && (
           <div className="mt-4 space-y-3 border-t border-border pt-4">
             <form className="flex flex-wrap items-end gap-2" action={`/etudiants/${etudiant.id}`} method="GET">
-              <ChampSelect label="Section" name="classeSectionId" defaultValue={classeSectionId ?? ""}>
+              <ChampSelectAuto label="Section" name="classeSectionId" defaultValue={classeSectionId ?? ""}>
                 <option value="">Toutes les sections</option>
                 {sections.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nom}
                   </option>
                 ))}
-              </ChampSelect>
-              <Button type="submit" variant="secondary" size="sm">
-                Filtrer
-              </Button>
+              </ChampSelectAuto>
             </form>
 
             {classesDisponibles.length > 0 ? (

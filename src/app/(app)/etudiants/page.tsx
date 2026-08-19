@@ -12,6 +12,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
+import { AutoSubmitSelect } from "@/components/ui/auto-submit";
 
 const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 const CONTROL_CLASSES =
@@ -87,14 +88,19 @@ export default async function EtudiantsPage({
         <label htmlFor="sectionId" className="sr-only">
           Section
         </label>
-        <select id="sectionId" name="sectionId" defaultValue={sectionId ?? ""} className={CONTROL_CLASSES}>
+        <AutoSubmitSelect
+          id="sectionId"
+          name="sectionId"
+          defaultValue={sectionId ?? ""}
+          className={CONTROL_CLASSES}
+        >
           <option value="">Toutes les sections</option>
           {sections.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nom}
             </option>
           ))}
-        </select>
+        </AutoSubmitSelect>
         <button type="submit" className={buttonVariants({ variant: "secondary" })}>
           Rechercher
         </button>
@@ -119,7 +125,8 @@ export default async function EtudiantsPage({
           <th className="px-4 py-3">Prénom</th>
           <th className="px-4 py-3">Section(s)</th>
           <th className="px-4 py-3">Date de naissance</th>
-          <th className="px-4 py-3">Contact</th>
+          <th className="px-4 py-3">Téléphone</th>
+          <th className="px-4 py-3">Email</th>
           <th className="px-4 py-3">Responsables</th>
         </TableHead>
         <tbody className="divide-y divide-border">
@@ -151,16 +158,15 @@ export default async function EtudiantsPage({
                     ? new Date(e.dateNaissance).toLocaleDateString("fr-FR")
                     : "—"}
                 </td>
-                <td className="px-4 py-3 text-ink-muted">
-                  {e.email ?? e.telephoneMobile ?? "—"}
-                </td>
+                <td className="px-4 py-3 text-ink-muted">{e.telephoneMobile ?? "—"}</td>
+                <td className="px-4 py-3 text-ink-muted">{e.email ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-muted">{e._count.responsables}</td>
               </tr>
             );
           })}
           {etudiants.length === 0 && (
             <tr>
-              <td colSpan={6} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={7} className="px-4 py-8 text-center text-ink-faint">
                 {recherche
                   ? "Aucun étudiant ne correspond à cette recherche."
                   : "Aucun étudiant enregistré pour l'instant."}

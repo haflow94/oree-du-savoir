@@ -33,6 +33,7 @@ const ACTION_LABELS: Record<string, string> = {
   modification_cours: "Modification de cours",
   suppression_cours: "Suppression de cours",
   modification_classe: "Modification de classe",
+  duplication_classes: "Duplication des classes vers une nouvelle année",
   suppression_classe: "Suppression de classe",
   modification_fermeture: "Modification d'une fermeture",
   suppression_fermeture: "Suppression d'une fermeture",

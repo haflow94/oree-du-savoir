@@ -57,6 +57,75 @@ export async function modifierCoursAction(formData: FormData): Promise<void> {
   retour();
 }
 
+// Copie en une fois toutes les classes d'une année source vers l'année
+// active (cours, niveau, créneau, salle, capacité, enseignants) : évite de
+// tout resaisir à la main à chaque rentrée pour des matières qui reviennent
+// à l'identique. Idempotent par (cours, niveau, jour, heure de début) : ne
+// duplique jamais une classe déjà présente sur l'année active.
+export async function dupliquerClassesAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER);
+  const anneeSourceId = String(formData.get("anneeSourceId") ?? "").trim();
+  if (!anneeSourceId) retour("ANNEE_SOURCE_MANQUANTE");
+
+  const anneeActive = await prisma.anneeScolaire.findFirst({ where: { active: true } });
+  if (!anneeActive) retour("AUCUNE_ANNEE_ACTIVE");
+  if (anneeActive.id === anneeSourceId) retour("MEME_ANNEE");
+
+  const [classesSource, classesActives] = await Promise.all([
+    prisma.classe.findMany({
+      where: { anneeScolaireId: anneeSourceId },
+      include: { enseignants: true },
+    }),
+    prisma.classe.findMany({
+      where: { anneeScolaireId: anneeActive.id },
+      select: { coursId: true, niveau: true, jour: true, heureDebut: true },
+    }),
+  ]);
+
+  const dejaPresente = (c: (typeof classesSource)[number]) =>
+    classesActives.some(
+      (e) =>
+        e.coursId === c.coursId &&
+        e.niveau === c.niveau &&
+        e.jour === c.jour &&
+        e.heureDebut === c.heureDebut,
+    );
+  const aCreer = classesSource.filter((c) => !dejaPresente(c));
+
+  await prisma.$transaction([
+    ...aCreer.map((c) =>
+      prisma.classe.create({
+        data: {
+          coursId: c.coursId,
+          anneeScolaireId: anneeActive.id,
+          niveau: c.niveau,
+          semestre: c.semestre,
+          jour: c.jour,
+          heureDebut: c.heureDebut,
+          heureFin: c.heureFin,
+          salle: c.salle,
+          capacite: c.capacite,
+          enseignants: {
+            create: c.enseignants.map((e) => ({ utilisateurId: e.utilisateurId })),
+          },
+        },
+      }),
+    ),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "duplication_classes",
+        entite: "AnneeScolaire",
+        entiteId: anneeActive.id,
+        details: { depuisAnneeId: anneeSourceId, nombreCreees: aCreer.length },
+      },
+    }),
+  ]);
+
+  revalidatePath("/classes");
+  retour();
+}
+
 export async function supprimerCoursAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER);
   const coursId = String(formData.get("coursId") ?? "").trim();
