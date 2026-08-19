@@ -6,6 +6,10 @@ import {
   STATUT_PRESENCE_LABELS,
 } from "@/lib/presences";
 import { validerPresencesAction } from "../actions";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type LigneAppel = {
   etudiantId: string;
@@ -23,11 +27,11 @@ const ORDRE: StatutPresence[] = [
 ];
 
 const COULEURS: Record<StatutPresence, string> = {
-  PRESENT: "bg-emerald-600 text-white",
-  RETARD: "bg-amber-500 text-white",
-  RETARD_EXCUSE: "bg-amber-400 text-white",
-  ABSENT: "bg-red-600 text-white",
-  ABSENT_EXCUSE: "bg-red-400 text-white",
+  PRESENT: "bg-sage text-on-accent",
+  RETARD: "bg-ochre text-on-accent",
+  RETARD_EXCUSE: "bg-ochre/70 text-on-accent",
+  ABSENT: "bg-rust text-on-accent",
+  ABSENT_EXCUSE: "bg-rust/70 text-on-accent",
 };
 
 export function FeuilleAppel({
@@ -59,36 +63,36 @@ export function FeuilleAppel({
       <input type="hidden" name="seanceId" value={seanceId} />
 
       {!lectureSeule && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <button
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <Button
             type="button"
+            variant="primary"
             onClick={() =>
               setStatuts(
                 Object.fromEntries(lignes.map((l) => [l.etudiantId, "PRESENT"])),
               )
             }
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
           >
             Tous présents
-          </button>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+          </Button>
+          <div className="flex flex-wrap gap-2">
             {compte.map((c) => (
-              <span key={c.statut} className="rounded-full bg-slate-100 px-2.5 py-1">
+              <Badge key={c.statut} variant="neutral">
                 {STATUT_PRESENCE_LABELS[c.statut]} : {c.n}
-              </span>
+              </Badge>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <ul className="divide-y divide-slate-100">
+      <div className="overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-card">
+        <ul className="divide-y divide-border">
           {lignes.map((l) => (
             <li
               key={l.etudiantId}
               className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
             >
-              <span className="font-medium text-slate-800">
+              <span className="font-medium text-ink">
                 {l.prenom} {l.nom}
               </span>
               <input
@@ -110,7 +114,7 @@ export function FeuilleAppel({
                       className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
                         actif
                           ? COULEURS[s]
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          : "bg-bg-sunken text-ink-muted hover:bg-border"
                       }`}
                     >
                       {STATUT_PRESENCE_LABELS[s]}
@@ -124,24 +128,21 @@ export function FeuilleAppel({
       </div>
 
       {lignes.length === 0 && (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-          Aucun étudiant inscrit dans cette classe. Ajoutez-les depuis la fiche
-          de la classe avant de faire l&apos;appel.
-        </p>
+        <EmptyState
+          message="Aucun étudiant inscrit dans cette classe."
+          hint="Ajoutez-les depuis la fiche de la classe avant de faire l'appel."
+        />
       )}
 
       {!lectureSeule && lignes.length > 0 && (
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
             <input type="checkbox" name="saisieViaPapier" value="1" />
             Saisie depuis la feuille papier
           </label>
-          <button
-            type="submit"
-            className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-          >
+          <Button type="submit" variant="primary">
             {dejaValidee ? "Enregistrer la correction" : "Valider l'appel"}
-          </button>
+          </Button>
         </div>
       )}
     </form>

@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Plus, Trash2, Upload } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
+import { estAdministratif } from "@/lib/acces-presence";
 import { formaterMontant } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { TYPE_DOCUMENT_LABELS } from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
+import { anneeScolaireActiveId } from "@/lib/sections-etudiant";
+import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
 import {
   modifierEtudiantAction,
   ajouterResponsableAction,
@@ -17,6 +21,13 @@ import {
   supprimerDocumentAction,
   supprimerEtudiantAction,
 } from "./actions";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const PEUT_MODIFIER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 const PEUT_CREER_DOSSIER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
@@ -34,48 +45,24 @@ function versChampDate(date: Date | null): string {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
-function Champ({
-  label,
-  name,
-  defaultValue,
-  type = "text",
-  required,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  type?: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label htmlFor={name} className="mb-1 block text-sm font-medium text-slate-700">
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        defaultValue={defaultValue}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-      />
-    </div>
-  );
-}
+const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
+const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
+const DT_CLASSES = "text-xs font-medium uppercase text-ink-faint";
+const DD_CLASSES = "mt-0.5 text-sm text-ink";
 
 export default async function EtudiantDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; classeSectionId?: string }>;
 }) {
   const session = await requireSession();
   const peutModifier = hasRole(session.role, PEUT_MODIFIER);
   const peutCreerDossier = hasRole(session.role, PEUT_CREER_DOSSIER);
+  const peutInscrire = estAdministratif(session.role) || session.role === Role.ACCUEIL;
   const { id } = await params;
-  const { error, ok } = await searchParams;
+  const { error, ok, classeSectionId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
   const [etudiant, sections] = await Promise.all([
@@ -108,6 +95,22 @@ export default async function EtudiantDetailPage({
     notFound();
   }
 
+  const dejaInscritClasseIds = new Set(etudiant.inscriptions.map((i) => i.classe.id));
+  const anneeActiveId = peutInscrire ? await anneeScolaireActiveId() : null;
+  const classesDisponibles =
+    peutInscrire && anneeActiveId
+      ? (
+          await prisma.classe.findMany({
+            where: {
+              anneeScolaireId: anneeActiveId,
+              ...(classeSectionId ? { cours: { sectionId: classeSectionId } } : {}),
+            },
+            include: { cours: { include: { section: true } } },
+            orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+          })
+        ).filter((c) => !dejaInscritClasseIds.has(c.id))
+      : [];
+
   const peutSupprimer = hasRole(session.role, PEUT_SUPPRIMER);
   const etudiantSupprimable =
     etudiant.dossiersAnnuels.length === 0 &&
@@ -118,82 +121,59 @@ export default async function EtudiantDetailPage({
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/etudiants" className="text-sm text-slate-500 hover:underline">
+          <Link href="/etudiants" className="text-sm text-ink-muted hover:underline">
             ← Étudiants
           </Link>
-          <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold text-slate-900">
+          <h1 className="mt-1 flex items-center gap-2 font-display text-2xl font-semibold text-pine-strong">
             {etudiant.prenom} {etudiant.nom}
             {etudiant.statutInscription === "PREINSCRIT" && (
-              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                Préinscrit — à valider
-              </span>
+              <Badge variant="info">Préinscrit — à valider</Badge>
             )}
-          </h2>
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           {peutModifier && etudiant.statutInscription === "PREINSCRIT" && (
             <form action={validerInscriptionAction}>
               <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <button
-                type="submit"
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-              >
+              <Button type="submit" variant="primary">
                 Valider l&apos;inscription
-              </button>
+              </Button>
             </form>
           )}
           {peutSupprimer && (
-            <form action={supprimerEtudiantAction}>
-              <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <button
-                type="submit"
+            <>
+              <form id="supprimer-etudiant" action={supprimerEtudiantAction}>
+                <input type="hidden" name="etudiantId" value={etudiant.id} />
+              </form>
+              <ConfirmDialog
+                formId="supprimer-etudiant"
+                triggerLabel="Supprimer la fiche"
+                title="Supprimer cette fiche ?"
+                description={`Cette action supprime définitivement la fiche de ${etudiant.prenom} ${etudiant.nom} et ne peut pas être annulée.`}
+                confirmLabel="Supprimer définitivement"
                 disabled={!etudiantSupprimable}
-                title={
-                  !etudiantSupprimable
-                    ? "Un dossier annuel, une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
-                    : undefined
-                }
-                className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Supprimer la fiche
-              </button>
-            </form>
+                disabledTitle="Un dossier annuel, une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
+              />
+            </>
           )}
         </div>
       </div>
 
-      {message && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
-      )}
-      {ok && !message && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Modification enregistrée.
-        </p>
-      )}
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       {peutModifier ? (
         <form action={modifierEtudiantAction} className="space-y-6">
           <input type="hidden" name="etudiantId" value={etudiant.id} />
 
-          <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <legend className="px-1 text-sm font-semibold text-slate-800">Identité</legend>
+          <fieldset className={FIELDSET_CLASSES}>
+            <legend className={LEGEND_CLASSES}>Identité</legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Civilité
-                </label>
-                <select
-                  name="civilite"
-                  defaultValue={etudiant.civilite ?? ""}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                >
-                  <option value="">—</option>
-                  <option value="M">M.</option>
-                  <option value="MME">Mme</option>
-                </select>
-              </div>
+              <ChampSelect label="Civilité" name="civilite" defaultValue={etudiant.civilite ?? ""}>
+                <option value="">—</option>
+                <option value="M">M.</option>
+                <option value="MME">Mme</option>
+              </ChampSelect>
               <div />
               <Champ label="Nom" name="nom" defaultValue={etudiant.nom} required />
               <Champ label="Prénom" name="prenom" defaultValue={etudiant.prenom} required />
@@ -211,8 +191,8 @@ export default async function EtudiantDetailPage({
             </div>
           </fieldset>
 
-          <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <legend className="px-1 text-sm font-semibold text-slate-800">Coordonnées</legend>
+          <fieldset className={FIELDSET_CLASSES}>
+            <legend className={LEGEND_CLASSES}>Coordonnées</legend>
             <div className="grid gap-4 sm:grid-cols-2">
               <Champ
                 label="Téléphone mobile"
@@ -225,22 +205,32 @@ export default async function EtudiantDetailPage({
                 defaultValue={etudiant.telephoneFixe ?? ""}
               />
               <Champ label="Email" name="email" type="email" defaultValue={etudiant.email ?? ""} />
-              <div />
-              <div className="sm:col-span-2">
-                <Champ label="Adresse" name="adresse" defaultValue={etudiant.adresse ?? ""} />
-              </div>
-              <div className="sm:col-span-2">
-                <Champ
-                  label="Complément d'adresse"
-                  name="complementAdresse"
-                  defaultValue={etudiant.complementAdresse ?? ""}
-                />
-              </div>
+              <Champ
+                label="Contact d'urgence"
+                name="contactUrgence"
+                defaultValue={etudiant.contactUrgence ?? ""}
+              />
+              <Champ
+                label="Adresse"
+                name="adresse"
+                defaultValue={etudiant.adresse ?? ""}
+                className="sm:col-span-2"
+              />
+              <Champ
+                label="Complément d'adresse"
+                name="complementAdresse"
+                defaultValue={etudiant.complementAdresse ?? ""}
+              />
+              <Champ
+                label="Code postal"
+                name="codePostal"
+                defaultValue={etudiant.codePostal ?? ""}
+              />
             </div>
           </fieldset>
 
-          <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <legend className="px-1 text-sm font-semibold text-slate-800">Situation</legend>
+          <fieldset className={FIELDSET_CLASSES}>
+            <legend className={LEGEND_CLASSES}>Situation</legend>
             <div className="grid gap-4 sm:grid-cols-2">
               <Champ label="Profession" name="profession" defaultValue={etudiant.profession ?? ""} />
               <Champ
@@ -254,184 +244,112 @@ export default async function EtudiantDetailPage({
                 defaultValue={etudiant.dernierDiplome ?? ""}
               />
               <div />
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Remarque
-                </label>
-                <textarea
-                  name="remarque"
-                  rows={3}
-                  defaultValue={etudiant.remarque ?? ""}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
+              <ChampTextarea
+                label="Remarque"
+                name="remarque"
+                rows={3}
+                defaultValue={etudiant.remarque ?? ""}
+                className="sm:col-span-2"
+              />
             </div>
           </fieldset>
 
           <div className="flex justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-            >
+            <Button type="submit" variant="primary">
               Enregistrer les modifications
-            </button>
+            </Button>
           </div>
         </form>
       ) : (
         <>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-slate-800">Identité</h3>
-            <dl className="grid gap-4 sm:grid-cols-2">
+          <Card>
+            <CardTitle>Identité</CardTitle>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase text-slate-400">
-                  Date de naissance
-                </dt>
-                <dd className="mt-0.5 text-sm text-slate-800">
+                <dt className={DT_CLASSES}>Date de naissance</dt>
+                <dd className={DD_CLASSES}>
                   {etudiant.dateNaissance
                     ? new Date(etudiant.dateNaissance).toLocaleDateString("fr-FR")
                     : "—"}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase text-slate-400">
-                  Ville de naissance
-                </dt>
-                <dd className="mt-0.5 text-sm text-slate-800">
-                  {etudiant.villeNaissance || "—"}
-                </dd>
+                <dt className={DT_CLASSES}>Ville de naissance</dt>
+                <dd className={DD_CLASSES}>{etudiant.villeNaissance || "—"}</dd>
               </div>
             </dl>
-          </div>
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-sm font-semibold text-slate-800">Coordonnées</h3>
-            <dl className="grid gap-4 sm:grid-cols-2">
+          </Card>
+          <Card>
+            <CardTitle>Coordonnées</CardTitle>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-medium uppercase text-slate-400">Téléphone</dt>
-                <dd className="mt-0.5 text-sm text-slate-800">
-                  {etudiant.telephoneMobile || etudiant.telephoneFixe || "—"}
-                </dd>
+                <dt className={DT_CLASSES}>Téléphone</dt>
+                <dd className={DD_CLASSES}>{etudiant.telephoneMobile || etudiant.telephoneFixe || "—"}</dd>
               </div>
               <div>
-                <dt className="text-xs font-medium uppercase text-slate-400">Email</dt>
-                <dd className="mt-0.5 text-sm text-slate-800">{etudiant.email || "—"}</dd>
+                <dt className={DT_CLASSES}>Email</dt>
+                <dd className={DD_CLASSES}>{etudiant.email || "—"}</dd>
+              </div>
+              <div>
+                <dt className={DT_CLASSES}>Contact d&apos;urgence</dt>
+                <dd className={DD_CLASSES}>{etudiant.contactUrgence || "—"}</dd>
               </div>
               <div className="sm:col-span-2">
-                <dt className="text-xs font-medium uppercase text-slate-400">Adresse</dt>
-                <dd className="mt-0.5 text-sm text-slate-800">{etudiant.adresse || "—"}</dd>
+                <dt className={DT_CLASSES}>Adresse</dt>
+                <dd className={DD_CLASSES}>
+                  {etudiant.adresse || "—"}
+                  {etudiant.codePostal ? ` — ${etudiant.codePostal}` : ""}
+                </dd>
               </div>
             </dl>
-          </div>
+          </Card>
         </>
       )}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-slate-800">
-          Responsables légaux
-        </h3>
+      <Card>
+        <CardTitle>Responsables légaux</CardTitle>
         {etudiant.responsables.length === 0 ? (
-          <p className="text-sm text-slate-400">Aucun responsable enregistré.</p>
+          <div className="mt-4">
+            <EmptyState message="Aucun responsable enregistré." />
+          </div>
         ) : (
-          <ul className="space-y-4">
+          <ul className="mt-4 divide-y divide-border">
             {etudiant.responsables.map((r) => (
-              <li key={r.id} className="border-t border-slate-100 pt-4 first:border-0 first:pt-0">
+              <li key={r.id} className="py-4 first:pt-0">
                 {peutModifier ? (
                   <form action={modifierResponsableAction} className="space-y-3">
                     <input type="hidden" name="etudiantId" value={etudiant.id} />
                     <input type="hidden" name="responsableId" value={r.id} />
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Civilité
-                        </label>
-                        <select
-                          name="civilite"
-                          defaultValue={r.civilite ?? ""}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        >
-                          <option value="">—</option>
-                          <option value="M">M.</option>
-                          <option value="MME">Mme</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Lien
-                        </label>
-                        <input
-                          name="lien"
-                          defaultValue={r.lien}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Nom
-                        </label>
-                        <input
-                          name="nom"
-                          required
-                          defaultValue={r.nom}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Prénom
-                        </label>
-                        <input
-                          name="prenom"
-                          required
-                          defaultValue={r.prenom}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Téléphone
-                        </label>
-                        <input
-                          name="telephone"
-                          defaultValue={r.telephone ?? ""}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Email
-                        </label>
-                        <input
-                          name="email"
-                          type="email"
-                          defaultValue={r.email ?? ""}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          Adresse
-                        </label>
-                        <input
-                          name="adresse"
-                          defaultValue={r.adresse ?? ""}
-                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                        />
-                      </div>
+                      <ChampSelect label="Civilité" name="civilite" defaultValue={r.civilite ?? ""}>
+                        <option value="">—</option>
+                        <option value="M">M.</option>
+                        <option value="MME">Mme</option>
+                      </ChampSelect>
+                      <Champ label="Lien" name="lien" defaultValue={r.lien} />
+                      <Champ label="Nom" name="nom" required defaultValue={r.nom} />
+                      <Champ label="Prénom" name="prenom" required defaultValue={r.prenom} />
+                      <Champ label="Téléphone" name="telephone" defaultValue={r.telephone ?? ""} />
+                      <Champ label="Email" name="email" type="email" defaultValue={r.email ?? ""} />
+                      <Champ
+                        label="Adresse"
+                        name="adresse"
+                        defaultValue={r.adresse ?? ""}
+                        className="sm:col-span-2"
+                      />
                     </div>
                     <div className="flex justify-end gap-2">
-                      <button
-                        type="submit"
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                      >
+                      <Button type="submit" variant="secondary" size="sm">
                         Enregistrer
-                      </button>
+                      </Button>
                     </div>
                   </form>
                 ) : (
                   <div>
-                    <p className="text-sm font-medium text-slate-800">
-                      {r.prenom} {r.nom} <span className="font-normal text-slate-500">({r.lien})</span>
+                    <p className="text-sm font-medium text-ink">
+                      {r.prenom} {r.nom} <span className="font-normal text-ink-muted">({r.lien})</span>
                     </p>
-                    <p className="mt-1 text-sm text-slate-600">
+                    <p className="mt-1 text-sm text-ink-muted">
                       {r.telephone || "—"} · {r.email || "—"}
                     </p>
                   </div>
@@ -442,8 +360,9 @@ export default async function EtudiantDetailPage({
                     <input type="hidden" name="responsableId" value={r.id} />
                     <button
                       type="submit"
-                      className="text-xs font-medium text-red-600 hover:underline"
+                      className="flex items-center gap-1 text-xs font-medium text-rust hover:underline"
                     >
+                      <Trash2 size={12} aria-hidden />
                       Supprimer ce responsable
                     </button>
                   </form>
@@ -455,122 +374,135 @@ export default async function EtudiantDetailPage({
 
         {peutModifier && (
           <details className="mt-4">
-            <summary className="cursor-pointer text-sm font-medium text-slate-700">
-              + Ajouter un responsable
+            <summary className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-pine">
+              <Plus size={14} aria-hidden />
+              Ajouter un responsable
             </summary>
             <form action={ajouterResponsableAction} className="mt-3 grid gap-3 sm:grid-cols-2">
               <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Civilité</label>
-                <select
-                  name="civilite"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                >
-                  <option value="">—</option>
-                  <option value="M">M.</option>
-                  <option value="MME">Mme</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Lien</label>
-                <input
-                  name="lien"
-                  placeholder="Père, mère, tuteur…"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Nom</label>
-                <input
-                  name="nom"
-                  required
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Prénom</label>
-                <input
-                  name="prenom"
-                  required
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Téléphone</label>
-                <input
-                  name="telephone"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Email</label>
-                <input
-                  name="email"
-                  type="email"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs font-medium text-slate-600">Adresse</label>
-                <input
-                  name="adresse"
-                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div className="sm:col-span-2 flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
+              <ChampSelect label="Civilité" name="civilite" defaultValue="">
+                <option value="">—</option>
+                <option value="M">M.</option>
+                <option value="MME">Mme</option>
+              </ChampSelect>
+              <Champ label="Lien" name="lien" placeholder="Père, mère, tuteur…" />
+              <Champ label="Nom" name="nom" required />
+              <Champ label="Prénom" name="prenom" required />
+              <Champ label="Téléphone" name="telephone" />
+              <Champ label="Email" name="email" type="email" />
+              <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
+              <div className="flex justify-end sm:col-span-2">
+                <Button type="submit" variant="secondary" size="sm">
                   Ajouter
-                </button>
+                </Button>
               </div>
             </form>
           </details>
         )}
-      </div>
+      </Card>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-4 text-sm font-semibold text-slate-800">Cours suivis</h3>
+      <Card>
+        <CardTitle>Cours suivis</CardTitle>
         {etudiant.inscriptions.length === 0 ? (
-          <p className="text-sm text-slate-400">Aucune inscription en cours.</p>
+          <div className="mt-4">
+            <EmptyState message="Aucune inscription en cours." />
+          </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="mt-4 divide-y divide-border">
             {etudiant.inscriptions.map((i) => (
-              <li key={i.id} className="py-2.5">
-                <Link
-                  href={`/classes/${i.classe.id}`}
-                  className="text-sm font-medium text-slate-800 hover:underline"
-                >
-                  {i.classe.cours.nom}
-                  {i.classe.niveau && ` — ${i.classe.niveau}`}
-                </Link>
-                <p className="text-xs text-slate-500">
-                  {JOUR_LABELS[i.classe.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}
-                  {i.classe.anneeScolaire.libelle}
-                </p>
+              <li key={i.id} className="flex items-center justify-between py-2.5">
+                <div>
+                  <Link
+                    href={`/classes/${i.classe.id}`}
+                    className="text-sm font-medium text-ink hover:underline"
+                  >
+                    {i.classe.cours.nom}
+                    {i.classe.niveau && ` — ${i.classe.niveau}`}
+                  </Link>
+                  <p className="text-xs text-ink-faint">
+                    {JOUR_LABELS[i.classe.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}
+                    {i.classe.anneeScolaire.libelle}
+                  </p>
+                </div>
+                {peutInscrire && (
+                  <form action={retirerEtudiantAction}>
+                    <input type="hidden" name="inscriptionId" value={i.id} />
+                    <input type="hidden" name="classeId" value={i.classe.id} />
+                    <input type="hidden" name="etudiantId" value={etudiant.id} />
+                    <button type="submit" className="text-xs font-medium text-rust hover:underline">
+                      Retirer
+                    </button>
+                  </form>
+                )}
               </li>
             ))}
           </ul>
         )}
-      </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">Situation financière</h3>
+        {peutInscrire && (
+          <div className="mt-4 space-y-3 border-t border-border pt-4">
+            <form className="flex flex-wrap items-end gap-2" action={`/etudiants/${etudiant.id}`} method="GET">
+              <ChampSelect label="Section" name="classeSectionId" defaultValue={classeSectionId ?? ""}>
+                <option value="">Toutes les sections</option>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom}
+                  </option>
+                ))}
+              </ChampSelect>
+              <Button type="submit" variant="secondary" size="sm">
+                Filtrer
+              </Button>
+            </form>
+
+            {classesDisponibles.length > 0 ? (
+              <form action={inscrireEtudiantAction} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="etudiantId" value={etudiant.id} />
+                <ChampSelect label="Classe" name="classeId" required className="w-full max-w-sm">
+                  {classesDisponibles.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.cours.section.nom} · {c.cours.nom}
+                      {c.niveau && ` — ${c.niveau}`} · {JOUR_LABELS[c.jour]} {c.heureDebut}-
+                      {c.heureFin}
+                    </option>
+                  ))}
+                </ChampSelect>
+                <Button type="submit" variant="secondary" size="sm">
+                  Inscrire
+                </Button>
+              </form>
+            ) : (
+              <EmptyState
+                message={
+                  anneeActiveId
+                    ? "Aucune classe disponible pour ce filtre."
+                    : "Aucune année scolaire active."
+                }
+              />
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div className="flex items-center justify-between">
+          <CardTitle>Situation financière</CardTitle>
           {peutCreerDossier && (
             <Link
               href={`/paiements/nouveau?etudiantId=${etudiant.id}`}
-              className="text-xs font-medium text-slate-600 hover:underline"
+              className="flex items-center gap-1 text-xs font-medium text-pine hover:underline"
             >
-              + Nouveau dossier (réinscription)
+              <Plus size={12} aria-hidden />
+              Nouveau dossier (réinscription)
             </Link>
           )}
         </div>
         {etudiant.dossiersAnnuels.length === 0 ? (
-          <p className="text-sm text-slate-400">Aucun dossier de paiement pour l&apos;instant.</p>
+          <div className="mt-4">
+            <EmptyState message="Aucun dossier de paiement pour l'instant." />
+          </div>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="mt-4 divide-y divide-border">
             {etudiant.dossiersAnnuels.map((d) => {
               const du = Number.parseFloat(d.montantDu.toString());
               const encaisse = d.echeances
@@ -578,79 +510,69 @@ export default async function EtudiantDetailPage({
                 .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
               const reste = du - encaisse;
               const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
-              const statutClasses =
-                statut === "Soldé"
-                  ? "bg-emerald-50 text-emerald-700"
-                  : statut === "Partiel"
-                    ? "bg-amber-50 text-amber-700"
-                    : "bg-red-50 text-red-700";
+              const statutVariant =
+                statut === "Soldé" ? "success" : statut === "Partiel" ? "warning" : "danger";
               return (
                 <li key={d.id} className="flex items-center justify-between py-2.5">
                   <Link
                     href={`/paiements/${d.id}`}
-                    className="text-sm font-medium text-slate-800 hover:underline"
+                    className="text-sm font-medium text-ink hover:underline"
                   >
                     {d.anneeScolaire.libelle}
                   </Link>
-                  <div className="flex items-center gap-3 text-sm text-slate-600">
+                  <div className="flex items-center gap-3 text-sm text-ink-muted">
                     <span>Dû {formaterMontant(du)}</span>
                     <span>Reste {formaterMontant(reste)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statutClasses}`}>
-                      {statut}
-                    </span>
+                    <Badge variant={statutVariant}>{statut}</Badge>
                   </div>
                 </li>
               );
             })}
           </ul>
         )}
-      </div>
+      </Card>
 
       {peutModifier && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-1 text-sm font-semibold text-slate-800">Dossier officiel</h3>
-          <p className="mb-3 text-xs text-slate-500">
-            Génère le dossier pré-rempli à imprimer et faire signer. Le
-            fichier est conservé et réapparaît dans les documents ci-dessous.
+        <Card>
+          <CardTitle>Dossier officiel</CardTitle>
+          <p className="mb-3 mt-1 text-xs text-ink-faint">
+            Génère le dossier Word pré-rempli (gabarit officiel de
+            l&apos;association) : à ouvrir dans Word ou LibreOffice pour
+            l&apos;imprimer et le faire signer. Le fichier est conservé et
+            réapparaît dans les documents ci-dessous.
           </p>
           {sections.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucune section enregistrée.</p>
+            <EmptyState message="Aucune section enregistrée." />
           ) : (
             <form className="flex flex-wrap items-end gap-2" action={`/etudiants/${etudiant.id}/dossier`}>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Section</label>
-                <select
-                  name="sectionId"
-                  required
-                  defaultValue={sections[0]?.id}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                >
-                  {sections.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nom}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <ChampSelect label="Section" name="sectionId" required defaultValue={sections[0]?.id}>
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom}
+                  </option>
+                ))}
+              </ChampSelect>
               <button
                 type="submit"
                 formTarget="_blank"
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className={buttonVariants({ variant: "secondary", size: "sm" })}
               >
-                Générer et imprimer
+                Générer (Word)
               </button>
             </form>
           )}
-        </div>
+        </Card>
       )}
 
       {peutModifier && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 text-sm font-semibold text-slate-800">Documents</h3>
+        <Card>
+          <CardTitle>Documents</CardTitle>
           {etudiant.documents.length === 0 ? (
-            <p className="text-sm text-slate-400">Aucun document pour l&apos;instant.</p>
+            <div className="mt-4">
+              <EmptyState message="Aucun document pour l'instant." />
+            </div>
           ) : (
-            <ul className="mb-4 divide-y divide-slate-100">
+            <ul className="mb-4 mt-4 divide-y divide-border">
               {etudiant.documents.map((d) => (
                 <li key={d.id} className="flex items-center justify-between py-2.5">
                   <div>
@@ -658,25 +580,26 @@ export default async function EtudiantDetailPage({
                       href={`/etudiants/${etudiant.id}/documents/${d.id}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-sm font-medium text-slate-800 hover:underline"
+                      className="text-sm font-medium text-ink hover:underline"
                     >
                       {d.nomFichier}
                     </a>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-ink-faint">
                       {TYPE_DOCUMENT_LABELS[d.type]} ·{" "}
                       {new Date(d.creeLe).toLocaleDateString("fr-FR")}
                     </p>
                   </div>
-                  <form action={supprimerDocumentAction}>
+                  <form id={`supprimer-document-${d.id}`} action={supprimerDocumentAction}>
                     <input type="hidden" name="etudiantId" value={etudiant.id} />
                     <input type="hidden" name="documentId" value={d.id} />
-                    <button
-                      type="submit"
-                      className="text-xs font-medium text-red-600 hover:underline"
-                    >
-                      Supprimer
-                    </button>
                   </form>
+                  <ConfirmDialog
+                    formId={`supprimer-document-${d.id}`}
+                    triggerLabel="Supprimer"
+                    title="Supprimer ce document ?"
+                    description={`« ${d.nomFichier} » sera définitivement supprimé.`}
+                    confirmLabel="Supprimer"
+                  />
                 </li>
               ))}
             </ul>
@@ -684,46 +607,36 @@ export default async function EtudiantDetailPage({
           <form
             action={televerserDocumentAction}
             encType="multipart/form-data"
-            className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4"
+            className="flex flex-wrap items-end gap-2 border-t border-border pt-4"
           >
             <input type="hidden" name="etudiantId" value={etudiant.id} />
+            <ChampSelect label="Type" name="type" required defaultValue="">
+              <option value="" disabled>
+                Choisir…
+              </option>
+              {Object.values(TypeDocument)
+                .filter((t) => t !== "DOSSIER_GENERE")
+                .map((t) => (
+                  <option key={t} value={t}>
+                    {TYPE_DOCUMENT_LABELS[t]}
+                  </option>
+                ))}
+            </ChampSelect>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Type</label>
-              <select
-                name="type"
-                required
-                defaultValue=""
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              >
-                <option value="" disabled>
-                  Choisir…
-                </option>
-                {Object.values(TypeDocument)
-                  .filter((t) => t !== "DOSSIER_GENERE")
-                  .map((t) => (
-                    <option key={t} value={t}>
-                      {TYPE_DOCUMENT_LABELS[t]}
-                    </option>
-                  ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">Fichier</label>
+              <label className="mb-1 block text-sm font-medium text-ink">Fichier</label>
               <input
                 type="file"
                 name="fichier"
                 required
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm file:mr-2 file:rounded-md file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs"
+                className="rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
               />
             </div>
-            <button
-              type="submit"
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
+            <Button type="submit" variant="secondary" size="sm">
+              <Upload size={13} aria-hidden />
               Téléverser
-            </button>
+            </Button>
           </form>
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Card, CardTitle } from "@/components/ui/card";
+import { TableWrap, TableHead } from "@/components/ui/table";
 
 export default async function InscriptionsPage() {
   await requireSession();
@@ -13,60 +15,51 @@ export default async function InscriptionsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">Inscriptions</h2>
-        <p className="text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-semibold text-pine-strong">Inscriptions</h1>
+        <p className="text-sm text-ink-muted">
           Préinscriptions en attente de contrôle sur place (signature,
           documents, paiement) avant validation.
         </p>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-1 text-sm font-semibold text-slate-800">
-          Formulaire public
-        </h3>
-        <p className="text-sm text-slate-600">
+      <Card>
+        <CardTitle>Formulaire public</CardTitle>
+        <p className="mt-1 text-sm text-ink-muted">
           Les futurs étudiants peuvent préremplir leur dossier sans compte
           depuis{" "}
-          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
-            /preinscription
-          </code>
-          .
+          <code className="rounded bg-bg-sunken px-1.5 py-0.5 text-xs">/preinscription</code>.
         </p>
-      </div>
+      </Card>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Nom</th>
-              <th className="px-4 py-3">Reçu le</th>
-              <th className="px-4 py-3">Remarque</th>
+      <TableWrap>
+        <TableHead>
+          <th className="px-4 py-3">Nom</th>
+          <th className="px-4 py-3">Reçu le</th>
+          <th className="px-4 py-3">Remarque</th>
+        </TableHead>
+        <tbody className="divide-y divide-border">
+          {preinscrits.map((e) => (
+            <tr key={e.id} className="hover:bg-bg-sunken/40">
+              <td className="px-4 py-3 font-medium text-ink">
+                <Link href={`/etudiants/${e.id}`} className="hover:underline">
+                  {e.prenom} {e.nom}
+                </Link>
+              </td>
+              <td className="px-4 py-3 text-ink-muted">
+                {new Date(e.creeLe).toLocaleDateString("fr-FR")}
+              </td>
+              <td className="px-4 py-3 text-ink-muted">{e.remarque ?? "—"}</td>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {preinscrits.map((e) => (
-              <tr key={e.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium text-slate-800">
-                  <Link href={`/etudiants/${e.id}`} className="hover:underline">
-                    {e.prenom} {e.nom}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 text-slate-500">
-                  {new Date(e.creeLe).toLocaleDateString("fr-FR")}
-                </td>
-                <td className="px-4 py-3 text-slate-500">{e.remarque ?? "—"}</td>
-              </tr>
-            ))}
-            {preinscrits.length === 0 && (
-              <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-slate-400">
-                  Aucune préinscription en attente.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+          {preinscrits.length === 0 && (
+            <tr>
+              <td colSpan={3} className="px-4 py-8 text-center text-ink-faint">
+                Aucune préinscription en attente.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </TableWrap>
     </div>
   );
 }

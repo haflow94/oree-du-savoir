@@ -3,6 +3,8 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import { JOUR_LABELS } from "@/lib/planning";
+import { Card, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const PEUT_VOIR_DOCUMENTS = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 
@@ -18,8 +20,8 @@ export default async function RecherchePage({
   if (!recherche) {
     return (
       <div className="space-y-6">
-        <h2 className="text-lg font-semibold text-slate-900">Recherche</h2>
-        <p className="text-sm text-slate-500">
+        <h1 className="font-display text-2xl font-semibold text-pine-strong">Recherche</h1>
+        <p className="text-sm text-ink-muted">
           Cherche un étudiant, une classe/un cours, ou un mouvement de
           trésorerie depuis la barre en haut de l&apos;écran.
         </p>
@@ -74,107 +76,95 @@ export default async function RecherchePage({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">
+        <h1 className="font-display text-2xl font-semibold text-pine-strong">
           Résultats pour « {recherche} »
-        </h2>
-        <p className="text-sm text-slate-500">
+        </h1>
+        <p className="text-sm text-ink-muted">
           {total} résultat(s) — étudiants, classes/cours, trésorerie
           {peutVoirDocuments ? ", documents" : ""}.
         </p>
       </div>
 
       {etudiants.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
-            Étudiants ({etudiants.length})
-          </h3>
-          <ul className="divide-y divide-slate-100">
+        <Card>
+          <CardTitle>Étudiants ({etudiants.length})</CardTitle>
+          <ul className="mt-3 divide-y divide-border">
             {etudiants.map((e) => (
               <li key={e.id} className="py-2">
-                <Link href={`/etudiants/${e.id}`} className="text-sm font-medium text-slate-800 hover:underline">
+                <Link href={`/etudiants/${e.id}`} className="text-sm font-medium text-ink hover:underline">
                   {e.prenom} {e.nom}
                 </Link>
-                <span className="ml-2 text-xs text-slate-500">
+                <span className="ml-2 text-xs text-ink-muted">
                   {e.email ?? e.telephoneMobile ?? ""}
                 </span>
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
 
       {classes.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
-            Classes / cours ({classes.length})
-          </h3>
-          <ul className="divide-y divide-slate-100">
+        <Card>
+          <CardTitle>Classes / cours ({classes.length})</CardTitle>
+          <ul className="mt-3 divide-y divide-border">
             {classes.map((c) => (
               <li key={c.id} className="py-2">
-                <Link href={`/classes/${c.id}`} className="text-sm font-medium text-slate-800 hover:underline">
+                <Link href={`/classes/${c.id}`} className="text-sm font-medium text-ink hover:underline">
                   {c.cours.nom}
                   {c.niveau && ` — ${c.niveau}`}
                 </Link>
-                <span className="ml-2 text-xs text-slate-500">
+                <span className="ml-2 text-xs text-ink-muted">
                   {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
                   {c.salle && ` · ${c.salle}`} · {c.anneeScolaire.libelle}
                 </span>
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
 
       {mouvements.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
-            Trésorerie ({mouvements.length})
-          </h3>
-          <ul className="divide-y divide-slate-100">
+        <Card>
+          <CardTitle>Trésorerie ({mouvements.length})</CardTitle>
+          <ul className="mt-3 divide-y divide-border">
             {mouvements.map((m) => (
               <li key={m.id} className="py-2">
-                <Link href={`/tresorerie/${m.id}`} className="text-sm font-medium text-slate-800 hover:underline">
+                <Link href={`/tresorerie/${m.id}`} className="text-sm font-medium text-ink hover:underline">
                   {m.libelle}
                 </Link>
-                <span className="ml-2 text-xs text-slate-500">
+                <span className="ml-2 text-xs text-ink-muted">
                   {new Date(m.date).toLocaleDateString("fr-FR")}
                 </span>
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
 
       {peutVoirDocuments && documents.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-sm font-semibold text-slate-800">
-            Documents ({documents.length})
-          </h3>
-          <ul className="divide-y divide-slate-100">
+        <Card>
+          <CardTitle>Documents ({documents.length})</CardTitle>
+          <ul className="mt-3 divide-y divide-border">
             {documents.map((d) => (
               <li key={d.id} className="py-2">
                 <a
                   href={`/etudiants/${d.etudiantId}/documents/${d.id}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm font-medium text-slate-800 hover:underline"
+                  className="text-sm font-medium text-ink hover:underline"
                 >
                   {d.nomFichier}
                 </a>
-                <span className="ml-2 text-xs text-slate-500">
+                <span className="ml-2 text-xs text-ink-muted">
                   {d.etudiant.prenom} {d.etudiant.nom}
                 </span>
               </li>
             ))}
           </ul>
-        </div>
+        </Card>
       )}
 
-      {total === 0 && (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-          Aucun résultat pour « {recherche} ».
-        </p>
-      )}
+      {total === 0 && <EmptyState message={`Aucun résultat pour « ${recherche} ».`} />}
     </div>
   );
 }

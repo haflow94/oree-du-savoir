@@ -7,6 +7,12 @@ import {
   modifierAnneeScolaireAction,
   activerAnneeScolaireAction,
 } from "./actions";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Champ } from "@/components/ui/champ";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Libellé et dates sont obligatoires.",
@@ -35,101 +41,56 @@ export default async function AnneesScolairesPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/administration" className="text-sm text-slate-500 hover:underline">
+        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
           ← Administration
         </Link>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
           Années scolaires
-        </h2>
-        <p className="text-sm text-slate-500">
+        </h1>
+        <p className="text-sm text-ink-muted">
           Une seule année est active à la fois : c&apos;est elle qui sert de
           référence par défaut pour les nouvelles classes et dossiers.
         </p>
       </div>
 
-      {message && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
-      )}
-      {ok && !message && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Modification enregistrée.
-        </p>
-      )}
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">
-          Créer une année scolaire
-        </h3>
-        <form action={creerAnneeScolaireAction} className="grid gap-3 sm:grid-cols-4">
-          <div>
-            <label htmlFor="libelle-nouvelle" className="mb-1 block text-xs font-medium text-slate-600">
-              Libellé
-            </label>
-            <input
-              id="libelle-nouvelle"
-              name="libelle"
-              required
-              placeholder="ex. 2026/2027"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="dateDebut-nouvelle" className="mb-1 block text-xs font-medium text-slate-600">
-              Date de début
-            </label>
-            <input
-              id="dateDebut-nouvelle"
-              name="dateDebut"
-              type="date"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="dateFin-nouvelle" className="mb-1 block text-xs font-medium text-slate-600">
-              Date de fin
-            </label>
-            <input
-              id="dateFin-nouvelle"
-              name="dateFin"
-              type="date"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
+      <Card>
+        <CardTitle>Créer une année scolaire</CardTitle>
+        <form action={creerAnneeScolaireAction} className="mt-3 grid gap-3 sm:grid-cols-4">
+          <Champ
+            label="Libellé"
+            name="libelle"
+            id="libelle-nouvelle"
+            required
+            placeholder="ex. 2026/2027"
+          />
+          <Champ label="Date de début" name="dateDebut" id="dateDebut-nouvelle" type="date" required />
+          <Champ label="Date de fin" name="dateFin" id="dateFin-nouvelle" type="date" required />
           <div className="flex items-end gap-2">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-muted">
               <input type="checkbox" name="activer" value="1" />
               Activer immédiatement
             </label>
           </div>
-          <div className="sm:col-span-4 flex justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
+          <div className="flex justify-end sm:col-span-4">
+            <Button type="submit" variant="primary">
               Créer l&apos;année scolaire
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
       <div className="space-y-3">
         {annees.map((a) => (
-          <div
-            key={a.id}
-            className={`rounded-xl border bg-white p-5 shadow-sm ${
-              a.active ? "border-emerald-300" : "border-slate-200"
-            }`}
-          >
+          <Card key={a.id} className={a.active ? "border-sage-border" : ""}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="font-medium text-slate-800">
+              <div className="font-medium text-ink">
                 {a.libelle}
                 {a.active && (
-                  <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                    Active
+                  <span className="ml-2">
+                    <Badge variant="success">Active</Badge>
                   </span>
                 )}
               </div>
@@ -138,7 +99,7 @@ export default async function AnneesScolairesPage({
                   <input type="hidden" name="anneeId" value={a.id} />
                   <button
                     type="submit"
-                    className="rounded-lg border border-emerald-300 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+                    className="rounded-md border border-sage-border px-3 py-1.5 text-xs font-semibold text-sage hover:bg-sage-bg"
                   >
                     Activer
                   </button>
@@ -148,60 +109,38 @@ export default async function AnneesScolairesPage({
 
             <form action={modifierAnneeScolaireAction} className="grid gap-3 sm:grid-cols-3">
               <input type="hidden" name="anneeId" value={a.id} />
-              <div>
-                <label htmlFor={`libelle-${a.id}`} className="mb-1 block text-xs font-medium text-slate-600">
-                  Libellé
-                </label>
-                <input
-                  id={`libelle-${a.id}`}
-                  name="libelle"
-                  required
-                  defaultValue={a.libelle}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div>
-                <label htmlFor={`dateDebut-${a.id}`} className="mb-1 block text-xs font-medium text-slate-600">
-                  Date de début
-                </label>
-                <input
-                  id={`dateDebut-${a.id}`}
-                  name="dateDebut"
-                  type="date"
-                  required
-                  defaultValue={versChampDate(a.dateDebut)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div>
-                <label htmlFor={`dateFin-${a.id}`} className="mb-1 block text-xs font-medium text-slate-600">
-                  Date de fin
-                </label>
-                <input
-                  id={`dateFin-${a.id}`}
-                  name="dateFin"
-                  type="date"
-                  required
-                  defaultValue={versChampDate(a.dateFin)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                />
-              </div>
-              <div className="sm:col-span-3 flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
+              <Champ
+                label="Libellé"
+                name="libelle"
+                id={`libelle-${a.id}`}
+                required
+                defaultValue={a.libelle}
+              />
+              <Champ
+                label="Date de début"
+                name="dateDebut"
+                id={`dateDebut-${a.id}`}
+                type="date"
+                required
+                defaultValue={versChampDate(a.dateDebut)}
+              />
+              <Champ
+                label="Date de fin"
+                name="dateFin"
+                id={`dateFin-${a.id}`}
+                type="date"
+                required
+                defaultValue={versChampDate(a.dateFin)}
+              />
+              <div className="flex justify-end sm:col-span-3">
+                <Button type="submit" variant="secondary">
                   Enregistrer
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
         ))}
-        {annees.length === 0 && (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-            Aucune année scolaire enregistrée.
-          </p>
-        )}
+        {annees.length === 0 && <EmptyState message="Aucune année scolaire enregistrée." />}
       </div>
     </div>
   );

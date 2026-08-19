@@ -7,6 +7,12 @@ import {
   modifierSectionAction,
   supprimerSectionAction,
 } from "./actions";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Champ } from "@/components/ui/champ";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES:
@@ -34,72 +40,55 @@ export default async function SectionsPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/administration" className="text-sm text-slate-500 hover:underline">
+        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
           ← Administration
         </Link>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">Sections</h2>
-        <p className="text-sm text-slate-500">
+        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">Sections</h1>
+        <p className="text-sm text-ink-muted">
           Tarification et barème de remboursement par section (Jeunes,
           Langue Arabe, Études Coraniques, Études Islamiques…).
         </p>
       </div>
 
-      {message && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
-      )}
-      {ok && !message && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Modification enregistrée.
-        </p>
-      )}
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">
-          Créer une section
-        </h3>
-        <form action={creerSectionAction} className="grid gap-3 sm:grid-cols-3">
+      <Card>
+        <CardTitle>Créer une section</CardTitle>
+        <form action={creerSectionAction} className="mt-3 grid gap-3 sm:grid-cols-3">
           <ChampsSection />
-          <div className="sm:col-span-3 flex justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
+          <div className="flex justify-end sm:col-span-3">
+            <Button type="submit" variant="primary">
               Créer la section
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
       <div className="space-y-3">
         {sections.map((s) => (
-          <div
-            key={s.id}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-          >
+          <Card key={s.id}>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="font-medium text-slate-800">
+              <div className="font-medium text-ink">
                 {s.nom}
-                <span className="ml-2 text-xs font-normal text-slate-400">
+                <span className="ml-2 text-xs font-normal text-ink-faint">
                   {s._count.cours} cours rattaché(s)
                 </span>
               </div>
-              <form action={supprimerSectionAction}>
-                <input type="hidden" name="sectionId" value={s.id} />
-                <button
-                  type="submit"
+              <>
+                <form id={`supprimer-section-${s.id}`} action={supprimerSectionAction}>
+                  <input type="hidden" name="sectionId" value={s.id} />
+                </form>
+                <ConfirmDialog
+                  formId={`supprimer-section-${s.id}`}
+                  triggerLabel="Supprimer"
+                  title="Supprimer cette section ?"
+                  description={`Cette action supprime définitivement la section « ${s.nom} » et ne peut pas être annulée.`}
+                  confirmLabel="Supprimer définitivement"
                   disabled={s._count.cours > 0}
-                  title={
-                    s._count.cours > 0
-                      ? "Des cours sont rattachés à cette section : impossible de la supprimer."
-                      : undefined
-                  }
-                  className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Supprimer
-                </button>
-              </form>
+                  disabledTitle="Des cours sont rattachés à cette section : impossible de la supprimer."
+                />
+              </>
             </div>
 
             <form action={modifierSectionAction} className="grid gap-3 sm:grid-cols-3">
@@ -114,22 +103,15 @@ export default async function SectionsPage({
                   remboursementAvant29Jours: s.remboursementAvant29Jours.toString(),
                 }}
               />
-              <div className="sm:col-span-3 flex justify-end">
-                <button
-                  type="submit"
-                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
+              <div className="flex justify-end sm:col-span-3">
+                <Button type="submit" variant="secondary">
                   Enregistrer
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
         ))}
-        {sections.length === 0 && (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-            Aucune section enregistrée.
-          </p>
-        )}
+        {sections.length === 0 && <EmptyState message="Aucune section enregistrée." />}
       </div>
     </div>
   );
@@ -150,92 +132,62 @@ function ChampsSection({
   const idSuffix = defaults ? `-${defaults.nom}` : "-nouvelle";
   return (
     <>
-      <div>
-        <label htmlFor={`nom${idSuffix}`} className="mb-1 block text-xs font-medium text-slate-600">
-          Nom
-        </label>
-        <input
-          id={`nom${idSuffix}`}
-          name="nom"
-          required
-          defaultValue={defaults?.nom}
-          placeholder="ex. Langue Arabe"
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-        />
-      </div>
-      <div>
-        <label htmlFor={`fraisFormation${idSuffix}`} className="mb-1 block text-xs font-medium text-slate-600">
-          Frais de formation (€)
-        </label>
-        <input
-          id={`fraisFormation${idSuffix}`}
-          name="fraisFormation"
-          required
-          inputMode="decimal"
-          placeholder="490"
-          defaultValue={defaults?.fraisFormation}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-        />
-      </div>
-      <div>
-        <label htmlFor={`fraisDossier${idSuffix}`} className="mb-1 block text-xs font-medium text-slate-600">
-          Frais de dossier (€)
-        </label>
-        <input
-          id={`fraisDossier${idSuffix}`}
-          name="fraisDossier"
-          required
-          inputMode="decimal"
-          placeholder="60"
-          defaultValue={defaults?.fraisDossier}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-        />
-      </div>
-      <div>
-        <label htmlFor={`volumeHoraireAnnuel${idSuffix}`} className="mb-1 block text-xs font-medium text-slate-600">
-          Volume horaire annuel (h, optionnel)
-        </label>
-        <input
-          id={`volumeHoraireAnnuel${idSuffix}`}
-          name="volumeHoraireAnnuel"
-          inputMode="numeric"
-          placeholder="120"
-          defaultValue={defaults?.volumeHoraireAnnuel}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-        />
-      </div>
-      <div>
-        <label htmlFor={`remboursementAvant15Jours${idSuffix}`} className="mb-1 block text-xs font-medium text-slate-600">
-          % remboursé (1er au 15e jour après le début)
-        </label>
-        <input
-          id={`remboursementAvant15Jours${idSuffix}`}
-          name="remboursementAvant15Jours"
-          required
-          inputMode="numeric"
-          min={0}
-          max={100}
-          placeholder="50"
-          defaultValue={defaults?.remboursementAvant15Jours}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-        />
-      </div>
-      <div>
-        <label htmlFor={`remboursementAvant29Jours${idSuffix}`} className="mb-1 block text-xs font-medium text-slate-600">
-          % remboursé (15e au 29e jour après le début)
-        </label>
-        <input
-          id={`remboursementAvant29Jours${idSuffix}`}
-          name="remboursementAvant29Jours"
-          required
-          inputMode="numeric"
-          min={0}
-          max={100}
-          placeholder="25"
-          defaultValue={defaults?.remboursementAvant29Jours}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-        />
-      </div>
+      <Champ
+        label="Nom"
+        name="nom"
+        id={`nom${idSuffix}`}
+        required
+        defaultValue={defaults?.nom}
+        placeholder="ex. Langue Arabe"
+      />
+      <Champ
+        label="Frais de formation (€)"
+        name="fraisFormation"
+        id={`fraisFormation${idSuffix}`}
+        required
+        inputMode="decimal"
+        placeholder="490"
+        defaultValue={defaults?.fraisFormation}
+      />
+      <Champ
+        label="Frais de dossier (€)"
+        name="fraisDossier"
+        id={`fraisDossier${idSuffix}`}
+        required
+        inputMode="decimal"
+        placeholder="60"
+        defaultValue={defaults?.fraisDossier}
+      />
+      <Champ
+        label="Volume horaire annuel (h, optionnel)"
+        name="volumeHoraireAnnuel"
+        id={`volumeHoraireAnnuel${idSuffix}`}
+        inputMode="numeric"
+        placeholder="120"
+        defaultValue={defaults?.volumeHoraireAnnuel}
+      />
+      <Champ
+        label="% remboursé (1er au 15e jour après le début)"
+        name="remboursementAvant15Jours"
+        id={`remboursementAvant15Jours${idSuffix}`}
+        required
+        inputMode="numeric"
+        min={0}
+        max={100}
+        placeholder="50"
+        defaultValue={defaults?.remboursementAvant15Jours}
+      />
+      <Champ
+        label="% remboursé (15e au 29e jour après le début)"
+        name="remboursementAvant29Jours"
+        id={`remboursementAvant29Jours${idSuffix}`}
+        required
+        inputMode="numeric"
+        min={0}
+        max={100}
+        placeholder="25"
+        defaultValue={defaults?.remboursementAvant29Jours}
+      />
     </>
   );
 }

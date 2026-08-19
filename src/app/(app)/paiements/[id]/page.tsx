@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
-  MoyenPaiement,
   MOYEN_LABELS,
   STATUT_CHEQUE_LABELS,
   formaterMontant,
@@ -18,9 +17,20 @@ import {
   supprimerEcheanceAction,
 } from "./actions";
 import { Role, hasRole } from "@/lib/roles";
+import { ChampsMoyenPaiement } from "./champs-moyen-paiement";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const PEUT_SAISIR = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 const PEUT_GERER_CHEQUE = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
+const CONTROL_XS_CLASSES =
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1 text-xs text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+const CONTROL_SM_CLASSES =
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const ERROR_MESSAGES: Record<string, string> = {
   DOSSIER_EXISTANT: "Un dossier existe déjà pour cet étudiant sur cette année.",
@@ -47,7 +57,7 @@ export default async function DossierPaiementPage({
       anneeScolaire: true,
       echeances: {
         orderBy: { dateEcheance: "asc" },
-        include: { paiements: { include: { cheque: true } } },
+        include: { paiements: { include: { cheque: true, prelevement: true } } },
       },
     },
   });
@@ -65,29 +75,23 @@ export default async function DossierPaiementPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/paiements" className="text-sm text-slate-500 hover:underline">
+        <Link href="/paiements" className="text-sm text-ink-muted hover:underline">
           ← Paiements
         </Link>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
           {dossier.etudiant.prenom} {dossier.etudiant.nom} — {dossier.anneeScolaire.libelle}
-        </h2>
+        </h1>
       </div>
 
-      {errorMessage && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {errorMessage}
-        </p>
-      )}
+      {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
 
       <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs uppercase text-slate-400">Dû</div>
-          <div className="mt-1 text-lg font-semibold text-slate-800">
-            {formaterMontant(du)}
-          </div>
+        <Card className="p-4">
+          <div className="text-xs uppercase text-ink-faint">Dû</div>
+          <div className="mt-1 text-lg font-semibold text-ink">{formaterMontant(du)}</div>
           {peutGererCheque && (
             <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-slate-500 hover:underline">
+              <summary className="cursor-pointer text-xs text-ink-muted hover:underline">
                 Corriger
               </summary>
               <form action={modifierMontantDuAction} className="mt-2 flex items-center gap-2">
@@ -99,30 +103,23 @@ export default async function DossierPaiementPage({
                   name="montantDu"
                   required
                   defaultValue={du}
-                  className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                  className={`w-24 ${CONTROL_XS_CLASSES}`}
                 />
-                <button
-                  type="submit"
-                  className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
+                <Button type="submit" variant="secondary" size="sm">
                   OK
-                </button>
+                </Button>
               </form>
             </details>
           )}
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs uppercase text-slate-400">Encaissé</div>
-          <div className="mt-1 text-lg font-semibold text-emerald-700">
-            {formaterMontant(encaisse)}
-          </div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-xs uppercase text-slate-400">Reste</div>
-          <div className="mt-1 text-lg font-semibold text-slate-800">
-            {formaterMontant(reste)}
-          </div>
-        </div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs uppercase text-ink-faint">Encaissé</div>
+          <div className="mt-1 text-lg font-semibold text-sage">{formaterMontant(encaisse)}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-xs uppercase text-ink-faint">Reste</div>
+          <div className="mt-1 text-lg font-semibold text-ink">{formaterMontant(reste)}</div>
+        </Card>
       </div>
 
       <div className="space-y-4">
@@ -133,12 +130,12 @@ export default async function DossierPaiementPage({
             0,
           );
           return (
-            <div key={e.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <Card key={e.id}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-sm font-semibold text-slate-800">
+                <h3 className="text-sm font-semibold text-ink">
                   {e.libelle || "Échéance"} — {formaterMontant(montantEcheance)}
                 </h3>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-ink-muted">
                   échéance le {new Date(e.dateEcheance).toLocaleDateString("fr-FR")}
                   {" · "}
                   {formaterMontant(encaisseEcheance)} encaissé
@@ -147,7 +144,7 @@ export default async function DossierPaiementPage({
 
               {peutGererCheque && (
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-xs text-slate-500 hover:underline">
+                  <summary className="cursor-pointer text-xs text-ink-muted hover:underline">
                     Corriger cette échéance
                   </summary>
                   <form
@@ -156,16 +153,16 @@ export default async function DossierPaiementPage({
                   >
                     <input type="hidden" name="echeanceId" value={e.id} />
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Libellé</label>
+                      <label className={LABEL_XS_CLASSES}>Libellé</label>
                       <input
                         type="text"
                         name="libelle"
                         defaultValue={e.libelle ?? ""}
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                        className={CONTROL_XS_CLASSES}
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">Montant</label>
+                      <label className={LABEL_XS_CLASSES}>Montant</label>
                       <input
                         type="number"
                         step="0.01"
@@ -173,27 +170,22 @@ export default async function DossierPaiementPage({
                         name="montant"
                         required
                         defaultValue={montantEcheance}
-                        className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                        className={`w-24 ${CONTROL_XS_CLASSES}`}
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        Date d&apos;échéance
-                      </label>
+                      <label className={LABEL_XS_CLASSES}>Date d&apos;échéance</label>
                       <input
                         type="date"
                         name="dateEcheance"
                         required
                         defaultValue={new Date(e.dateEcheance).toISOString().slice(0, 10)}
-                        className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                        className={CONTROL_XS_CLASSES}
                       />
                     </div>
-                    <button
-                      type="submit"
-                      className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                    >
+                    <Button type="submit" variant="secondary" size="sm">
                       Enregistrer
-                    </button>
+                    </Button>
                   </form>
                   <form action={supprimerEcheanceAction} className="mt-2">
                     <input type="hidden" name="echeanceId" value={e.id} />
@@ -205,7 +197,7 @@ export default async function DossierPaiementPage({
                           ? "Des paiements existent déjà sur cette échéance : impossible de la supprimer."
                           : undefined
                       }
-                      className="text-xs font-medium text-red-600 hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline"
+                      className="text-xs font-medium text-rust hover:underline disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline"
                     >
                       Supprimer cette échéance
                     </button>
@@ -214,23 +206,29 @@ export default async function DossierPaiementPage({
               )}
 
               {e.paiements.length > 0 && (
-                <ul className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                <ul className="mt-3 space-y-2 border-t border-border pt-3">
                   {e.paiements.map((p) => (
-                    <li key={p.id} className="text-sm text-slate-600">
+                    <li key={p.id} className="text-sm text-ink-muted">
                       <div className="flex flex-wrap items-center gap-2">
                         <span>{formaterMontant(p.montant.toString())}</span>
-                        <span className="text-slate-400">·</span>
+                        <span className="text-ink-faint">·</span>
                         <span>{MOYEN_LABELS[p.moyen]}</span>
-                        <span className="text-slate-400">·</span>
+                        <span className="text-ink-faint">·</span>
                         <span>{new Date(p.datePaiement).toLocaleDateString("fr-FR")}</span>
                         {p.cheque && (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                            {STATUT_CHEQUE_LABELS[p.cheque.statut]}
-                          </span>
+                          <Badge variant="neutral">{STATUT_CHEQUE_LABELS[p.cheque.statut]}</Badge>
+                        )}
+                        {p.prelevement && (
+                          <Badge variant="neutral">
+                            {p.prelevement.iban && `IBAN …${p.prelevement.iban.slice(-4)}`}
+                            {p.prelevement.iban && p.prelevement.referenceMandat && " · "}
+                            {p.prelevement.referenceMandat &&
+                              `mandat ${p.prelevement.referenceMandat}`}
+                          </Badge>
                         )}
                         {peutGererCheque && (
                           <details>
-                            <summary className="cursor-pointer text-xs text-slate-400 hover:underline">
+                            <summary className="cursor-pointer text-xs text-ink-faint hover:underline">
                               Corriger le montant
                             </summary>
                             <form
@@ -245,14 +243,11 @@ export default async function DossierPaiementPage({
                                 name="montant"
                                 required
                                 defaultValue={p.montant.toString()}
-                                className="w-24 rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                                className={`w-24 ${CONTROL_XS_CLASSES}`}
                               />
-                              <button
-                                type="submit"
-                                className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                              >
+                              <Button type="submit" variant="secondary" size="sm">
                                 OK
-                              </button>
+                              </Button>
                             </form>
                           </details>
                         )}
@@ -263,7 +258,7 @@ export default async function DossierPaiementPage({
                           <select
                             name="statut"
                             defaultValue={p.cheque.statut}
-                            className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                            className={CONTROL_XS_CLASSES}
                           >
                             {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
                               <option key={valeur} value={valeur}>
@@ -276,14 +271,11 @@ export default async function DossierPaiementPage({
                             name="motifRejet"
                             placeholder="Motif si rejeté"
                             defaultValue={p.cheque.motifRejet ?? ""}
-                            className="rounded-lg border border-slate-300 px-2 py-1 text-xs focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                            className={CONTROL_XS_CLASSES}
                           />
-                          <button
-                            type="submit"
-                            className="rounded-lg border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                          >
+                          <Button type="submit" variant="secondary" size="sm">
                             Mettre à jour
-                          </button>
+                          </Button>
                         </form>
                       )}
                     </li>
@@ -292,120 +284,73 @@ export default async function DossierPaiementPage({
               )}
 
               {peutSaisir && (
-              <form action={enregistrerPaiementAction} className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-4">
-                <input type="hidden" name="echeanceId" value={e.id} />
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Montant</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    name="montant"
-                    required
-                    className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
+                <div className="mt-4 border-t border-border pt-4">
+                  <h4 className="mb-2 text-xs font-semibold uppercase text-ink-faint">
+                    Nouveau paiement
+                  </h4>
+                  <form action={enregistrerPaiementAction} className="flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="echeanceId" value={e.id} />
+                    <div>
+                      <label className={LABEL_XS_CLASSES}>Montant</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        name="montant"
+                        required
+                        className={`w-28 ${CONTROL_SM_CLASSES}`}
+                      />
+                    </div>
+                    <ChampsMoyenPaiement />
+                    <Button type="submit" variant="primary" size="sm">
+                      Enregistrer le paiement
+                    </Button>
+                  </form>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Moyen</label>
-                  <select
-                    name="moyen"
-                    required
-                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  >
-                    {Object.values(MoyenPaiement).map((m) => (
-                      <option key={m} value={m}>
-                        {MOYEN_LABELS[m]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Banque (chèque)</label>
-                  <input
-                    type="text"
-                    name="chequeBanque"
-                    className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">N° chèque</label>
-                  <input
-                    type="text"
-                    name="chequeNumero"
-                    className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">Titulaire</label>
-                  <input
-                    type="text"
-                    name="chequeTitulaire"
-                    className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-                >
-                  Enregistrer le paiement
-                </button>
-              </form>
               )}
-            </div>
+            </Card>
           );
         })}
 
         {dossier.echeances.length === 0 && (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-            Aucune échéance pour l&apos;instant.
-          </p>
+          <EmptyState message="Aucune échéance pour l'instant." />
         )}
       </div>
 
       {peutSaisir && (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">
-          Ajouter une échéance
-        </h3>
-        <form action={ajouterEcheanceAction} className="flex flex-wrap items-end gap-2">
-          <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Libellé</label>
-            <input
-              type="text"
-              name="libelle"
-              placeholder="ex. 1re échéance"
-              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Montant</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              name="montant"
-              required
-              className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">Date d&apos;échéance</label>
-            <input
-              type="date"
-              name="dateEcheance"
-              required
-              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <button
-            type="submit"
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Ajouter
-          </button>
-        </form>
-      </div>
+        <Card>
+          <CardTitle>Ajouter une échéance</CardTitle>
+          <form action={ajouterEcheanceAction} className="mt-3 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+            <div>
+              <label className={LABEL_XS_CLASSES}>Libellé</label>
+              <input
+                type="text"
+                name="libelle"
+                placeholder="ex. 1re échéance"
+                className={CONTROL_SM_CLASSES}
+              />
+            </div>
+            <div>
+              <label className={LABEL_XS_CLASSES}>Montant</label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="montant"
+                required
+                className={`w-28 ${CONTROL_SM_CLASSES}`}
+              />
+            </div>
+            <div>
+              <label className={LABEL_XS_CLASSES}>Date d&apos;échéance</label>
+              <input type="date" name="dateEcheance" required className={CONTROL_SM_CLASSES} />
+            </div>
+            <Button type="submit" variant="secondary">
+              Ajouter
+            </Button>
+          </form>
+        </Card>
       )}
     </div>
   );

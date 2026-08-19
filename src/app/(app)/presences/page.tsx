@@ -5,6 +5,14 @@ import { Role } from "@/lib/roles";
 import { estAdministratif } from "@/lib/acces-presence";
 import { JOUR_LABELS } from "@/lib/planning";
 import { aujourdhuiUTC, STATUT_SEANCE_LABELS } from "@/lib/presences";
+import { Card } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+
+const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
+const CONTROL_CLASSES =
+  "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 export default async function PresencesPage({
   searchParams,
@@ -45,18 +53,15 @@ export default async function PresencesPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Présences</h2>
-          <p className="text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-pine-strong">Présences</h1>
+          <p className="text-sm text-ink-muted">
             {estEnseignant
               ? "Vos séances du jour."
               : "Séances du jour, toutes classes."}
           </p>
         </div>
         {administratif && (
-          <Link
-            href="/presences/fermetures"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
+          <Link href="/presences/fermetures" className={buttonVariants({ variant: "secondary" })}>
             Vacances et fermetures
           </Link>
         )}
@@ -64,7 +69,7 @@ export default async function PresencesPage({
 
       <form action="/presences" method="GET" className="flex items-end gap-2">
         <div>
-          <label htmlFor="date" className="mb-1 block text-xs font-medium text-slate-600">
+          <label htmlFor="date" className={LABEL_XS_CLASSES}>
             Date
           </label>
           <input
@@ -72,77 +77,62 @@ export default async function PresencesPage({
             type="date"
             name="date"
             defaultValue={jourISO}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+            className={CONTROL_CLASSES}
           />
         </div>
-        <button
-          type="submit"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <Button type="submit" variant="secondary">
           Afficher
-        </button>
+        </Button>
       </form>
 
       <div className="space-y-3">
         {seances.map((s) => {
           const complet = s._count.presences === s.classe._count.inscriptions;
+          const statutVariant =
+            s.statut === "VALIDEE" ? "success" : s.statut === "ANNULEE" ? "neutral" : "warning";
           return (
-            <div
-              key={s.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
+            <Card key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
-                <div className="font-medium text-slate-800">
+                <div className="font-medium text-ink">
                   {s.classe.cours.nom}
                   {s.classe.niveau && (
-                    <span className="ml-2 text-sm font-normal text-slate-500">
+                    <span className="ml-2 text-sm font-normal text-ink-muted">
                       {s.classe.niveau}
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-slate-500">
+                <div className="text-sm text-ink-muted">
                   {JOUR_LABELS[s.classe.jour]} {s.classe.heureDebut}–
                   {s.classe.heureFin}
                   {s.classe.salle && ` · ${s.classe.salle}`}
                   {` · ${s.classe._count.inscriptions} inscrit(s)`}
                 </div>
                 {s.statut === "ANNULEE" && s.motifAnnulation && (
-                  <div className="mt-1 text-sm text-amber-700">
+                  <div className="mt-1 text-sm text-ochre">
                     Annulée : {s.motifAnnulation}
                   </div>
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    s.statut === "VALIDEE"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : s.statut === "ANNULEE"
-                        ? "bg-slate-100 text-slate-500"
-                        : "bg-amber-50 text-amber-700"
-                  }`}
-                >
+                <Badge variant={statutVariant}>
                   {STATUT_SEANCE_LABELS[s.statut]}
                   {s.statut === "VALIDEE" && !complet && " (incomplète)"}
-                </span>
+                </Badge>
                 {s.statut !== "ANNULEE" && (
-                  <Link
-                    href={`/presences/${s.id}`}
-                    className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-                  >
+                  <Link href={`/presences/${s.id}`} className={buttonVariants({ variant: "primary" })}>
                     {s.statut === "VALIDEE" ? "Consulter" : "Faire l'appel"}
                   </Link>
                 )}
               </div>
-            </div>
+            </Card>
           );
         })}
 
         {seances.length === 0 && (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-            Aucune séance ce jour-là. Les séances sont générées depuis le
-            planning de chaque classe (voir la fiche de la classe).
-          </p>
+          <EmptyState
+            message="Aucune séance ce jour-là."
+            hint="Les séances sont générées depuis le planning de chaque classe (voir la fiche de la classe)."
+          />
         )}
       </div>
     </div>

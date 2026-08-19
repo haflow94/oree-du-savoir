@@ -10,6 +10,15 @@ import {
   revoquerSessionsAction,
 } from "./actions";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Champ, ChampSelect } from "@/components/ui/champ";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+
+const CONTROL_SM_CLASSES =
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Tous les champs obligatoires doivent être renseignés.",
@@ -48,271 +57,174 @@ export default async function AdministrationPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Administration</h2>
-          <p className="text-sm text-slate-500">
+          <h1 className="font-display text-2xl font-semibold text-pine-strong">Administration</h1>
+          <p className="text-sm text-ink-muted">
             {estBureau
               ? "Comptes, rôles, activation et révocation."
               : "Référentiels : sections, année scolaire."}
           </p>
         </div>
-        <div className="flex gap-3">
-          <Link
-            href="/administration/sections"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
+        <div className="flex flex-wrap gap-3">
+          <Link href="/administration/sections" className={buttonVariants({ variant: "secondary" })}>
             Sections
           </Link>
           <Link
             href="/administration/annees-scolaires"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className={buttonVariants({ variant: "secondary" })}
           >
             Année scolaire
           </Link>
           {estBureau && (
             <Link
               href="/administration/enseignants"
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className={buttonVariants({ variant: "secondary" })}
             >
               Enseignants
             </Link>
           )}
           {estBureau && (
-            <Link
-              href="/administration/journal"
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
+            <Link href="/administration/journal" className={buttonVariants({ variant: "secondary" })}>
               Journal d&apos;audit
             </Link>
           )}
         </div>
       </div>
 
-      {message && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
-      )}
-      {ok && !message && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Modification enregistrée.
-        </p>
-      )}
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       {estBureau && (
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">
-          Créer un compte
-        </h3>
-        <form action={creerUtilisateurAction} className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label htmlFor="prenom" className="mb-1 block text-xs font-medium text-slate-600">
-              Prénom
-            </label>
-            <input
-              id="prenom"
-              name="prenom"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="nom" className="mb-1 block text-xs font-medium text-slate-600">
-              Nom
-            </label>
-            <input
-              id="nom"
-              name="nom"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="email" className="mb-1 block text-xs font-medium text-slate-600">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="off"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="role" className="mb-1 block text-xs font-medium text-slate-600">
-              Rôle
-            </label>
-            <select
-              id="role"
-              name="role"
-              required
-              defaultValue={Role.ACCUEIL}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            >
+        <Card>
+          <CardTitle>Créer un compte</CardTitle>
+          <form action={creerUtilisateurAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Champ label="Prénom" name="prenom" required />
+            <Champ label="Nom" name="nom" required />
+            <Champ label="Email" name="email" type="email" required autoComplete="off" />
+            <ChampSelect label="Rôle" name="role" required defaultValue={Role.ACCUEIL}>
               {ROLES_STAFF.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className="sm:col-span-2">
-            <label htmlFor="motDePasse" className="mb-1 block text-xs font-medium text-slate-600">
-              Mot de passe initial ({LONGUEUR_MIN_MOT_DE_PASSE} caractères minimum)
-            </label>
-            <input
-              id="motDePasse"
+            </ChampSelect>
+            <Champ
+              label={`Mot de passe initial (${LONGUEUR_MIN_MOT_DE_PASSE} caractères minimum)`}
               name="motDePasse"
               type="password"
               required
               minLength={LONGUEUR_MIN_MOT_DE_PASSE}
               autoComplete="new-password"
-              className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+              hint="À communiquer à la personne concernée, qui devra le changer."
+              className="sm:col-span-2 max-w-sm"
             />
-            <p className="mt-1 text-xs text-slate-500">
-              À communiquer à la personne concernée, qui devra le changer.
-            </p>
-          </div>
-          <div className="sm:col-span-2 flex justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-              Créer le compte
-            </button>
-          </div>
-        </form>
-      </div>
+            <div className="flex justify-end sm:col-span-2">
+              <Button type="submit" variant="primary">
+                Créer le compte
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
       {estBureau && (
-      <div className="space-y-3">
-        {utilisateurs.map((u) => {
-          const soiMeme = u.id === session.id;
-          return (
-            <div
-              key={u.id}
-              className={`rounded-xl border bg-white p-5 shadow-sm ${
-                u.actif ? "border-slate-200" : "border-slate-200 opacity-75"
-              }`}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="font-medium text-slate-800">
-                    {u.prenom} {u.nom}
-                    {soiMeme && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                        vous
-                      </span>
-                    )}
+        <div className="space-y-3">
+          {utilisateurs.map((u) => {
+            const soiMeme = u.id === session.id;
+            return (
+              <Card key={u.id} className={u.actif ? "" : "opacity-75"}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-ink">
+                      {u.prenom} {u.nom}
+                      {soiMeme && (
+                        <span className="ml-2">
+                          <Badge variant="neutral">vous</Badge>
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-ink-muted">{u.email}</div>
+                    <div className="mt-1 text-xs text-ink-faint">
+                      {u.dernierLogin
+                        ? `Dernière connexion : ${new Date(u.dernierLogin).toLocaleString("fr-FR")}`
+                        : "Jamais connecté"}
+                      {u._count.sessions > 0 && ` · ${u._count.sessions} session(s) active(s)`}
+                    </div>
                   </div>
-                  <div className="text-sm text-slate-500">{u.email}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {u.dernierLogin
-                      ? `Dernière connexion : ${new Date(u.dernierLogin).toLocaleString("fr-FR")}`
-                      : "Jamais connecté"}
-                    {u._count.sessions > 0 && ` · ${u._count.sessions} session(s) active(s)`}
-                  </div>
+                  <Badge variant={u.actif ? "success" : "danger"}>
+                    {u.actif ? "Actif" : "Désactivé"}
+                  </Badge>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    u.actif
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-red-50 text-red-700"
-                  }`}
-                >
-                  {u.actif ? "Actif" : "Désactivé"}
-                </span>
-              </div>
 
-              <div className="mt-4 flex flex-wrap items-end gap-4 border-t border-slate-100 pt-4">
-                <form action={changerRoleAction} className="flex items-end gap-2">
-                  <input type="hidden" name="utilisateurId" value={u.id} />
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
-                      Rôle
-                    </label>
-                    <select
-                      name="role"
-                      defaultValue={u.role}
-                      className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                    >
-                      {ROLES_STAFF.map((r) => (
-                        <option key={r} value={r}>
-                          {ROLE_LABELS[r]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="submit"
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Changer
-                  </button>
-                </form>
-
-                <form action={reinitialiserMotDePasseAction} className="flex items-end gap-2">
-                  <input type="hidden" name="utilisateurId" value={u.id} />
-                  <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-600">
-                      Nouveau mot de passe
-                    </label>
-                    <input
-                      type="password"
-                      name="motDePasse"
-                      required
-                      minLength={LONGUEUR_MIN_MOT_DE_PASSE}
-                      autoComplete="new-password"
-                      className="w-44 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    Réinitialiser
-                  </button>
-                </form>
-
-                {u._count.sessions > 0 && (
-                  <form action={revoquerSessionsAction}>
+                <div className="mt-4 flex flex-wrap items-end gap-4 border-t border-border pt-4">
+                  <form action={changerRoleAction} className="flex items-end gap-2">
                     <input type="hidden" name="utilisateurId" value={u.id} />
+                    <div>
+                      <label className={LABEL_XS_CLASSES}>Rôle</label>
+                      <select name="role" defaultValue={u.role} className={CONTROL_SM_CLASSES}>
+                        {ROLES_STAFF.map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABELS[r]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Button type="submit" variant="secondary" size="sm">
+                      Changer
+                    </Button>
+                  </form>
+
+                  <form action={reinitialiserMotDePasseAction} className="flex items-end gap-2">
+                    <input type="hidden" name="utilisateurId" value={u.id} />
+                    <div>
+                      <label className={LABEL_XS_CLASSES}>Nouveau mot de passe</label>
+                      <input
+                        type="password"
+                        name="motDePasse"
+                        required
+                        minLength={LONGUEUR_MIN_MOT_DE_PASSE}
+                        autoComplete="new-password"
+                        className={`w-44 ${CONTROL_SM_CLASSES}`}
+                      />
+                    </div>
+                    <Button type="submit" variant="secondary" size="sm">
+                      Réinitialiser
+                    </Button>
+                  </form>
+
+                  {u._count.sessions > 0 && (
+                    <form action={revoquerSessionsAction}>
+                      <input type="hidden" name="utilisateurId" value={u.id} />
+                      <Button type="submit" variant="secondary" size="sm">
+                        Révoquer les sessions
+                      </Button>
+                    </form>
+                  )}
+
+                  <form action={changerActivationAction}>
+                    <input type="hidden" name="utilisateurId" value={u.id} />
+                    <input type="hidden" name="activer" value={u.actif ? "0" : "1"} />
                     <button
                       type="submit"
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      disabled={soiMeme && u.actif}
+                      title={
+                        soiMeme && u.actif
+                          ? "Vous ne pouvez pas désactiver votre propre compte"
+                          : undefined
+                      }
+                      className={`rounded-md border px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+                        u.actif
+                          ? "border-rust-border text-rust hover:bg-rust-bg"
+                          : "border-sage-border text-sage hover:bg-sage-bg"
+                      }`}
                     >
-                      Révoquer les sessions
+                      {u.actif ? "Désactiver" : "Réactiver"}
                     </button>
                   </form>
-                )}
-
-                <form action={changerActivationAction}>
-                  <input type="hidden" name="utilisateurId" value={u.id} />
-                  <input type="hidden" name="activer" value={u.actif ? "0" : "1"} />
-                  <button
-                    type="submit"
-                    disabled={soiMeme && u.actif}
-                    title={
-                      soiMeme && u.actif
-                        ? "Vous ne pouvez pas désactiver votre propre compte"
-                        : undefined
-                    }
-                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
-                      u.actif
-                        ? "border-red-300 text-red-700 hover:bg-red-50"
-                        : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                    }`}
-                  >
-                    {u.actif ? "Désactiver" : "Réactiver"}
-                  </button>
-                </form>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );

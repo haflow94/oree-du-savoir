@@ -10,6 +10,16 @@ import {
   revoquerSessionsAction,
 } from "../actions";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Champ, ChampSelect } from "@/components/ui/champ";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+
+const CONTROL_SM_CLASSES =
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Tous les champs obligatoires doivent être renseignés.",
@@ -38,109 +48,53 @@ export default async function EnseignantsPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/administration" className="text-sm text-slate-500 hover:underline">
+        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
           ← Administration
         </Link>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">Enseignants</h2>
-        <p className="text-sm text-slate-500">
+        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">Enseignants</h1>
+        <p className="text-sm text-ink-muted">
           Comptes enseignants, séparés du staff (Bureau, Administration,
           Accueil, Trésorier) géré depuis Administration → Comptes.
         </p>
       </div>
 
-      {message && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {message}
-        </p>
-      )}
-      {ok && !message && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Modification enregistrée.
-        </p>
-      )}
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold text-slate-800">
-          Créer un compte enseignant
-        </h3>
-        <form action={creerUtilisateurAction} className="grid gap-3 sm:grid-cols-2">
+      <Card>
+        <CardTitle>Créer un compte enseignant</CardTitle>
+        <form action={creerUtilisateurAction} className="mt-3 grid gap-3 sm:grid-cols-2">
           <input type="hidden" name="from" value="/administration/enseignants" />
           <input type="hidden" name="role" value={Role.ENSEIGNANT} />
-          <div>
-            <label htmlFor="prenom" className="mb-1 block text-xs font-medium text-slate-600">
-              Prénom
-            </label>
-            <input
-              id="prenom"
-              name="prenom"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="nom" className="mb-1 block text-xs font-medium text-slate-600">
-              Nom
-            </label>
-            <input
-              id="nom"
-              name="nom"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="email" className="mb-1 block text-xs font-medium text-slate-600">
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="off"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div>
-            <label htmlFor="motDePasse" className="mb-1 block text-xs font-medium text-slate-600">
-              Mot de passe initial ({LONGUEUR_MIN_MOT_DE_PASSE} caractères minimum)
-            </label>
-            <input
-              id="motDePasse"
-              name="motDePasse"
-              type="password"
-              required
-              minLength={LONGUEUR_MIN_MOT_DE_PASSE}
-              autoComplete="new-password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-          <div className="sm:col-span-2 flex justify-end">
-            <button
-              type="submit"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-            >
+          <Champ label="Prénom" name="prenom" required />
+          <Champ label="Nom" name="nom" required />
+          <Champ label="Email" name="email" type="email" required autoComplete="off" />
+          <Champ
+            label={`Mot de passe initial (${LONGUEUR_MIN_MOT_DE_PASSE} caractères minimum)`}
+            name="motDePasse"
+            type="password"
+            required
+            minLength={LONGUEUR_MIN_MOT_DE_PASSE}
+            autoComplete="new-password"
+          />
+          <div className="flex justify-end sm:col-span-2">
+            <Button type="submit" variant="primary">
               Créer le compte
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
 
       <div className="space-y-3">
         {enseignants.map((u) => (
-          <div
-            key={u.id}
-            className={`rounded-xl border bg-white p-5 shadow-sm ${
-              u.actif ? "border-slate-200" : "border-slate-200 opacity-75"
-            }`}
-          >
+          <Card key={u.id} className={u.actif ? "" : "opacity-75"}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="font-medium text-slate-800">
+                <div className="font-medium text-ink">
                   {u.prenom} {u.nom}
                 </div>
-                <div className="text-sm text-slate-500">{u.email}</div>
-                <div className="mt-1 text-xs text-slate-500">
+                <div className="text-sm text-ink-muted">{u.email}</div>
+                <div className="mt-1 text-xs text-ink-faint">
                   {u._count.classesEnseignees} classe(s) ·{" "}
                   {u.dernierLogin
                     ? `Dernière connexion : ${new Date(u.dernierLogin).toLocaleString("fr-FR")}`
@@ -148,80 +102,56 @@ export default async function EnseignantsPage({
                   {u._count.sessions > 0 && ` · ${u._count.sessions} session(s) active(s)`}
                 </div>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  u.actif ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                }`}
-              >
+              <Badge variant={u.actif ? "success" : "danger"}>
                 {u.actif ? "Actif" : "Désactivé"}
-              </span>
+              </Badge>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-end gap-4 border-t border-slate-100 pt-4">
+            <div className="mt-4 flex flex-wrap items-end gap-4 border-t border-border pt-4">
               <form action={changerRoleAction} className="flex items-end gap-2">
                 <input type="hidden" name="from" value="/administration/enseignants" />
                 <input type="hidden" name="utilisateurId" value={u.id} />
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
-                    Faire passer vers le staff
-                  </label>
-                  <select
-                    name="role"
-                    defaultValue=""
-                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-                  >
-                    <option value="" disabled>
-                      Choisir un rôle…
+                <ChampSelect label="Faire passer vers le staff" name="role" defaultValue="">
+                  <option value="" disabled>
+                    Choisir un rôle…
+                  </option>
+                  {ROLES_STAFF.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABELS[r]}
                     </option>
-                    {ROLES_STAFF.map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABELS[r]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
+                  ))}
+                </ChampSelect>
+                <Button type="submit" variant="secondary" size="sm">
                   Changer
-                </button>
+                </Button>
               </form>
 
               <form action={reinitialiserMotDePasseAction} className="flex items-end gap-2">
                 <input type="hidden" name="from" value="/administration/enseignants" />
                 <input type="hidden" name="utilisateurId" value={u.id} />
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-600">
-                    Nouveau mot de passe
-                  </label>
+                  <label className={LABEL_XS_CLASSES}>Nouveau mot de passe</label>
                   <input
                     type="password"
                     name="motDePasse"
                     required
                     minLength={LONGUEUR_MIN_MOT_DE_PASSE}
                     autoComplete="new-password"
-                    className="w-44 rounded-lg border border-slate-300 px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
+                    className={`w-44 ${CONTROL_SM_CLASSES}`}
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
+                <Button type="submit" variant="secondary" size="sm">
                   Réinitialiser
-                </button>
+                </Button>
               </form>
 
               {u._count.sessions > 0 && (
                 <form action={revoquerSessionsAction}>
                   <input type="hidden" name="from" value="/administration/enseignants" />
                   <input type="hidden" name="utilisateurId" value={u.id} />
-                  <button
-                    type="submit"
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
+                  <Button type="submit" variant="secondary" size="sm">
                     Révoquer les sessions
-                  </button>
+                  </Button>
                 </form>
               )}
 
@@ -231,22 +161,20 @@ export default async function EnseignantsPage({
                 <input type="hidden" name="activer" value={u.actif ? "0" : "1"} />
                 <button
                   type="submit"
-                  className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
+                  className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${
                     u.actif
-                      ? "border-red-300 text-red-700 hover:bg-red-50"
-                      : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                      ? "border-rust-border text-rust hover:bg-rust-bg"
+                      : "border-sage-border text-sage hover:bg-sage-bg"
                   }`}
                 >
                   {u.actif ? "Désactiver" : "Réactiver"}
                 </button>
               </form>
             </div>
-          </div>
+          </Card>
         ))}
         {enseignants.length === 0 && (
-          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-            Aucun compte enseignant pour l&apos;instant.
-          </p>
+          <EmptyState message="Aucun compte enseignant pour l'instant." />
         )}
       </div>
     </div>

@@ -1,4 +1,7 @@
 import { loginAction } from "./actions";
+import { Champ } from "@/components/ui/champ";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 
 const ERROR_MESSAGES: Record<string, string> = {
   IDENTIFIANTS_INVALIDES: "Email ou mot de passe incorrect.",
@@ -14,75 +17,40 @@ export default async function LoginPage({
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
   return (
-    <div className="flex min-h-screen flex-1 items-center justify-center bg-slate-100 px-4">
+    <div className="flex min-h-screen flex-1 items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="text-xl font-bold text-slate-900">
+          <h1 className="font-display text-xl font-bold text-pine-strong">
             L&apos;Orée du Savoir
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-1 text-sm text-ink-muted">
             Application de gestion administrative
           </p>
         </div>
 
         <form
           action={loginAction}
-          className="space-y-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"
+          className="space-y-4 rounded-xl border border-border bg-bg-elevated p-6 shadow-card"
         >
           <input type="hidden" name="from" value={from ?? "/"} />
 
-          {errorMessage && (
-            <p
-              role="alert"
-              className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
-            >
-              {errorMessage}
-            </p>
-          )}
+          {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
 
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-1 block text-sm font-medium text-slate-700"
-            >
-              Email
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="username"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
+          <Champ label="Email" name="email" type="email" autoComplete="username" required />
+          <Champ
+            label="Mot de passe"
+            name="motDePasse"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
 
-          <div>
-            <label
-              htmlFor="motDePasse"
-              className="mb-1 block text-sm font-medium text-slate-700"
-            >
-              Mot de passe
-            </label>
-            <input
-              id="motDePasse"
-              name="motDePasse"
-              type="password"
-              autoComplete="current-password"
-              required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
-          >
+          <Button type="submit" variant="primary" className="w-full">
             Se connecter
-          </button>
+          </Button>
         </form>
 
-        <p className="mt-6 text-center text-xs text-slate-400">
+        <p className="mt-6 text-center text-xs text-ink-faint">
           Accès réservé aux membres de l&apos;association. Les comptes sont
           créés par un administrateur.
         </p>

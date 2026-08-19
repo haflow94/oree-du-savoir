@@ -49,24 +49,24 @@ export default async function FeuillePapierPage({
   return (
     <div className="mx-auto max-w-3xl space-y-5 print:max-w-none">
       <div className="flex items-start justify-between gap-4 print:hidden">
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-ink-muted">
           Imprimez cette feuille si l&apos;appel ne peut pas être fait dans
           l&apos;application. Elle sera ensuite saisie par l&apos;administration.
         </p>
       </div>
 
-      <div className="rounded-xl border border-slate-300 bg-white p-6 print:rounded-none print:border-0 print:p-0">
-        <h1 className="text-lg font-bold text-slate-900">
+      <div className="rounded-xl border border-border bg-bg-elevated p-6 print:rounded-none print:border-0 print:p-0">
+        <h1 className="font-display text-lg font-bold text-pine-strong">
           Feuille de présence — {seance.classe.cours.nom}
           {seance.classe.niveau && ` (${seance.classe.niveau})`}
         </h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-ink-muted">
           {JOUR_LABELS[seance.classe.jour]}{" "}
           {new Date(seance.date).toLocaleDateString("fr-FR")} ·{" "}
           {seance.classe.heureDebut}–{seance.classe.heureFin}
           {seance.classe.salle && ` · Salle ${seance.classe.salle}`}
         </p>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-ink-muted">
           Enseignant(s) :{" "}
           {seance.classe.enseignants.length > 0
             ? seance.classe.enseignants
@@ -75,13 +75,13 @@ export default async function FeuillePapierPage({
             : "—"}
         </p>
 
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-ink-faint">
           Codes : {codes.map(([k, c]) => `${c} = ${STATUT_PRESENCE_LABELS[k]}`).join(" · ")}
         </p>
 
         <table className="mt-4 w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b-2 border-slate-800 text-left">
+            <tr className="border-b-2 border-ink text-left">
               <th className="py-2 pr-2">#</th>
               <th className="py-2 pr-2">Nom</th>
               <th className="py-2 pr-2">Prénom</th>
@@ -94,22 +94,20 @@ export default async function FeuillePapierPage({
           </thead>
           <tbody>
             {seance.classe.inscriptions.map((i, index) => (
-              <tr key={i.id} className="border-b border-slate-300">
-                <td className="py-2.5 pr-2 text-slate-500">{index + 1}</td>
-                <td className="py-2.5 pr-2 font-medium text-slate-900">
-                  {i.etudiant.nom}
-                </td>
-                <td className="py-2.5 pr-2 text-slate-700">{i.etudiant.prenom}</td>
+              <tr key={i.id} className="border-b border-border-strong">
+                <td className="py-2.5 pr-2 text-ink-faint">{index + 1}</td>
+                <td className="py-2.5 pr-2 font-medium text-ink">{i.etudiant.nom}</td>
+                <td className="py-2.5 pr-2 text-ink-muted">{i.etudiant.prenom}</td>
                 {codes.map(([, code]) => (
                   <td key={code} className="py-2.5 text-center">
-                    <span className="inline-block h-4 w-4 border border-slate-500" />
+                    <span className="inline-block h-4 w-4 border border-ink-faint" />
                   </td>
                 ))}
               </tr>
             ))}
             {seance.classe.inscriptions.length === 0 && (
               <tr>
-                <td colSpan={3 + codes.length} className="py-6 text-center text-slate-500">
+                <td colSpan={3 + codes.length} className="py-6 text-center text-ink-faint">
                   Aucun étudiant inscrit.
                 </td>
               </tr>
@@ -119,10 +117,8 @@ export default async function FeuillePapierPage({
 
         <div className="mt-8 flex justify-end">
           <div className="w-64">
-            <div className="border-b border-slate-500 pb-8" />
-            <p className="mt-1 text-xs text-slate-600">
-              Signature de l&apos;enseignant
-            </p>
+            <div className="border-b border-ink-faint pb-8" />
+            <p className="mt-1 text-xs text-ink-muted">Signature de l&apos;enseignant</p>
           </div>
         </div>
       </div>

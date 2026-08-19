@@ -8,62 +8,35 @@ import {
   creerEtudiantAction,
   type Doublon,
 } from "./actions";
+import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 
-function Champ({
-  label,
-  name,
-  type = "text",
-  required,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label htmlFor={name} className="mb-1 block text-sm font-medium text-slate-700">
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-      />
-    </div>
-  );
-}
+const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
+const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
 function BlocResponsable({ index }: { index: 1 | 2 }) {
   return (
-    <fieldset className="rounded-xl border border-slate-200 p-4">
-      <legend className="px-1 text-sm font-semibold text-slate-800">
+    <fieldset className="rounded-xl border border-border p-4">
+      <legend className={LEGEND_CLASSES}>
         Responsable légal {index} {index === 2 && "(optionnel)"}
       </legend>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Civilité
-          </label>
-          <select
-            name={`responsable${index}Civilite`}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-          >
-            <option value="">—</option>
-            <option value="M">M.</option>
-            <option value="MME">Mme</option>
-          </select>
-        </div>
+        <ChampSelect label="Civilité" name={`responsable${index}Civilite`} defaultValue="">
+          <option value="">—</option>
+          <option value="M">M.</option>
+          <option value="MME">Mme</option>
+        </ChampSelect>
         <Champ label="Lien (père, mère, tuteur…)" name={`responsable${index}Lien`} />
         <Champ label="Nom" name={`responsable${index}Nom`} />
         <Champ label="Prénom" name={`responsable${index}Prenom`} />
         <Champ label="Téléphone" name={`responsable${index}Telephone`} />
         <Champ label="Email" name={`responsable${index}Email`} type="email" />
-        <div className="sm:col-span-2">
-          <Champ label="Adresse" name={`responsable${index}Adresse`} />
-        </div>
+        <Champ
+          label="Adresse"
+          name={`responsable${index}Adresse`}
+          className="sm:col-span-2"
+        />
       </div>
     </fieldset>
   );
@@ -111,18 +84,14 @@ export function EtudiantForm() {
       }}
       className="space-y-6"
     >
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error && <Alert variant="danger">{error}</Alert>}
 
       {doublons && doublons.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
-          <h3 className="text-sm font-semibold text-amber-900">
+        <div className="rounded-xl border border-ochre-border bg-ochre-bg p-5">
+          <h3 className="text-sm font-semibold text-ochre">
             Étudiant(s) similaire(s) déjà enregistré(s)
           </h3>
-          <ul className="mt-2 space-y-1 text-sm text-amber-800">
+          <ul className="mt-2 space-y-1 text-sm text-ochre">
             {doublons.map((d) => (
               <li key={d.id}>
                 <Link href={`/etudiants/${d.id}`} className="underline" target="_blank">
@@ -133,40 +102,31 @@ export function EtudiantForm() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-sm text-amber-800">
+          <p className="mt-3 text-sm text-ochre">
             Vérifiez qu&apos;il ne s&apos;agit pas de la même personne avant de continuer.
           </p>
-          <button
+          <Button
             type="button"
+            variant="secondary"
             disabled={pending}
             onClick={() => {
               if (formRef.current) soumettre(formRef.current, true);
             }}
-            className="mt-3 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            className="mt-3"
           >
             Créer quand même une nouvelle fiche
-          </button>
+          </Button>
         </div>
       )}
 
-      <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <legend className="px-1 text-sm font-semibold text-slate-800">
-          Identité
-        </legend>
+      <fieldset className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>Identité</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Civilité
-            </label>
-            <select
-              name="civilite"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            >
-              <option value="">—</option>
-              <option value="M">M.</option>
-              <option value="MME">Mme</option>
-            </select>
-          </div>
+          <ChampSelect label="Civilité" name="civilite" defaultValue="">
+            <option value="">—</option>
+            <option value="M">M.</option>
+            <option value="MME">Mme</option>
+          </ChampSelect>
           <div />
           <Champ label="Nom" name="nom" required />
           <Champ label="Prénom" name="prenom" required />
@@ -175,43 +135,27 @@ export function EtudiantForm() {
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <legend className="px-1 text-sm font-semibold text-slate-800">
-          Coordonnées
-        </legend>
+      <fieldset className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>Coordonnées</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Champ label="Téléphone mobile" name="telephoneMobile" />
           <Champ label="Téléphone fixe" name="telephoneFixe" />
           <Champ label="Email" name="email" type="email" />
-          <div />
-          <div className="sm:col-span-2">
-            <Champ label="Adresse" name="adresse" />
-          </div>
-          <div className="sm:col-span-2">
-            <Champ label="Complément d'adresse" name="complementAdresse" />
-          </div>
+          <Champ label="Contact d'urgence" name="contactUrgence" />
+          <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
+          <Champ label="Complément d'adresse" name="complementAdresse" />
+          <Champ label="Code postal" name="codePostal" />
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <legend className="px-1 text-sm font-semibold text-slate-800">
-          Situation
-        </legend>
+      <fieldset className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>Situation</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Champ label="Profession" name="profession" />
           <Champ label="Niveau d'études" name="niveauEtudes" />
           <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
           <div />
-          <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Remarque
-            </label>
-            <textarea
-              name="remarque"
-              rows={3}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            />
-          </div>
+          <ChampTextarea label="Remarque" name="remarque" rows={3} className="sm:col-span-2" />
         </div>
       </fieldset>
 
@@ -219,19 +163,12 @@ export function EtudiantForm() {
       <BlocResponsable index={2} />
 
       <div className="flex justify-end gap-3">
-        <Link
-          href="/etudiants"
-          className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
+        <Link href="/etudiants" className={buttonVariants({ variant: "secondary" })}>
           Annuler
         </Link>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
-        >
+        <Button type="submit" variant="primary" disabled={pending}>
           {pending ? "Enregistrement…" : "Créer la fiche"}
-        </button>
+        </Button>
       </div>
     </form>
   );

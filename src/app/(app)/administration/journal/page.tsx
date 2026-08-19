@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
+import { buttonVariants } from "@/components/ui/button";
+import { TableWrap, TableHead } from "@/components/ui/table";
 
 const PAR_PAGE = 50;
 
@@ -71,79 +73,75 @@ export default async function JournalAuditPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/administration" className="text-sm text-slate-500 hover:underline">
+        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
           ← Administration
         </Link>
-        <h2 className="mt-1 text-lg font-semibold text-slate-900">
+        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
           Journal d&apos;audit
-        </h2>
-        <p className="text-sm text-slate-500">
+        </h1>
+        <p className="text-sm text-ink-muted">
           {total} entrée(s). Traçabilité des actions sensibles : comptes,
           paiements, présences.
         </p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Auteur</th>
-              <th className="px-4 py-3">Action</th>
-              <th className="px-4 py-3">Entité</th>
-              <th className="px-4 py-3">Détails</th>
+      <TableWrap>
+        <TableHead>
+          <th className="px-4 py-3">Date</th>
+          <th className="px-4 py-3">Auteur</th>
+          <th className="px-4 py-3">Action</th>
+          <th className="px-4 py-3">Entité</th>
+          <th className="px-4 py-3">Détails</th>
+        </TableHead>
+        <tbody className="divide-y divide-border">
+          {entrees.map((e) => (
+            <tr key={e.id}>
+              <td className="whitespace-nowrap px-4 py-3 text-ink-muted">
+                {new Date(e.horodatage).toLocaleString("fr-FR")}
+              </td>
+              <td className="px-4 py-3 text-ink-muted">
+                {e.utilisateur
+                  ? `${e.utilisateur.prenom} ${e.utilisateur.nom}`
+                  : "—"}
+              </td>
+              <td className="px-4 py-3 font-medium text-ink">
+                {ACTION_LABELS[e.action] ?? e.action}
+              </td>
+              <td className="px-4 py-3 text-ink-muted">{e.entite}</td>
+              <td className="px-4 py-3 text-xs text-ink-muted">
+                {e.details ? JSON.stringify(e.details) : "—"}
+              </td>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {entrees.map((e) => (
-              <tr key={e.id}>
-                <td className="whitespace-nowrap px-4 py-3 text-slate-500">
-                  {new Date(e.horodatage).toLocaleString("fr-FR")}
-                </td>
-                <td className="px-4 py-3 text-slate-700">
-                  {e.utilisateur
-                    ? `${e.utilisateur.prenom} ${e.utilisateur.nom}`
-                    : "—"}
-                </td>
-                <td className="px-4 py-3 font-medium text-slate-800">
-                  {ACTION_LABELS[e.action] ?? e.action}
-                </td>
-                <td className="px-4 py-3 text-slate-500">{e.entite}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">
-                  {e.details ? JSON.stringify(e.details) : "—"}
-                </td>
-              </tr>
-            ))}
-            {entrees.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-                  Aucune entrée pour l&apos;instant.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+          {entrees.length === 0 && (
+            <tr>
+              <td colSpan={5} className="px-4 py-8 text-center text-ink-faint">
+                Aucune entrée pour l&apos;instant.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </TableWrap>
 
       {pages > 1 && (
         <div className="flex items-center justify-between text-sm">
           {pageCourante > 1 ? (
             <Link
               href={`/administration/journal?page=${pageCourante - 1}`}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50"
+              className={buttonVariants({ variant: "secondary" })}
             >
               ← Précédent
             </Link>
           ) : (
             <span />
           )}
-          <span className="text-slate-500">
+          <span className="text-ink-muted">
             Page {pageCourante} sur {pages}
           </span>
           {pageCourante < pages ? (
             <Link
               href={`/administration/journal?page=${pageCourante + 1}`}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-50"
+              className={buttonVariants({ variant: "secondary" })}
             >
               Suivant →
             </Link>

@@ -2,35 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { preinscrireAction } from "./actions";
+import { Card } from "@/components/ui/card";
+import { Champ, ChampSelect } from "@/components/ui/champ";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 
 type Section = { id: string; nom: string };
 
-function Champ({
-  label,
-  name,
-  type = "text",
-  required,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <label htmlFor={name} className="mb-1 block text-sm font-medium text-slate-700">
-        {label}
-      </label>
-      <input
-        id={name}
-        name={name}
-        type={type}
-        required={required}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-      />
-    </div>
-  );
-}
+const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
+const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
 export function PreinscriptionForm({ sections }: { sections: Section[] }) {
   const [sectionId, setSectionId] = useState(sections[0]?.id ?? "");
@@ -43,11 +23,11 @@ export function PreinscriptionForm({ sections }: { sections: Section[] }) {
 
   if (succes) {
     return (
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-        <h2 className="text-base font-semibold text-emerald-900">
+      <div className="rounded-xl border border-sage-border bg-sage-bg p-6 text-center">
+        <h2 className="font-display text-base font-semibold text-pine-strong">
           Préinscription enregistrée
         </h2>
-        <p className="mt-2 text-sm text-emerald-800">
+        <p className="mt-2 text-sm text-sage">
           Merci ! Un membre de l&apos;association vous contactera pour finaliser
           l&apos;inscription (signature, documents, paiement).
         </p>
@@ -72,48 +52,34 @@ export function PreinscriptionForm({ sections }: { sections: Section[] }) {
       }}
       className="space-y-6"
     >
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
-      )}
+      {error && <Alert variant="danger">{error}</Alert>}
 
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <label htmlFor="sectionId" className="mb-1 block text-sm font-medium text-slate-700">
-          Section souhaitée
-        </label>
-        <select
-          id="sectionId"
+      <Card>
+        <ChampSelect
+          label="Section souhaitée"
           name="sectionId"
           required
           value={sectionId}
           onChange={(e) => setSectionId(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
         >
           {sections.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nom}
             </option>
           ))}
-        </select>
-      </div>
+        </ChampSelect>
+      </Card>
 
-      <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <legend className="px-1 text-sm font-semibold text-slate-800">
+      <fieldset className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>
           {estJeunes ? "Informations de l'enfant" : "Vos informations"}
         </legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Civilité</label>
-            <select
-              name="civilite"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-            >
-              <option value="">—</option>
-              <option value="M">M.</option>
-              <option value="MME">Mme</option>
-            </select>
-          </div>
+          <ChampSelect label="Civilité" name="civilite" defaultValue="">
+            <option value="">—</option>
+            <option value="M">M.</option>
+            <option value="MME">Mme</option>
+          </ChampSelect>
           <div />
           <Champ label="Nom" name="nom" required />
           <Champ label="Prénom" name="prenom" required />
@@ -123,9 +89,7 @@ export function PreinscriptionForm({ sections }: { sections: Section[] }) {
             <>
               <Champ label="Téléphone mobile" name="telephoneMobile" />
               <Champ label="Email" name="email" type="email" />
-              <div className="sm:col-span-2">
-                <Champ label="Adresse" name="adresse" />
-              </div>
+              <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
               <Champ label="Profession" name="profession" />
               <Champ label="Niveau d'études" name="niveauEtudes" />
               <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
@@ -135,41 +99,27 @@ export function PreinscriptionForm({ sections }: { sections: Section[] }) {
       </fieldset>
 
       {estJeunes && (
-        <fieldset className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <legend className="px-1 text-sm font-semibold text-slate-800">
-            Responsable légal
-          </legend>
+        <fieldset className={FIELDSET_CLASSES}>
+          <legend className={LEGEND_CLASSES}>Responsable légal</legend>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Civilité</label>
-              <select
-                name="responsableCivilite"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none focus:ring-1 focus:ring-slate-500"
-              >
-                <option value="">—</option>
-                <option value="M">M.</option>
-                <option value="MME">Mme</option>
-              </select>
-            </div>
+            <ChampSelect label="Civilité" name="responsableCivilite" defaultValue="">
+              <option value="">—</option>
+              <option value="M">M.</option>
+              <option value="MME">Mme</option>
+            </ChampSelect>
             <Champ label="Lien (père, mère, tuteur…)" name="responsableLien" />
             <Champ label="Nom" name="responsableNom" required />
             <Champ label="Prénom" name="responsablePrenom" required />
             <Champ label="Téléphone" name="responsableTelephone" />
             <Champ label="Email" name="responsableEmail" type="email" />
-            <div className="sm:col-span-2">
-              <Champ label="Adresse" name="responsableAdresse" />
-            </div>
+            <Champ label="Adresse" name="responsableAdresse" className="sm:col-span-2" />
           </div>
         </fieldset>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
-      >
+      <Button type="submit" variant="primary" disabled={pending} className="w-full">
         {pending ? "Envoi…" : "Envoyer ma préinscription"}
-      </button>
+      </Button>
     </form>
   );
 }
