@@ -5,7 +5,7 @@ import { JOUR_LABELS } from "@/lib/planning";
 import { chargerSeanceAvecAppel } from "@/lib/appel";
 import { FeuilleAppel } from "@/app/(app)/presences/[id]/feuille-appel";
 import { Alert } from "@/components/ui/alert";
-import { logoutAction } from "@/app/(app)/logout-action";
+import { QuitterButton } from "@/components/ui/quitter-button";
 
 // Destination unique de la connexion faite en scannant le QR d'une classe
 // (voir /qr/[token] et requireSession dans src/lib/auth.ts) : volontairement
@@ -36,14 +36,7 @@ export default async function AppelPage({
         <span className="font-display text-sm font-semibold text-pine-strong">
           L&apos;Orée du Savoir — Appel du jour
         </span>
-        <form action={logoutAction}>
-          <button
-            type="submit"
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-bg-sunken"
-          >
-            Quitter
-          </button>
-        </form>
+        <QuitterButton className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-bg-sunken" />
       </header>
 
       <main className="flex-1 px-4 py-6 md:px-8 md:py-8">

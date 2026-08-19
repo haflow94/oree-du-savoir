@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { peutAccederClasse } from "@/lib/acces-presence";
 import { aujourdhuiUTC } from "@/lib/presences";
-import { logoutAction } from "@/app/(app)/logout-action";
+import { QuitterButton } from "@/components/ui/quitter-button";
 
 /**
  * Cible du QR affiché en salle. Le QR est un raccourci d'accès, jamais une
@@ -86,14 +86,9 @@ function Message({
       <div className="w-full max-w-sm rounded-xl border border-border bg-bg-elevated p-6 text-center shadow-card">
         <h1 className="font-display text-base font-semibold text-pine-strong">{titre}</h1>
         <p className="mt-2 text-sm text-ink-muted">{children}</p>
-        <form action={logoutAction} className="mt-4">
-          <button
-            type="submit"
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken"
-          >
-            Quitter
-          </button>
-        </form>
+        <div className="mt-4">
+          <QuitterButton className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken" />
+        </div>
       </div>
     </div>
   );
