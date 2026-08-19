@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import { estAdministratif } from "@/lib/acces-presence";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
-import { anneeScolaireActiveId, filtreParSection } from "@/lib/sections-etudiant";
 import {
   genererSeancesAction,
   inscrireEtudiantAction,
@@ -41,13 +41,12 @@ export default async function ClasseDetailPage({
     error?: string;
     ok?: string;
     etudQ?: string;
-    etudSectionId?: string;
   }>;
 }) {
   const session = await requireSession();
   const peutGerer = hasRole(session.role, PEUT_GERER);
   const { id } = await params;
-  const { error, ok, etudQ, etudSectionId } = await searchParams;
+  const { error, ok, etudQ } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   const etudRecherche = etudQ?.trim() ?? "";
 
@@ -87,37 +86,33 @@ export default async function ClasseDetailPage({
   const inscriptionsEnAttente = classe.inscriptions.filter((i) => i.statut === "LISTE_ATTENTE");
 
   const dejaInscrits = new Set(classe.inscriptions.map((i) => i.etudiantId));
-  const [sectionsFiltre, anneeActiveId] = peutInscrire
-    ? await Promise.all([
-        prisma.section.findMany({ orderBy: { nom: "asc" } }),
-        anneeScolaireActiveId(),
-      ])
-    : [[], null];
   const etudiantsDisponibles = peutInscrire
     ? (
         await prisma.etudiant.findMany({
-          where: {
-            ...(etudRecherche
-              ? {
-                  OR: [
-                    { nom: { contains: etudRecherche, mode: "insensitive" } },
-                    { prenom: { contains: etudRecherche, mode: "insensitive" } },
-                  ],
-                }
-              : {}),
-            ...(etudSectionId && anneeActiveId
-              ? filtreParSection(anneeActiveId, etudSectionId)
-              : {}),
-          },
+          where: etudRecherche
+            ? {
+                OR: [
+                  { nom: { contains: etudRecherche, mode: "insensitive" } },
+                  { prenom: { contains: etudRecherche, mode: "insensitive" } },
+                ],
+              }
+            : undefined,
           orderBy: [{ nom: "asc" }, { prenom: "asc" }],
         })
       ).filter((e) => !dejaInscrits.has(e.id))
     : [];
 
-  // Le QR pointe vers une URL relative : il reste valable quel que soit le
-  // nom d'hôte du serveur (voir DEPLOIEMENT.md, cible non figée).
+  // Un scanner de QR sur téléphone n'ouvre un lien que si le contenu est une
+  // URL absolue (schéma + hôte) : un simple chemin relatif comme "/qr/xxx"
+  // s'affiche en texte brut, sans action possible. On lit donc l'hôte réel
+  // de la requête (peu importe IP/nom de domaine, cible de déploiement non
+  // figée — voir DEPLOIEMENT.md) plutôt que de coder une URL en dur.
+  const enTetes = await headers();
+  const hote = enTetes.get("host") ?? "localhost:3000";
+  const protocole = enTetes.get("x-forwarded-proto") ?? "http";
   const cheminQr = `/qr/${classe.qrToken}`;
-  const qrSvg = await QRCode.toString(cheminQr, {
+  const urlQr = `${protocole}://${hote}${cheminQr}`;
+  const qrSvg = await QRCode.toString(urlQr, {
     type: "svg",
     margin: 1,
     width: 160,
@@ -257,7 +252,7 @@ export default async function ClasseDetailPage({
             // d'un chemin interne : aucune donnée utilisateur n'y transite.
             dangerouslySetInnerHTML={{ __html: qrSvg }}
           />
-          <p className="mt-2 break-all font-mono text-xs text-ink-faint">{cheminQr}</p>
+          <p className="mt-2 break-all font-mono text-xs text-ink-faint">{urlQr}</p>
         </Card>
 
         <Card>
@@ -334,18 +329,6 @@ export default async function ClasseDetailPage({
                 placeholder="Filtrer par nom ou prénom…"
                 className={CONTROL_CLASSES}
               />
-              <select
-                name="etudSectionId"
-                defaultValue={etudSectionId ?? ""}
-                className={CONTROL_CLASSES}
-              >
-                <option value="">Toutes les sections</option>
-                {sectionsFiltre.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nom}
-                  </option>
-                ))}
-              </select>
               <Button type="submit" variant="secondary">
                 Filtrer
               </Button>
@@ -367,7 +350,7 @@ export default async function ClasseDetailPage({
               </form>
             ) : (
               <p className="text-sm text-ink-faint">
-                {etudRecherche || etudSectionId
+                {etudRecherche
                   ? "Aucun étudiant ne correspond à ce filtre."
                   : "Aucun étudiant disponible."}
               </p>
