@@ -13,7 +13,7 @@ export function Sidebar({ role }: { role: Role }) {
   );
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col bg-pine-strong px-3 py-5 text-sage-bg/80 md:flex">
+    <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-y-auto bg-pine-strong px-3 py-5 text-sage-bg/80 md:flex">
       <div className="mb-6 px-3 font-display text-lg font-semibold tracking-tight text-on-accent">
         L&apos;Orée du Savoir
       </div>
