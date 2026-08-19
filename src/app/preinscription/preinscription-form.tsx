@@ -8,14 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 
 type Section = { id: string; nom: string };
+type Creneau = { id: string; sectionId: string; label: string };
 
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
-export function PreinscriptionForm({ sections }: { sections: Section[] }) {
+export function PreinscriptionForm({
+  sections,
+  creneaux,
+}: {
+  sections: Section[];
+  creneaux: Creneau[];
+}) {
   const [sectionId, setSectionId] = useState(sections[0]?.id ?? "");
   const sectionChoisie = sections.find((s) => s.id === sectionId);
   const estJeunes = sectionChoisie?.nom === "Jeunes";
+  const creneauxDisponibles = creneaux.filter((c) => c.sectionId === sectionId);
 
   const [error, setError] = useState<string | null>(null);
   const [succes, setSucces] = useState(false);
@@ -54,7 +62,7 @@ export function PreinscriptionForm({ sections }: { sections: Section[] }) {
     >
       {error && <Alert variant="danger">{error}</Alert>}
 
-      <Card>
+      <Card className="space-y-4">
         <ChampSelect
           label="Section souhaitée"
           name="sectionId"
@@ -65,6 +73,31 @@ export function PreinscriptionForm({ sections }: { sections: Section[] }) {
           {sections.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nom}
+            </option>
+          ))}
+        </ChampSelect>
+
+        <ChampSelect
+          key={sectionId}
+          label="Créneau souhaité"
+          name="classeId"
+          required={creneauxDisponibles.length > 0}
+          disabled={creneauxDisponibles.length === 0}
+          defaultValue=""
+          hint={
+            creneauxDisponibles.length === 0
+              ? "Aucun créneau n'est encore ouvert pour cette section : l'association vous en proposera un."
+              : undefined
+          }
+        >
+          <option value="" disabled={creneauxDisponibles.length > 0}>
+            {creneauxDisponibles.length > 0
+              ? "Choisir un créneau…"
+              : "Aucun créneau disponible pour le moment"}
+          </option>
+          {creneauxDisponibles.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
             </option>
           ))}
         </ChampSelect>

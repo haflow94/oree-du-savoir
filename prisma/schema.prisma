@@ -286,17 +286,30 @@ model Classe {
   @@map("classes")
 }
 
+// CONFIRMEE : occupe une des places de la capacité de la classe. LISTE_ATTENTE :
+// classe déjà pleine au moment de l'inscription, en attente qu'une place se
+// libère (promotion automatique de la plus ancienne en attente, voir
+// src/lib/inscriptions.ts). L'ordre d'inscription (creeLe) fait foi, que le
+// dossier de l'étudiant soit déjà validé ou encore en préinscription — c'est
+// le statut du dossier (Etudiant.statutInscription) qui décide séparément si
+// l'inscription apparaît en présences, pas le statut de place ici.
+enum StatutPlaceClasse {
+  CONFIRMEE
+  LISTE_ATTENTE
+}
+
 // « Participation à un cours » du modèle métier, en version minimale : le
 // rattachement d'un étudiant à une classe, nécessaire pour constituer la
 // liste d'appel. L'inscription complète (dossier, documents, validation)
 // reste Phase 2, en attente du gabarit du dossier officiel.
 model InscriptionClasse {
-  id         String   @id @default(cuid())
+  id         String            @id @default(cuid())
   etudiantId String
-  etudiant   Etudiant @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  etudiant   Etudiant          @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
   classeId   String
-  classe     Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
-  creeLe     DateTime @default(now())
+  classe     Classe            @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  creeLe     DateTime          @default(now())
+  statut     StatutPlaceClasse @default(CONFIRMEE)
 
   @@unique([etudiantId, classeId])
   @@index([classeId])

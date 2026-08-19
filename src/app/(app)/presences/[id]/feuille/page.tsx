@@ -25,7 +25,10 @@ export default async function FeuillePapierPage({
         include: {
           cours: true,
           enseignants: { include: { utilisateur: true } },
+          // Même filtre que la feuille en ligne (voir presences/[id]/page.tsx) :
+          // liste d'attente et préinscriptions n'apparaissent pas ici non plus.
           inscriptions: {
+            where: { statut: "CONFIRMEE", etudiant: { statutInscription: "VALIDE" } },
             include: { etudiant: true },
             orderBy: { etudiant: { nom: "asc" } },
           },

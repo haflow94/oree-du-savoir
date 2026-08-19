@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
+import { statutPourNouvelleInscription } from "@/lib/inscriptions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -19,6 +20,12 @@ function champCivilite(formData: FormData, nom: string): Civilite | null {
 // reste au statut PREINSCRIT tant que le staff n'a pas contrôlé le dossier
 // sur place (signature, documents, paiement) et validé depuis la fiche
 // étudiant. Pas de détection de doublons ici : c'est fait au contrôle.
+//
+// Le créneau choisi devient tout de suite une InscriptionClasse (et non un
+// simple souhait en texte) : il apparaît immédiatement dans « Cours suivis »
+// sur la fiche étudiant, et reste donc déjà présent quand le staff valide le
+// dossier — pas de ressaisie. Le champ n'est pas fiable côté client, d'où la
+// revérification serveur (classe existante, bien dans la section choisie).
 export async function preinscrireAction(
   formData: FormData,
 ): Promise<{ erreur: string } | { ok: true }> {
@@ -33,6 +40,18 @@ export async function preinscrireAction(
   if (!section) {
     return { erreur: "Section invalide." };
   }
+
+  const classeIdBrut = champTexte(formData, "classeId");
+  const classe = classeIdBrut
+    ? await prisma.classe.findUnique({
+        where: { id: classeIdBrut },
+        include: { cours: true },
+      })
+    : null;
+  const classeValide = classe && classe.cours.sectionId === sectionId ? classe : null;
+  const statutPlace = classeValide
+    ? await statutPourNouvelleInscription(classeValide.id)
+    : null;
 
   const dateNaissanceBrute = champTexte(formData, "dateNaissance");
   const estResponsable =
@@ -51,7 +70,9 @@ export async function preinscrireAction(
       profession: champTexte(formData, "profession"),
       niveauEtudes: champTexte(formData, "niveauEtudes"),
       dernierDiplome: champTexte(formData, "dernierDiplome"),
-      remarque: `Préinscription en ligne — section souhaitée : ${section.nom}.`,
+      remarque: classeValide
+        ? null
+        : `Préinscription en ligne — section souhaitée : ${section.nom}.`,
       statutInscription: "PREINSCRIT",
       responsables: estResponsable
         ? {
@@ -65,6 +86,9 @@ export async function preinscrireAction(
               adresse: champTexte(formData, "responsableAdresse"),
             },
           }
+        : undefined,
+      inscriptions: classeValide
+        ? { create: { classeId: classeValide.id, statut: statutPlace! } }
         : undefined,
     },
   });

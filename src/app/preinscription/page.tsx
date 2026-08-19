@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { PreinscriptionForm } from "./preinscription-form";
 import { EmptyState } from "@/components/ui/empty-state";
+import { anneeScolaireActiveId } from "@/lib/sections-etudiant";
+import { JOUR_LABELS } from "@/lib/planning";
 
 // Sans ceci, Next préoptimiserait la page en statique (aucun cookie/searchParams
 // lu) : la liste des sections serait figée au moment du build Docker, pas
@@ -9,7 +11,25 @@ import { EmptyState } from "@/components/ui/empty-state";
 export const dynamic = "force-dynamic";
 
 export default async function PreinscriptionPage() {
-  const sections = await prisma.section.findMany({ orderBy: { nom: "asc" } });
+  const anneeActiveId = await anneeScolaireActiveId();
+
+  const [sections, classes] = await Promise.all([
+    prisma.section.findMany({ orderBy: { nom: "asc" } }),
+    anneeActiveId
+      ? prisma.classe.findMany({
+          where: { anneeScolaireId: anneeActiveId },
+          include: { cours: true },
+          orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const creneaux = classes.map((c) => ({
+    id: c.id,
+    sectionId: c.cours.sectionId,
+    label:
+      `${c.cours.nom}${c.niveau ? ` — ${c.niveau}` : ""} · ${JOUR_LABELS[c.jour]} ${c.heureDebut}-${c.heureFin}`,
+  }));
 
   return (
     <div className="flex min-h-screen flex-1 justify-center bg-bg px-4 py-10">
@@ -25,7 +45,10 @@ export default async function PreinscriptionPage() {
             hint="Merci de contacter directement l'association."
           />
         ) : (
-          <PreinscriptionForm sections={sections.map((s) => ({ id: s.id, nom: s.nom }))} />
+          <PreinscriptionForm
+            sections={sections.map((s) => ({ id: s.id, nom: s.nom }))}
+            creneaux={creneaux}
+          />
         )}
 
         <p className="mt-6 text-center text-xs text-ink-faint">

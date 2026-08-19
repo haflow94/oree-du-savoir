@@ -16,6 +16,7 @@ import { modifierClasseAction, supprimerClasseAction } from "./actions";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -58,7 +59,10 @@ export default async function ClasseDetailPage({
       enseignants: { include: { utilisateur: true } },
       inscriptions: {
         include: { etudiant: true },
-        orderBy: { etudiant: { nom: "asc" } },
+        // Confirmées d'abord, puis liste d'attente (ordre alphabétique déjà
+        // exact ici : "CONFIRMEE" < "LISTE_ATTENTE") ; par ancienneté à
+        // l'intérieur de chaque groupe pour refléter l'ordre d'arrivée.
+        orderBy: [{ statut: "asc" }, { creeLe: "asc" }],
       },
       _count: { select: { seances: true, inscriptions: true } },
     },
@@ -79,6 +83,8 @@ export default async function ClasseDetailPage({
     : [];
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
   const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
+  const inscriptionsConfirmees = classe.inscriptions.filter((i) => i.statut === "CONFIRMEE");
+  const inscriptionsEnAttente = classe.inscriptions.filter((i) => i.statut === "LISTE_ATTENTE");
 
   const dejaInscrits = new Set(classe.inscriptions.map((i) => i.etudiantId));
   const [sectionsFiltre, anneeActiveId] = peutInscrire
@@ -274,8 +280,13 @@ export default async function ClasseDetailPage({
 
       <Card>
         <CardTitle>
-          Étudiants inscrits ({classe.inscriptions.length}
+          Étudiants inscrits ({inscriptionsConfirmees.length}
           {classe.capacite ? ` / ${classe.capacite}` : ""})
+          {inscriptionsEnAttente.length > 0 && (
+            <span className="ml-2 font-normal text-ink-faint">
+              · {inscriptionsEnAttente.length} en liste d&apos;attente
+            </span>
+          )}
         </CardTitle>
 
         {classe.inscriptions.length === 0 ? (
@@ -286,12 +297,18 @@ export default async function ClasseDetailPage({
           <ul className="mt-3 divide-y divide-border">
             {classe.inscriptions.map((i) => (
               <li key={i.id} className="flex items-center justify-between py-2.5">
-                <Link
-                  href={`/etudiants/${i.etudiantId}`}
-                  className="text-sm font-medium text-ink hover:underline"
-                >
-                  {i.etudiant.prenom} {i.etudiant.nom}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/etudiants/${i.etudiantId}`}
+                    className="text-sm font-medium text-ink hover:underline"
+                  >
+                    {i.etudiant.prenom} {i.etudiant.nom}
+                  </Link>
+                  {i.statut === "LISTE_ATTENTE" && <Badge variant="danger">Liste d&apos;attente</Badge>}
+                  {i.etudiant.statutInscription === "PREINSCRIT" && (
+                    <Badge variant="info">Préinscrit</Badge>
+                  )}
+                </div>
                 {peutInscrire && (
                   <form action={retirerEtudiantAction}>
                     <input type="hidden" name="inscriptionId" value={i.id} />

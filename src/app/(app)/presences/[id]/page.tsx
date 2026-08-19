@@ -24,7 +24,11 @@ export default async function SeancePage({
       classe: {
         include: {
           cours: true,
+          // Seuls les étudiants avec une place confirmée et un dossier validé
+          // font l'appel (voir src/lib/inscriptions.ts) : une préinscription
+          // ou une liste d'attente n'apparaît jamais en présences.
           inscriptions: {
+            where: { statut: "CONFIRMEE", etudiant: { statutInscription: "VALIDE" } },
             include: { etudiant: true },
             orderBy: { etudiant: { nom: "asc" } },
           },

@@ -71,7 +71,9 @@ export default async function EtudiantDetailPage({
       include: {
         responsables: true,
         inscriptions: {
-          include: { classe: { include: { cours: true, anneeScolaire: true } } },
+          include: {
+            classe: { include: { cours: { include: { section: true } }, anneeScolaire: true } },
+          },
           orderBy: { classe: { anneeScolaire: { libelle: "desc" } } },
         },
         dossiersAnnuels: {
@@ -412,13 +414,18 @@ export default async function EtudiantDetailPage({
             {etudiant.inscriptions.map((i) => (
               <li key={i.id} className="flex items-center justify-between py-2.5">
                 <div>
-                  <Link
-                    href={`/classes/${i.classe.id}`}
-                    className="text-sm font-medium text-ink hover:underline"
-                  >
-                    {i.classe.cours.nom}
-                    {i.classe.niveau && ` — ${i.classe.niveau}`}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/classes/${i.classe.id}`}
+                      className="text-sm font-medium text-ink hover:underline"
+                    >
+                      {i.classe.cours.section.nom} · {i.classe.cours.nom}
+                      {i.classe.niveau && ` — ${i.classe.niveau}`}
+                    </Link>
+                    {i.statut === "LISTE_ATTENTE" && (
+                      <Badge variant="danger">Liste d&apos;attente</Badge>
+                    )}
+                  </div>
                   <p className="text-xs text-ink-faint">
                     {JOUR_LABELS[i.classe.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}
                     {i.classe.anneeScolaire.libelle}

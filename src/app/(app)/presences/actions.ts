@@ -10,6 +10,7 @@ import {
   datesDesSeances,
   enseignantPeutCorriger,
 } from "@/lib/presences";
+import { statutPourNouvelleInscription, promouvoirProchainEnAttente } from "@/lib/inscriptions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -60,8 +61,9 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
   const etudiantId = champTexte(formData, "etudiantId");
   if (!classeId || !etudiantId) return;
 
+  const statut = await statutPourNouvelleInscription(classeId);
   await prisma.inscriptionClasse.createMany({
-    data: [{ classeId, etudiantId }],
+    data: [{ classeId, etudiantId, statut }],
     skipDuplicates: true,
   });
 
@@ -78,6 +80,11 @@ export async function retirerEtudiantAction(formData: FormData): Promise<void> {
   if (!inscriptionId || !classeId) return;
 
   await prisma.inscriptionClasse.delete({ where: { id: inscriptionId } });
+  // La place libérée (si elle était confirmée) revient à la plus ancienne
+  // inscription en liste d'attente : sans effet si celle-ci était déjà en
+  // liste d'attente, ou si aucune classe n'attend une place.
+  await promouvoirProchainEnAttente(classeId);
+
   revalidatePath(`/classes/${classeId}`);
   if (etudiantId) revalidatePath(`/etudiants/${etudiantId}`);
 }
@@ -193,7 +200,18 @@ export async function validerPresencesAction(formData: FormData): Promise<void> 
 
   const seance = await prisma.seance.findUnique({
     where: { id: seanceId },
-    include: { classe: { include: { inscriptions: true } } },
+    include: {
+      classe: {
+        include: {
+          // Seuls les étudiants avec une place confirmée et un dossier validé
+          // font l'appel : une préinscription ou une liste d'attente
+          // n'apparaît jamais en présences (voir src/lib/inscriptions.ts).
+          inscriptions: {
+            where: { statut: "CONFIRMEE", etudiant: { statutInscription: "VALIDE" } },
+          },
+        },
+      },
+    },
   });
   if (!seance || seance.statut === "ANNULEE") return;
 
