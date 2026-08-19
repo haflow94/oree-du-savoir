@@ -62,6 +62,15 @@ model Session {
   creeLe        DateTime @default(now())
   expireLe      DateTime
 
+  // Connexion faite en scannant le QR d'une classe (voir /qr/[token]) : cette
+  // session ne donne accès qu'à la feuille de présence de CETTE séance, rien
+  // d'autre dans l'appli, même en tapant une autre URL à la main — imposé
+  // dans requireSession()/requireRole() (src/lib/auth.ts), le seul endroit
+  // qui fait réellement foi pour l'accès. Null = session normale, sans
+  // restriction.
+  seanceRestreinteId String?
+  seanceRestreinte   Seance? @relation(fields: [seanceRestreinteId], references: [id], onDelete: SetNull)
+
   @@index([utilisateurId])
   @@map("sessions")
 }
@@ -350,6 +359,7 @@ model Seance {
   creeLe            DateTime     @default(now())
 
   presences Presence[]
+  sessionsRestreintes Session[]
 
   @@unique([classeId, date])
   @@index([date])

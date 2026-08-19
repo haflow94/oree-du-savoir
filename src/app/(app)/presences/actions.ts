@@ -193,10 +193,10 @@ export async function supprimerPeriodeFermetureAction(
  * ne saisit que les exceptions, mais rien n'est écrit sans validation.
  */
 export async function validerPresencesAction(formData: FormData): Promise<void> {
-  const session = await requireSession();
-
   const seanceId = champTexte(formData, "seanceId");
   if (!seanceId) return;
+
+  const session = await requireSession({ allowedSeanceId: seanceId });
 
   const seance = await prisma.seance.findUnique({
     where: { id: seanceId },

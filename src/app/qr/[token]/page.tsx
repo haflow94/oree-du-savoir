@@ -1,15 +1,16 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { peutAccederClasse } from "@/lib/acces-presence";
 import { aujourdhuiUTC } from "@/lib/presences";
-import { buttonVariants } from "@/components/ui/button";
+import { logoutAction } from "@/app/(app)/logout-action";
 
 /**
  * Cible du QR affiché en salle. Le QR est un raccourci d'accès, jamais une
  * authentification (règle non négociable) : sans session valide, on renvoie
  * vers /login, et l'accès à la classe est vérifié comme partout ailleurs.
+ * Une fois la séance trouvée, direction /appel/{id} — une page isolée, sans
+ * aucun lien vers le reste de l'appli (voir src/app/appel/[seanceId]).
  */
 export default async function QrPage({
   params,
@@ -21,6 +22,13 @@ export default async function QrPage({
 
   if (!session) {
     redirect(`/login?from=${encodeURIComponent(`/qr/${token}`)}`);
+  }
+
+  // Session restreinte à une séance (connexion via QR, voir requireSession
+  // dans src/lib/auth.ts) : toujours renvoyée vers sa propre séance, quel
+  // que soit le QR scanné ensuite — jamais vers la classe de ce nouveau token.
+  if (session.seanceRestreinteId) {
+    redirect(`/appel/${session.seanceRestreinteId}`);
   }
 
   const classe = await prisma.classe.findUnique({
@@ -48,7 +56,6 @@ export default async function QrPage({
     return (
       <Message titre={`${classe.cours.nom} — pas de séance aujourd'hui`}>
         Aucune séance n&apos;est prévue pour cette classe aujourd&apos;hui.
-        Vérifiez le planning, ou passez par la liste des présences.
       </Message>
     );
   }
@@ -62,9 +69,11 @@ export default async function QrPage({
     );
   }
 
-  redirect(`/presences/${seance.id}`);
+  redirect(`/appel/${seance.id}`);
 }
 
+// Pas de lien vers le reste de l'appli, même ici : seule sortie possible,
+// se déconnecter — voir la règle sur /appel/[seanceId].
 function Message({
   titre,
   children,
@@ -77,9 +86,14 @@ function Message({
       <div className="w-full max-w-sm rounded-xl border border-border bg-bg-elevated p-6 text-center shadow-card">
         <h1 className="font-display text-base font-semibold text-pine-strong">{titre}</h1>
         <p className="mt-2 text-sm text-ink-muted">{children}</p>
-        <Link href="/presences" className={`mt-4 inline-block ${buttonVariants({ variant: "primary" })}`}>
-          Voir les présences
-        </Link>
+        <form action={logoutAction} className="mt-4">
+          <button
+            type="submit"
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken"
+          >
+            Quitter
+          </button>
+        </form>
       </div>
     </div>
   );

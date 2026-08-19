@@ -8,6 +8,10 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Une session restreinte au QR (voir SessionUser dans src/lib/auth.ts) est
+  // toujours redirigée par requireSession() vers /appel/{id} — une page hors
+  // de ce layout, donc jamais de menu à cacher ici : si on arrive jusque-là,
+  // c'est qu'on a le droit de voir l'appli normale.
   const session = await requireSession();
   const anneeActive = await prisma.anneeScolaire.findFirst({
     where: { active: true },

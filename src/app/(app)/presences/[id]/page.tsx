@@ -1,12 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { peutAccederClasse, estAdministratif } from "@/lib/acces-presence";
+import { peutAccederClasse } from "@/lib/acces-presence";
 import { JOUR_LABELS } from "@/lib/planning";
-import { enseignantPeutCorriger } from "@/lib/presences";
+import { chargerSeanceAvecAppel } from "@/lib/appel";
 import { annulerSeanceAction } from "../actions";
-import { FeuilleAppel, type LigneAppel } from "./feuille-appel";
+import { FeuilleAppel } from "./feuille-appel";
 import { buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 
@@ -15,51 +14,18 @@ export default async function SeancePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireSession();
   const { id } = await params;
+  const session = await requireSession();
 
-  const seance = await prisma.seance.findUnique({
-    where: { id },
-    include: {
-      classe: {
-        include: {
-          cours: true,
-          // Seuls les étudiants avec une place confirmée et un dossier validé
-          // font l'appel (voir src/lib/inscriptions.ts) : une préinscription
-          // ou une liste d'attente n'apparaît jamais en présences.
-          inscriptions: {
-            where: { statut: "CONFIRMEE", etudiant: { statutInscription: "VALIDE" } },
-            include: { etudiant: true },
-            orderBy: { etudiant: { nom: "asc" } },
-          },
-        },
-      },
-      presences: true,
-      valideePar: true,
-    },
-  });
-
-  if (!seance) {
+  const donnees = await chargerSeanceAvecAppel(id, session);
+  if (!donnees) {
     notFound();
   }
+  const { seance, lignes, verrouillee, administratif } = donnees;
 
   if (!(await peutAccederClasse(session, seance.classeId))) {
     redirect("/acces-refuse");
   }
-
-  const administratif = estAdministratif(session.role);
-  const verrouillee =
-    seance.statut === "VALIDEE" &&
-    !administratif &&
-    !enseignantPeutCorriger(seance.date);
-
-  const parEtudiant = new Map(seance.presences.map((p) => [p.etudiantId, p.statut]));
-  const lignes: LigneAppel[] = seance.classe.inscriptions.map((i) => ({
-    etudiantId: i.etudiantId,
-    nom: i.etudiant.nom,
-    prenom: i.etudiant.prenom,
-    statutInitial: parEtudiant.get(i.etudiantId) ?? null,
-  }));
 
   return (
     <div className="max-w-3xl space-y-6">

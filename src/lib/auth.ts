@@ -16,7 +16,12 @@ import type { Utilisateur } from "@/generated/prisma/client";
 export type SessionUser = Pick<
   Utilisateur,
   "id" | "email" | "nom" | "prenom" | "role" | "actif"
->;
+> & {
+  // Connexion faite en scannant le QR d'une classe : non-null tant que
+  // cette session ne doit accéder qu'à la feuille de présence de cette
+  // séance-là, rien d'autre (voir requireSession ci-dessous).
+  seanceRestreinteId: string | null;
+};
 
 type LoginResult =
   | { ok: true }
@@ -27,6 +32,7 @@ export { hashPassword };
 export async function login(
   email: string,
   motDePasse: string,
+  seanceRestreinteId: string | null = null,
 ): Promise<LoginResult> {
   const utilisateur = await prisma.utilisateur.findUnique({
     where: { email: email.trim().toLowerCase() },
@@ -56,7 +62,7 @@ export async function login(
 
   await prisma.$transaction([
     prisma.session.create({
-      data: { tokenHash, utilisateurId: utilisateur.id, expireLe },
+      data: { tokenHash, utilisateurId: utilisateur.id, expireLe, seanceRestreinteId },
     }),
     prisma.utilisateur.update({
       where: { id: utilisateur.id },
@@ -124,23 +130,41 @@ export async function getSession(): Promise<SessionUser | null> {
   }
 
   const { id, email, nom, prenom, role, actif } = session.utilisateur;
-  return { id, email, nom, prenom, role, actif };
+  return { id, email, nom, prenom, role, actif, seanceRestreinteId: session.seanceRestreinteId };
 }
 
 // Garde d'accès pour les Server Components protégés : redirige vers /login
 // si personne n'est connecté, ou vers /acces-refuse si le rôle ne convient
 // pas. Utilisée dans les layouts/pages, pas dans le proxy Edge (qui ne
 // peut pas interroger Postgres) — voir proxy.ts pour le détail.
-export async function requireSession(): Promise<SessionUser> {
+//
+// `allowedSeanceId` : seul point d'entrée pour une session restreinte au QR
+// (voir SessionUser). Toute page/action qui ne fournit pas l'id de LA séance
+// autorisée — donc la quasi-totalité de l'appli — renvoie une session
+// restreinte vers /appel/{id} (feuille isolée, hors du layout applicatif :
+// jamais de menu, quel que soit le rôle), même si l'URL tapée à la main
+// mènerait normalement à une page que son rôle autoriserait.
+export async function requireSession(options?: {
+  allowedSeanceId?: string;
+}): Promise<SessionUser> {
   const session = await getSession();
   if (!session) {
     redirect("/login");
   }
+  if (
+    session.seanceRestreinteId &&
+    session.seanceRestreinteId !== options?.allowedSeanceId
+  ) {
+    redirect(`/appel/${session.seanceRestreinteId}`);
+  }
   return session;
 }
 
-export async function requireRole(allowed: Role[]): Promise<SessionUser> {
-  const session = await requireSession();
+export async function requireRole(
+  allowed: Role[],
+  options?: { allowedSeanceId?: string },
+): Promise<SessionUser> {
+  const session = await requireSession(options);
   if (!hasRole(session.role, allowed)) {
     redirect("/acces-refuse");
   }
