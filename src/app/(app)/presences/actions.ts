@@ -66,6 +66,7 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
   });
 
   revalidatePath(`/classes/${classeId}`);
+  revalidatePath(`/etudiants/${etudiantId}`);
 }
 
 export async function retirerEtudiantAction(formData: FormData): Promise<void> {
@@ -73,10 +74,12 @@ export async function retirerEtudiantAction(formData: FormData): Promise<void> {
 
   const inscriptionId = champTexte(formData, "inscriptionId");
   const classeId = champTexte(formData, "classeId");
+  const etudiantId = champTexte(formData, "etudiantId");
   if (!inscriptionId || !classeId) return;
 
   await prisma.inscriptionClasse.delete({ where: { id: inscriptionId } });
   revalidatePath(`/classes/${classeId}`);
+  if (etudiantId) revalidatePath(`/etudiants/${etudiantId}`);
 }
 
 export async function annulerSeanceAction(formData: FormData): Promise<void> {

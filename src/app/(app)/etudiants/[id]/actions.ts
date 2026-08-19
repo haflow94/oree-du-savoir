@@ -56,6 +56,8 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
         email: champTexte(formData, "email"),
         adresse: champTexte(formData, "adresse"),
         complementAdresse: champTexte(formData, "complementAdresse"),
+        codePostal: champTexte(formData, "codePostal"),
+        contactUrgence: champTexte(formData, "contactUrgence"),
         profession: champTexte(formData, "profession"),
         niveauEtudes: champTexte(formData, "niveauEtudes"),
         dernierDiplome: champTexte(formData, "dernierDiplome"),

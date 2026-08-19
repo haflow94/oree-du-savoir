@@ -128,6 +128,8 @@ model Etudiant {
   email             String?
   adresse           String?
   complementAdresse String?
+  codePostal        String?
+  contactUrgence    String?
   profession        String?
   niveauEtudes      String?
   dernierDiplome    String?
@@ -372,6 +374,7 @@ enum MoyenPaiement {
   CHEQUE
   VIREMENT
   CB
+  PRELEVEMENT
 }
 
 // Ancrage minimal pour les paiements (montant dû global saisi à la main),
@@ -419,7 +422,8 @@ model Paiement {
   datePaiement DateTime      @default(now())
   creeLe       DateTime      @default(now())
 
-  cheque Cheque?
+  cheque      Cheque?
+  prelevement Prelevement?
 
   @@index([echeanceId])
   @@map("paiements")
@@ -447,6 +451,22 @@ model Cheque {
   motifRejet       String?
 
   @@map("cheques")
+}
+
+// Détails spécifiques au prélèvement SEPA, en 1-1 avec le paiement
+// (uniquement quand Paiement.moyen = PRELEVEMENT). Pas de cycle de statut
+// comme pour le chèque : la trésorerie reste simple (règle non négociable),
+// à revoir seulement si le suivi des rejets de prélèvement s'avère utile.
+model Prelevement {
+  id              String   @id @default(cuid())
+  paiementId      String   @unique
+  paiement        Paiement @relation(fields: [paiementId], references: [id], onDelete: Cascade)
+  iban            String?
+  bic             String?
+  titulaire       String?
+  referenceMandat String?
+
+  @@map("prelevements")
 }
 
 enum TypeMouvement {

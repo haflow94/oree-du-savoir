@@ -11,6 +11,7 @@ export const MOYEN_LABELS: Record<MoyenPaiement, string> = {
   CHEQUE: "Chèque",
   VIREMENT: "Virement",
   CB: "Carte bancaire",
+  PRELEVEMENT: "Prélèvement",
 };
 
 export const STATUT_CHEQUE_LABELS: Record<StatutCheque, string> = {

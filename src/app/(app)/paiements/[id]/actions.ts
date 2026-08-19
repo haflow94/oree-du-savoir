@@ -66,6 +66,18 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
             },
           }
         : {}),
+      ...(moyen === "PRELEVEMENT"
+        ? {
+            prelevement: {
+              create: {
+                iban: champTexte(formData, "prelevementIban"),
+                bic: champTexte(formData, "prelevementBic"),
+                titulaire: champTexte(formData, "prelevementTitulaire"),
+                referenceMandat: champTexte(formData, "prelevementReferenceMandat"),
+              },
+            },
+          }
+        : {}),
     },
   });
 
