@@ -55,11 +55,11 @@ model Utilisateur {
 // Sessions stockées en base (pas de JWT) : révocation immédiate possible
 // (désactivation d'un utilisateur = invalidation de toutes ses sessions).
 model Session {
-  id            String   @id @default(cuid())
-  tokenHash     String   @unique
+  id            String      @id @default(cuid())
+  tokenHash     String      @unique
   utilisateurId String
   utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
-  creeLe        DateTime @default(now())
+  creeLe        DateTime    @default(now())
   expireLe      DateTime
 
   // Connexion faite en scannant le QR d'une classe (voir /qr/[token]) : cette
@@ -126,26 +126,33 @@ enum StatutInscription {
 // signification doit être confirmée avec l'association avant intégration
 // (voir Projet/03_Analyse_existant_Excel.md, section 3.3). Ne pas deviner.
 model Etudiant {
-  id                String            @id @default(cuid())
-  civilite          Civilite?
-  nom               String
-  prenom            String
-  dateNaissance     DateTime?
-  villeNaissance    String?
-  telephoneMobile   String?
-  telephoneFixe     String?
-  email             String?
-  adresse           String?
-  complementAdresse String?
-  codePostal        String?
-  contactUrgence    String?
-  profession        String?
-  niveauEtudes      String?
-  dernierDiplome    String?
-  remarque          String?
-  statutInscription StatutInscription @default(VALIDE)
-  creeLe            DateTime          @default(now())
-  misAJourLe        DateTime          @updatedAt
+  id                 String            @id @default(cuid())
+  civilite           Civilite?
+  nom                String
+  prenom             String
+  dateNaissance      DateTime?
+  villeNaissance     String?
+  telephoneMobile    String?
+  telephoneFixe      String?
+  email              String?
+  adresse            String?
+  complementAdresse  String?
+  codePostal         String?
+  contactUrgence     String?
+  profession         String?
+  niveauEtudes       String?
+  dernierDiplome     String?
+  remarque           String?
+  statutInscription  StatutInscription @default(VALIDE)
+  // Section demandée à la préinscription en ligne quand aucun créneau
+  // n'était encore ouvert pour l'assigner directement à une classe (voir
+  // preinscription/actions.ts) : reste affichée comme « à assigner » sur la
+  // fiche jusqu'à ce que le staff inscrive effectivement l'étudiant à une
+  // classe (voir inscrireEtudiantAction, qui l'efface alors).
+  sectionSouhaiteeId String?
+  sectionSouhaitee   Section?          @relation(fields: [sectionSouhaiteeId], references: [id], onDelete: SetNull)
+  creeLe             DateTime          @default(now())
+  misAJourLe         DateTime          @updatedAt
 
   responsables    ResponsableLegal[]
   dossiersAnnuels DossierAnnuel[]
@@ -190,17 +197,17 @@ enum TypeDocument {
 // règle non négociable). Cette table ne porte que les métadonnées et le
 // chemin relatif ; le fichier réel vit sur le disque/NAS.
 model Document {
-  id            String        @id @default(cuid())
+  id            String       @id @default(cuid())
   etudiantId    String
-  etudiant      Etudiant      @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  etudiant      Etudiant     @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
   type          TypeDocument
   nomFichier    String
   cheminRelatif String // relatif à DOCUMENTS_DIR
   mimeType      String
   tailleOctets  Int
-  creeLe        DateTime      @default(now())
+  creeLe        DateTime     @default(now())
   creeParId     String?
-  creePar       Utilisateur?  @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+  creePar       Utilisateur? @relation(fields: [creeParId], references: [id], onDelete: SetNull)
 
   @@index([etudiantId])
   @@map("documents")
@@ -228,7 +235,8 @@ model Section {
   remboursementAvant29Jours Int // % des frais de formation remboursé
   creeLe                    DateTime @default(now())
 
-  cours Cours[]
+  cours                  Cours[]
+  souhaitsPreinscription Etudiant[]
 
   @@map("sections")
 }
@@ -237,10 +245,10 @@ model Section {
 // créneaux/niveaux du même cours). Ne pas confondre avec Classe : le cours
 // est la matière, la classe est le groupe concret relié au planning.
 model Cours {
-  id          String  @id @default(cuid())
+  id          String   @id @default(cuid())
   sectionId   String
-  section     Section @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  nom         String  @unique
+  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  nom         String   @unique
   description String?
   creeLe      DateTime @default(now())
 
@@ -268,9 +276,9 @@ enum JourSemaine {
 // - un seul créneau hebdomadaire par classe (jour + heure début/fin) ;
 // - plusieurs enseignants possibles par classe (table de liaison).
 model Classe {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   coursId         String
-  cours           Cours    @relation(fields: [coursId], references: [id], onDelete: Restrict)
+  cours           Cours         @relation(fields: [coursId], references: [id], onDelete: Restrict)
   anneeScolaireId String
   anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
   niveau          String?
@@ -283,8 +291,8 @@ model Classe {
   // Jeton du QR affiché en salle : raccourci d'accès vers la séance du jour,
   // jamais une authentification (règle non négociable). L'enseignant doit
   // être connecté ; le QR ne fait que lui éviter de chercher sa séance.
-  qrToken         String   @unique @default(cuid())
-  creeLe          DateTime @default(now())
+  qrToken         String        @unique @default(cuid())
+  creeLe          DateTime      @default(now())
 
   enseignants  ClasseEnseignant[]
   inscriptions InscriptionClasse[]
@@ -344,21 +352,21 @@ enum StatutSeance {
 // Séances générées depuis le planning de la classe (règle 7), en sautant les
 // périodes de fermeture. Une séance peut aussi être annulée ponctuellement.
 model Seance {
-  id                String       @id @default(cuid())
-  classeId          String
-  classe            Classe       @relation(fields: [classeId], references: [id], onDelete: Cascade)
-  date              DateTime     @db.Date
-  statut            StatutSeance @default(PREVUE)
-  motifAnnulation   String?
-  valideeLe         DateTime?
-  valideeParId      String?
-  valideePar        Utilisateur? @relation(fields: [valideeParId], references: [id], onDelete: SetNull)
+  id              String       @id @default(cuid())
+  classeId        String
+  classe          Classe       @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  date            DateTime     @db.Date
+  statut          StatutSeance @default(PREVUE)
+  motifAnnulation String?
+  valideeLe       DateTime?
+  valideeParId    String?
+  valideePar      Utilisateur? @relation(fields: [valideeParId], references: [id], onDelete: SetNull)
   // Trace la saisie a posteriori depuis la feuille papier de secours, pour
   // distinguer une validation faite en séance d'une reprise administrative.
-  saisieViaPapier   Boolean      @default(false)
-  creeLe            DateTime     @default(now())
+  saisieViaPapier Boolean      @default(false)
+  creeLe          DateTime     @default(now())
 
-  presences Presence[]
+  presences           Presence[]
   sessionsRestreintes Session[]
 
   @@unique([classeId, date])
@@ -407,13 +415,13 @@ enum MoyenPaiement {
 // automatique du montant dû à partir des sections/cours suivis reste à
 // faire (Phase 2) ; en attendant, montantDu est saisi manuellement.
 model DossierAnnuel {
-  id              String   @id @default(cuid())
+  id              String        @id @default(cuid())
   etudiantId      String
-  etudiant        Etudiant @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  etudiant        Etudiant      @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
   anneeScolaireId String
   anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
-  montantDu       Decimal  @db.Decimal(10, 2)
-  creeLe          DateTime @default(now())
+  montantDu       Decimal       @db.Decimal(10, 2)
+  creeLe          DateTime      @default(now())
 
   echeances Echeance[]
 
@@ -500,9 +508,9 @@ enum TypeMouvement {
 // Liste éditable par le Bureau plutôt que texte libre, pour garder les
 // mouvements exploitables en rapport (voir Projet/03_Analyse_existant_Excel.md §5).
 model CategorieMouvement {
-  id     String  @id @default(cuid())
-  nom    String  @unique
-  actif  Boolean @default(true)
+  id     String   @id @default(cuid())
+  nom    String   @unique
+  actif  Boolean  @default(true)
   creeLe DateTime @default(now())
 
   mouvements MouvementTresorerie[]
@@ -513,16 +521,16 @@ model CategorieMouvement {
 // Trésorerie volontairement simple (pas de comptabilité complète) : le solde
 // est calculé en cumul à la lecture, jamais stocké.
 model MouvementTresorerie {
-  id            String              @id @default(cuid())
-  date          DateTime
-  libelle       String
-  type          TypeMouvement
-  moyen         MoyenPaiement
-  montant       Decimal             @db.Decimal(10, 2)
-  categorieId   String?
-  categorie     CategorieMouvement? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
-  justificatif  String? // chemin/référence du fichier séparé, pas de contenu en base
-  creeLe        DateTime            @default(now())
+  id           String              @id @default(cuid())
+  date         DateTime
+  libelle      String
+  type         TypeMouvement
+  moyen        MoyenPaiement
+  montant      Decimal             @db.Decimal(10, 2)
+  categorieId  String?
+  categorie    CategorieMouvement? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
+  justificatif String? // chemin/référence du fichier séparé, pas de contenu en base
+  creeLe       DateTime            @default(now())
 
   @@index([date])
   @@map("mouvements_tresorerie")

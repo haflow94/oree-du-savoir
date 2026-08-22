@@ -26,6 +26,11 @@ function champCivilite(formData: FormData, nom: string): Civilite | null {
 // sur la fiche étudiant, et reste donc déjà présent quand le staff valide le
 // dossier — pas de ressaisie. Le champ n'est pas fiable côté client, d'où la
 // revérification serveur (classe existante, bien dans la section choisie).
+//
+// Si aucun créneau n'était encore ouvert pour la section choisie (ou que le
+// classeId envoyé ne tient pas la revérification), la section souhaitée est
+// gardée sur `Etudiant.sectionSouhaiteeId` — affichée comme « à assigner »
+// dans Cours suivis, plutôt que perdue en texte libre dans Remarque.
 export async function preinscrireAction(
   formData: FormData,
 ): Promise<{ erreur: string } | { ok: true }> {
@@ -70,10 +75,8 @@ export async function preinscrireAction(
       profession: champTexte(formData, "profession"),
       niveauEtudes: champTexte(formData, "niveauEtudes"),
       dernierDiplome: champTexte(formData, "dernierDiplome"),
-      remarque: classeValide
-        ? null
-        : `Préinscription en ligne — section souhaitée : ${section.nom}.`,
       statutInscription: "PREINSCRIT",
+      sectionSouhaiteeId: classeValide ? null : sectionId,
       responsables: estResponsable
         ? {
             create: {

@@ -62,10 +62,19 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
   if (!classeId || !etudiantId) return;
 
   const statut = await statutPourNouvelleInscription(classeId);
-  await prisma.inscriptionClasse.createMany({
-    data: [{ classeId, etudiantId, statut }],
-    skipDuplicates: true,
-  });
+  await prisma.$transaction([
+    prisma.inscriptionClasse.createMany({
+      data: [{ classeId, etudiantId, statut }],
+      skipDuplicates: true,
+    }),
+    // Le souhait de section exprimé à la préinscription (voir
+    // preinscription/actions.ts) est satisfait dès que l'étudiant est
+    // effectivement inscrit à une classe, quelle qu'elle soit.
+    prisma.etudiant.update({
+      where: { id: etudiantId },
+      data: { sectionSouhaiteeId: null },
+    }),
+  ]);
 
   revalidatePath(`/classes/${classeId}`);
   revalidatePath(`/etudiants/${etudiantId}`);

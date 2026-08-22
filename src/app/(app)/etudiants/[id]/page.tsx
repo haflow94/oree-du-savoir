@@ -63,7 +63,7 @@ export default async function EtudiantDetailPage({
   const peutCreerDossier = hasRole(session.role, PEUT_CREER_DOSSIER);
   const peutInscrire = estAdministratif(session.role) || session.role === Role.ACCUEIL;
   const { id } = await params;
-  const { error, ok, classeSectionId } = await searchParams;
+  const { error, ok, classeSectionId: classeSectionIdParam } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
   const [etudiant, sections, anneeActive] = await Promise.all([
@@ -71,6 +71,7 @@ export default async function EtudiantDetailPage({
       where: { id },
       include: {
         responsables: true,
+        sectionSouhaitee: true,
         inscriptions: {
           include: {
             classe: { include: { cours: { include: { section: true } }, anneeScolaire: true } },
@@ -100,6 +101,10 @@ export default async function EtudiantDetailPage({
   }
 
   const dejaInscritClasseIds = new Set(etudiant.inscriptions.map((i) => i.classe.id));
+  // Section demandée à la préinscription : présélectionne le filtre tant que
+  // le staff n'a pas explicitement changé/vidé le filtre (voir
+  // Etudiant.sectionSouhaiteeId et inscrireEtudiantAction).
+  const classeSectionId = classeSectionIdParam ?? etudiant.sectionSouhaiteeId ?? undefined;
   const anneeActiveId = anneeActive?.id ?? null;
   const reinscritAnneeActive = anneeActiveId
     ? estReinscrit({
@@ -416,8 +421,17 @@ export default async function EtudiantDetailPage({
         )}
       </Card>
 
-      <Card>
+      <Card id="cours-suivis">
         <CardTitle>Cours suivis</CardTitle>
+        {etudiant.sectionSouhaitee && (
+          <div className="mt-3">
+            <Alert variant="info">
+              Section souhaitée à la préinscription :{" "}
+              <strong>{etudiant.sectionSouhaitee.nom}</strong> — choisissez une
+              classe ci-dessous pour l&apos;assigner.
+            </Alert>
+          </div>
+        )}
         {etudiant.inscriptions.length === 0 ? (
           <div className="mt-4">
             <EmptyState message="Aucune inscription en cours." />
@@ -461,7 +475,11 @@ export default async function EtudiantDetailPage({
 
         {peutInscrire && (
           <div className="mt-4 space-y-3 border-t border-border pt-4">
-            <form className="flex flex-wrap items-end gap-2" action={`/etudiants/${etudiant.id}`} method="GET">
+            <form
+              className="flex flex-wrap items-end gap-2"
+              action={`/etudiants/${etudiant.id}#cours-suivis`}
+              method="GET"
+            >
               <ChampSelectAuto label="Section" name="classeSectionId" defaultValue={classeSectionId ?? ""}>
                 <option value="">Toutes les sections</option>
                 {sections.map((s) => (
