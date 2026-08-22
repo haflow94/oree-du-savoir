@@ -18,10 +18,11 @@ const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 export default async function PaiementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ anneeScolaireId?: string; sectionId?: string }>;
+  searchParams: Promise<{ anneeScolaireId?: string; sectionId?: string; q?: string }>;
 }) {
   const session = await requireSession();
-  const { anneeScolaireId, sectionId } = await searchParams;
+  const { anneeScolaireId, sectionId, q } = await searchParams;
+  const recherche = q?.trim() ?? "";
 
   const [annees, sections, anneeActive] = await Promise.all([
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
@@ -34,12 +35,22 @@ export default async function PaiementsPage({
   // du filtre "Toutes les années" reste un choix explicite.
   const anneeFiltre = anneeScolaireId !== undefined ? anneeScolaireId : anneeActive?.id ?? "";
 
+  const filtreEtudiant = {
+    ...(sectionId ? filtreParSection(anneeFiltre || (anneeActive?.id ?? ""), sectionId) : {}),
+    ...(recherche
+      ? {
+          OR: [
+            { nom: { contains: recherche, mode: "insensitive" as const } },
+            { prenom: { contains: recherche, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+
   const dossiers = await prisma.dossierAnnuel.findMany({
     where: {
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
-      ...(sectionId
-        ? { etudiant: filtreParSection(anneeFiltre || (anneeActive?.id ?? ""), sectionId) }
-        : {}),
+      ...(Object.keys(filtreEtudiant).length > 0 ? { etudiant: filtreEtudiant } : {}),
     },
     orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
     include: {
@@ -58,6 +69,7 @@ export default async function PaiementsPage({
   const paramsExport = new URLSearchParams({
     ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
     ...(sectionId ? { sectionId } : {}),
+    ...(recherche ? { q: recherche } : {}),
   }).toString();
 
   // Une colonne par échéance réelle (pas par mois calendaire fixe, voir
@@ -93,6 +105,19 @@ export default async function PaiementsPage({
 
       <form className={TOOLBAR_CLASSES} action="/paiements" method="GET">
         <div>
+          <label htmlFor="q" className={LABEL_XS_CLASSES}>
+            Étudiant
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={recherche}
+            placeholder="Nom ou prénom…"
+            className={`w-40 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
+        <div>
           <label className={LABEL_XS_CLASSES}>Année scolaire</label>
           <AutoSubmitSelect
             name="anneeScolaireId"
@@ -119,6 +144,9 @@ export default async function PaiementsPage({
             ))}
           </AutoSubmitSelect>
         </div>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          Rechercher
+        </button>
         <a
           href={`/paiements/export?${paramsExport}`}
           className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}
@@ -126,8 +154,8 @@ export default async function PaiementsPage({
           Exporter en CSV
         </a>
         <p className="basis-full text-xs text-ink-faint">
-          L&apos;export reprend l&apos;année et la section ci-dessus (laissez
-          « Toutes » pour tout exporter).
+          L&apos;export reprend l&apos;étudiant, l&apos;année et la section
+          ci-dessus (laissez « Toutes » pour tout exporter).
         </p>
       </form>
 

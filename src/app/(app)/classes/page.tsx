@@ -42,12 +42,14 @@ export default async function ClassesPage({
     jour?: string;
     salle?: string;
     anneeScolaireId?: string;
+    q?: string;
   }>;
 }) {
   const session = await requireSession();
   const peutGerer = hasRole(session.role, PEUT_GERER);
-  const { error, ok, sectionId, jour, salle, anneeScolaireId } = await searchParams;
+  const { error, ok, sectionId, jour, salle, anneeScolaireId, q } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
+  const recherche = q?.trim() ?? "";
 
   const [cours, sections, sallesDistinctes, annees, anneeActive] = await Promise.all([
     prisma.cours.findMany({
@@ -77,6 +79,27 @@ export default async function ClassesPage({
       ...(jour ? { jour: jour as (typeof JOURS_ORDONNES)[number] } : {}),
       ...(salle ? { salle } : {}),
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
+      ...(recherche
+        ? {
+            OR: [
+              { cours: { nom: { contains: recherche, mode: "insensitive" } } },
+              { niveau: { contains: recherche, mode: "insensitive" } },
+              { salle: { contains: recherche, mode: "insensitive" } },
+              {
+                enseignants: {
+                  some: {
+                    utilisateur: {
+                      OR: [
+                        { prenom: { contains: recherche, mode: "insensitive" } },
+                        { nom: { contains: recherche, mode: "insensitive" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : {}),
     },
     orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
     include: {
@@ -133,6 +156,19 @@ export default async function ClassesPage({
       </div>
 
       <form className={TOOLBAR_CLASSES} action="/classes" method="GET">
+        <div>
+          <label htmlFor="q" className="sr-only">
+            Rechercher par cours, niveau, salle ou enseignant
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={recherche}
+            placeholder="Cours, niveau, salle, enseignant…"
+            className={`w-56 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
         <AutoSubmitSelect
           name="anneeScolaireId"
           defaultValue={anneeFiltre}
@@ -173,6 +209,9 @@ export default async function ClassesPage({
               ),
           )}
         </AutoSubmitSelect>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          Rechercher
+        </button>
       </form>
 
       <TableWrap>

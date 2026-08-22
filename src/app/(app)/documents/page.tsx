@@ -7,13 +7,30 @@ import { TYPE_DOCUMENT_LABELS, dossierDocumentaireComplet } from "@/lib/document
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { IconChip } from "@/components/ui/icon-chip";
+import { buttonVariants } from "@/components/ui/button";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 
 const PEUT_VOIR = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 
-export default async function DocumentsPage() {
+export default async function DocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   await requireRole(PEUT_VOIR);
+  const { q } = await searchParams;
+  const recherche = q?.trim() ?? "";
 
   const documents = await prisma.document.findMany({
+    where: recherche
+      ? {
+          OR: [
+            { nomFichier: { contains: recherche, mode: "insensitive" } },
+            { etudiant: { nom: { contains: recherche, mode: "insensitive" } } },
+            { etudiant: { prenom: { contains: recherche, mode: "insensitive" } } },
+          ],
+        }
+      : undefined,
     orderBy: { creeLe: "desc" },
     include: {
       etudiant: {
@@ -36,6 +53,25 @@ export default async function DocumentsPage() {
           </p>
         </div>
       </div>
+
+      <form className={TOOLBAR_CLASSES} action="/documents" method="GET">
+        <div>
+          <label htmlFor="q" className="sr-only">
+            Rechercher par étudiant ou nom de fichier
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={recherche}
+            placeholder="Étudiant ou nom de fichier…"
+            className={`w-64 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          Rechercher
+        </button>
+      </form>
 
       <TableWrap>
         <TableHead>
@@ -91,7 +127,9 @@ export default async function DocumentsPage() {
           {documents.length === 0 && (
             <tr>
               <td colSpan={5} className="px-4 py-8 text-center text-ink-faint">
-                Aucun document pour l&apos;instant.
+                {recherche
+                  ? "Aucun document ne correspond à cette recherche."
+                  : "Aucun document pour l'instant."}
               </td>
             </tr>
           )}

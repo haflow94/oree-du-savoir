@@ -36,11 +36,13 @@ export default async function TresoreriePage({
     type?: string;
     categorieId?: string;
     moyen?: string;
+    q?: string;
   }>;
 }) {
   const session = await requireSession();
   const peutGerer = hasRole(session.role, PEUT_GERER);
-  const { dateDebut, dateFin, type, categorieId, moyen } = await searchParams;
+  const { dateDebut, dateFin, type, categorieId, moyen, q } = await searchParams;
+  const recherche = q?.trim().toLowerCase() ?? "";
 
   const [mouvements, toutesCategories] = await Promise.all([
     prisma.mouvementTresorerie.findMany({
@@ -95,6 +97,13 @@ export default async function TresoreriePage({
     if (type && l.type !== type) return false;
     if (categorieId && l.categorieId !== categorieId) return false;
     if (moyen && l.moyen !== moyen) return false;
+    if (
+      recherche &&
+      !l.libelle.toLowerCase().includes(recherche) &&
+      !(l.categorieNom?.toLowerCase().includes(recherche) ?? false)
+    ) {
+      return false;
+    }
     return true;
   });
   // Le plus récent en tête : plus pratique au quotidien que l'ordre
@@ -111,7 +120,7 @@ export default async function TresoreriePage({
   const resultatPeriode = totalCredits - totalDebits;
   const soldeFinPeriode = lignesFiltrees.at(-1)?.soldeCumule ?? soldeActuel;
 
-  const filtresActifs = Boolean(dateDebut || dateFin || type || categorieId || moyen);
+  const filtresActifs = Boolean(dateDebut || dateFin || type || categorieId || moyen || recherche);
 
   const queryExport = new URLSearchParams();
   if (dateDebut) queryExport.set("dateDebut", dateDebut);
@@ -119,6 +128,7 @@ export default async function TresoreriePage({
   if (type) queryExport.set("type", type);
   if (categorieId) queryExport.set("categorieId", categorieId);
   if (moyen) queryExport.set("moyen", moyen);
+  if (q?.trim()) queryExport.set("q", q.trim());
   const hrefExport = `/tresorerie/export${queryExport.size > 0 ? `?${queryExport}` : ""}`;
 
   return (
@@ -176,6 +186,19 @@ export default async function TresoreriePage({
 
       <form className={TOOLBAR_CLASSES} action="/tresorerie" method="GET">
         <div>
+          <label htmlFor="q" className={LABEL_XS_CLASSES}>
+            Recherche
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Libellé ou catégorie…"
+            className={`w-44 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
+        <div>
           <label className={LABEL_XS_CLASSES}>Du</label>
           <AutoSubmitInput
             type="date"
@@ -231,6 +254,9 @@ export default async function TresoreriePage({
             ))}
           </AutoSubmitSelect>
         </div>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          Rechercher
+        </button>
         {filtresActifs && (
           <Link href="/tresorerie" className="text-xs font-medium text-ink-muted hover:underline">
             Réinitialiser

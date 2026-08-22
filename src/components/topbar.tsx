@@ -50,7 +50,7 @@ export function Topbar({ nom, prenom, role, anneeActive }: TopbarProps) {
               </nav>
             </div>
           </details>
-          <h1 className="font-display text-base font-semibold text-pine-strong md:text-lg">
+          <h1 className="font-display text-lg font-semibold text-pine-strong md:text-xl">
             {current?.label ?? "Tableau de bord"}
           </h1>
         </div>

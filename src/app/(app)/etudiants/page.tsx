@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Users } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { Role, hasRole } from "@/lib/roles";
 import {
   compterHistoriqueAutreAnnee,
@@ -25,6 +26,8 @@ import { dossierDocumentaireComplet } from "@/lib/documents";
 
 const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 
+type Population = "adultes" | "jeunes";
+
 export default async function EtudiantsPage({
   searchParams,
 }: {
@@ -34,11 +37,13 @@ export default async function EtudiantsPage({
     reinscription?: string;
     anneeId?: string;
     supprime?: string;
+    population?: string;
   }>;
 }) {
   const session = await requireSession();
-  const { q, sectionId, reinscription, anneeId, supprime } = await searchParams;
+  const { q, sectionId, reinscription, anneeId, supprime, population } = await searchParams;
   const recherche = q?.trim() ?? "";
+  const populationSelectionnee: Population = population === "jeunes" ? "jeunes" : "adultes";
 
   const [anneeScolaires, sections] = await Promise.all([
     prisma.anneeScolaire.findMany({ orderBy: { dateDebut: "desc" } }),
@@ -54,32 +59,46 @@ export default async function EtudiantsPage({
     anneeActive?.id ??
     null;
 
+  // Onglets Adultes/Jeunes : "Jeunes" est une Section comme les autres
+  // (référentiel Administration → Sections), pas un champ d'âge dédié — la
+  // majorité des étudiants (adultes) n'y est pas inscrite. Absente du
+  // référentiel (renommée/supprimée) : pas d'onglets, dégradation
+  // silencieuse plutôt qu'un filtre qui ne matcherait jamais rien.
+  const sectionJeunes = sections.find((s) => s.nom === "Jeunes") ?? null;
+
+  // Chaque filtre dans son propre élément de tableau plutôt qu'un spread
+  // d'objets : `filtreParSection` (section + onglet Jeunes) et
+  // `filtreParReinscription` peuvent chacun produire une clé `inscriptions`
+  // ou `dossiersAnnuels` — un spread les écraserait silencieusement au lieu
+  // de les combiner.
+  const conditions: Prisma.EtudiantWhereInput[] = [];
+  if (recherche) {
+    conditions.push({
+      OR: [
+        { nom: { contains: recherche, mode: "insensitive" } },
+        { prenom: { contains: recherche, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (sectionId && anneeSelectionneeId) {
+    conditions.push(filtreParSection(anneeSelectionneeId, sectionId));
+  }
+  if (sectionJeunes && anneeSelectionneeId) {
+    const filtreJeunes = filtreParSection(anneeSelectionneeId, sectionJeunes.id);
+    conditions.push(populationSelectionnee === "jeunes" ? filtreJeunes : { NOT: filtreJeunes });
+  }
+  if ((reinscription === "oui" || reinscription === "non") && anneeSelectionneeId) {
+    conditions.push(filtreParReinscription(anneeSelectionneeId, reinscription === "oui"));
+  }
+
   const etudiants = await prisma.etudiant.findMany({
-    where: {
-      ...(recherche
-        ? {
-            OR: [
-              { nom: { contains: recherche, mode: "insensitive" } },
-              { prenom: { contains: recherche, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-      ...(sectionId && anneeSelectionneeId ? filtreParSection(anneeSelectionneeId, sectionId) : {}),
-      ...(reinscription === "oui" || reinscription === "non"
-        ? anneeSelectionneeId
-          ? filtreParReinscription(anneeSelectionneeId, reinscription === "oui")
-          : {}
-        : {}),
-    },
+    where: conditions.length > 0 ? { AND: conditions } : {},
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     include: {
       _count: {
-        select: {
-          responsables: true,
-          ...(anneeSelectionneeId
-            ? compterHistoriqueAutreAnnee(anneeSelectionneeId)
-            : { inscriptions: true, dossiersAnnuels: true }),
-        },
+        select: anneeSelectionneeId
+          ? compterHistoriqueAutreAnnee(anneeSelectionneeId)
+          : { inscriptions: true, dossiersAnnuels: true },
       },
       // Pas d'année sélectionnée (cas anormal, aucune année scolaire en
       // base) : clause qui ne matche jamais, pour garder une forme
@@ -115,7 +134,38 @@ export default async function EtudiantsPage({
 
       {supprime && <Alert variant="success">Fiche supprimée.</Alert>}
 
+      {sectionJeunes && (
+        <div role="tablist" className="flex gap-1 border-b border-border">
+          {(["adultes", "jeunes"] as const).map((p) => {
+            const params = new URLSearchParams({
+              ...(recherche ? { q: recherche } : {}),
+              ...(sectionId ? { sectionId } : {}),
+              ...(reinscription ? { reinscription } : {}),
+              ...(anneeSelectionneeId ? { anneeId: anneeSelectionneeId } : {}),
+              population: p,
+            });
+            const actif = populationSelectionnee === p;
+            return (
+              <Link
+                key={p}
+                href={`/etudiants?${params}`}
+                role="tab"
+                aria-selected={actif}
+                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
+                  actif
+                    ? "border-pine text-pine-strong"
+                    : "border-transparent text-ink-muted hover:text-ink"
+                }`}
+              >
+                {p === "adultes" ? "Adultes" : "Jeunes"}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
       <form className={TOOLBAR_CLASSES} action="/etudiants" method="GET">
+        <input type="hidden" name="population" value={populationSelectionnee} />
         <div>
           <label htmlFor="q" className="sr-only">
             Rechercher par nom ou prénom
@@ -190,6 +240,7 @@ export default async function EtudiantsPage({
             ...(sectionId ? { sectionId } : {}),
             ...(reinscription ? { reinscription } : {}),
             ...(anneeSelectionneeId ? { anneeId: anneeSelectionneeId } : {}),
+            ...(sectionJeunes ? { population: populationSelectionnee } : {}),
           }).toString()}`}
           className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}
         >
@@ -210,10 +261,8 @@ export default async function EtudiantsPage({
           <th className="px-4 py-3">Inscription</th>
           <th className="px-4 py-3">Dossier</th>
           <th className="px-4 py-3">Cotisation</th>
-          <th className="px-4 py-3">Date de naissance</th>
           <th className="px-4 py-3">Téléphone</th>
           <th className="px-4 py-3">Email</th>
-          <th className="px-4 py-3">Responsables</th>
         </TableHead>
         <tbody className="divide-y divide-border">
           {etudiants.map((e) => {
@@ -222,9 +271,12 @@ export default async function EtudiantsPage({
             const dossierActif = e.dossiersAnnuels[0];
             const cotisation = dossierActif ? statutCotisation(dossierActif) : null;
             return (
-              <tr key={e.id} className="hover:bg-bg-sunken/40">
+              <tr key={e.id} className="relative hover:bg-bg-sunken/40">
                 <td className="px-4 py-3 font-medium text-ink">
-                  <Link href={`/etudiants/${e.id}`} className="hover:underline">
+                  <Link
+                    href={`/etudiants/${e.id}`}
+                    className="after:absolute after:inset-0 hover:underline"
+                  >
                     {e.nom}
                   </Link>
                 </td>
@@ -271,20 +323,14 @@ export default async function EtudiantsPage({
                     <Badge variant="neutral">Aucun dossier</Badge>
                   )}
                 </td>
-                <td className="px-4 py-3 text-ink-muted">
-                  {e.dateNaissance
-                    ? new Date(e.dateNaissance).toLocaleDateString("fr-FR")
-                    : "—"}
-                </td>
                 <td className="px-4 py-3 text-ink-muted">{e.telephoneMobile ?? "—"}</td>
                 <td className="px-4 py-3 text-ink-muted">{e.email ?? "—"}</td>
-                <td className="px-4 py-3 text-ink-muted">{e._count.responsables}</td>
               </tr>
             );
           })}
           {etudiants.length === 0 && (
             <tr>
-              <td colSpan={10} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={8} className="px-4 py-8 text-center text-ink-faint">
                 {recherche
                   ? "Aucun étudiant ne correspond à cette recherche."
                   : "Aucun étudiant enregistré pour l'instant."}

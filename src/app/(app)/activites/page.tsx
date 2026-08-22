@@ -8,6 +8,8 @@ import { aujourdhuiUTC } from "@/lib/calendrier";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconChip } from "@/components/ui/icon-chip";
+import { buttonVariants } from "@/components/ui/button";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { NouvelleActiviteDialog } from "./activite-dialog";
 import { ActiviteRow } from "./activite-row";
 
@@ -23,15 +25,37 @@ const MESSAGES: Record<string, string> = {
 export default async function ActivitesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string; activiteId?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; activiteId?: string; q?: string }>;
 }) {
   const session = await requireSession();
   const peutGerer = hasRole(session.role, PEUT_GERER);
-  const { error, ok, activiteId } = await searchParams;
+  const { error, ok, activiteId, q } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
+  const recherche = q?.trim() ?? "";
 
   const [activites, responsablesDisponibles] = await Promise.all([
     prisma.activite.findMany({
+      where: recherche
+        ? {
+            OR: [
+              { titre: { contains: recherche, mode: "insensitive" } },
+              { contenu: { contains: recherche, mode: "insensitive" } },
+              { lieu: { contains: recherche, mode: "insensitive" } },
+              {
+                responsables: {
+                  some: {
+                    utilisateur: {
+                      OR: [
+                        { prenom: { contains: recherche, mode: "insensitive" } },
+                        { nom: { contains: recherche, mode: "insensitive" } },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          }
+        : undefined,
       orderBy: { date: "asc" },
       include: { responsables: { include: { utilisateur: true } } },
     }),
@@ -76,8 +100,33 @@ export default async function ActivitesPage({
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
+      <form className={TOOLBAR_CLASSES} action="/activites" method="GET">
+        <div>
+          <label htmlFor="q" className="sr-only">
+            Rechercher par titre, contenu, lieu ou responsable
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={recherche}
+            placeholder="Titre, contenu, lieu, responsable…"
+            className={`w-64 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          Rechercher
+        </button>
+      </form>
+
       {activites.length === 0 ? (
-        <EmptyState message="Aucune activité pour l'instant." />
+        <EmptyState
+          message={
+            recherche
+              ? "Aucune activité ne correspond à cette recherche."
+              : "Aucune activité pour l'instant."
+          }
+        />
       ) : (
         <>
           <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-card">

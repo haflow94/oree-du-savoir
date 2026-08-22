@@ -8,18 +8,26 @@ export async function GET(request: NextRequest) {
   await requireSession();
   const anneeScolaireId = request.nextUrl.searchParams.get("anneeScolaireId");
   const sectionId = request.nextUrl.searchParams.get("sectionId");
+  const recherche = request.nextUrl.searchParams.get("q")?.trim() || "";
+
+  const filtreEtudiant = {
+    ...(sectionId
+      ? filtreParSection(anneeScolaireId ?? (await anneeScolaireActiveId()) ?? "", sectionId)
+      : {}),
+    ...(recherche
+      ? {
+          OR: [
+            { nom: { contains: recherche, mode: "insensitive" as const } },
+            { prenom: { contains: recherche, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
 
   const dossiers = await prisma.dossierAnnuel.findMany({
     where: {
       ...(anneeScolaireId ? { anneeScolaireId } : {}),
-      ...(sectionId
-        ? {
-            etudiant: filtreParSection(
-              anneeScolaireId ?? (await anneeScolaireActiveId()) ?? "",
-              sectionId,
-            ),
-          }
-        : {}),
+      ...(Object.keys(filtreEtudiant).length > 0 ? { etudiant: filtreEtudiant } : {}),
     },
     orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
     include: {

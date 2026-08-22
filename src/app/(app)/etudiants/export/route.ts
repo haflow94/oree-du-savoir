@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { versCsv, reponseCsv } from "@/lib/csv";
 import {
   compterHistoriqueAutreAnnee,
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
   const sectionId = request.nextUrl.searchParams.get("sectionId")?.trim();
   const reinscription = request.nextUrl.searchParams.get("reinscription")?.trim();
   const anneeIdDemandee = request.nextUrl.searchParams.get("anneeId")?.trim();
+  const population = request.nextUrl.searchParams.get("population")?.trim();
   const anneeDemandee = anneeIdDemandee
     ? await prisma.anneeScolaire.findUnique({ where: { id: anneeIdDemandee } })
     : null;
@@ -26,23 +28,40 @@ export async function GET(request: NextRequest) {
     (await prisma.anneeScolaire.findFirst({ where: { active: true } }))?.id ??
     null;
 
+  // Même logique d'onglet Adultes/Jeunes que la liste (voir
+  // (app)/etudiants/page.tsx) : "Jeunes" est une Section du référentiel, pas
+  // un champ dédié. Chaque filtre dans son propre élément de tableau plutôt
+  // qu'un spread d'objets : `filtreParSection` (section + onglet Jeunes) et
+  // `filtreParReinscription` peuvent chacun produire une clé `inscriptions`
+  // ou `dossiersAnnuels` — un spread les écraserait silencieusement au lieu
+  // de les combiner.
+  const conditions: Prisma.EtudiantWhereInput[] = [];
+  if (q) {
+    conditions.push({
+      OR: [
+        { nom: { contains: q, mode: "insensitive" } },
+        { prenom: { contains: q, mode: "insensitive" } },
+      ],
+    });
+  }
+  if (sectionId && anneeSelectionneeId) {
+    conditions.push(filtreParSection(anneeSelectionneeId, sectionId));
+  }
+  if (population === "jeunes" || population === "adultes") {
+    if (anneeSelectionneeId) {
+      const sectionJeunes = await prisma.section.findFirst({ where: { nom: "Jeunes" } });
+      if (sectionJeunes) {
+        const filtreJeunes = filtreParSection(anneeSelectionneeId, sectionJeunes.id);
+        conditions.push(population === "jeunes" ? filtreJeunes : { NOT: filtreJeunes });
+      }
+    }
+  }
+  if ((reinscription === "oui" || reinscription === "non") && anneeSelectionneeId) {
+    conditions.push(filtreParReinscription(anneeSelectionneeId, reinscription === "oui"));
+  }
+
   const etudiants = await prisma.etudiant.findMany({
-    where: {
-      ...(q
-        ? {
-            OR: [
-              { nom: { contains: q, mode: "insensitive" } },
-              { prenom: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : {}),
-      ...(sectionId && anneeSelectionneeId ? filtreParSection(anneeSelectionneeId, sectionId) : {}),
-      ...(reinscription === "oui" || reinscription === "non"
-        ? anneeSelectionneeId
-          ? filtreParReinscription(anneeSelectionneeId, reinscription === "oui")
-          : {}
-        : {}),
-    },
+    where: conditions.length > 0 ? { AND: conditions } : {},
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     include: {
       responsables: true,

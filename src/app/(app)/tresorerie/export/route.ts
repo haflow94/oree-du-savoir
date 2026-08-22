@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const type = params.get("type");
   const categorieId = params.get("categorieId");
   const moyen = params.get("moyen");
+  const recherche = params.get("q")?.trim().toLowerCase() || "";
 
   // Le solde cumulé doit rester exact même filtré : calculé sur tout
   // l'historique chronologique, les filtres ne décidant que des lignes
@@ -33,6 +34,13 @@ export async function GET(request: NextRequest) {
     if (type && m.type !== type) continue;
     if (categorieId && m.categorieId !== categorieId) continue;
     if (moyen && m.moyen !== moyen) continue;
+    if (
+      recherche &&
+      !m.libelle.toLowerCase().includes(recherche) &&
+      !(m.categorie?.nom.toLowerCase().includes(recherche) ?? false)
+    ) {
+      continue;
+    }
     lignes.push([
       dateStr,
       m.libelle,
