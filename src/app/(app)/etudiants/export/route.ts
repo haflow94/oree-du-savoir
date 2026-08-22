@@ -3,6 +3,8 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
 import {
+  compterHistoriqueAutreAnnee,
+  estNouveauParCompteur,
   estReinscrit,
   filtreParReinscription,
   filtreParSection,
@@ -50,6 +52,11 @@ export async function GET(request: NextRequest) {
       dossiersAnnuels: anneeSelectionneeId
         ? inclureDossierAnnuelActif(anneeSelectionneeId)
         : { where: { id: "" } },
+      _count: {
+        select: anneeSelectionneeId
+          ? compterHistoriqueAutreAnnee(anneeSelectionneeId)
+          : { inscriptions: true, dossiersAnnuels: true },
+      },
     },
   });
 
@@ -66,7 +73,13 @@ export async function GET(request: NextRequest) {
     e.codePostal ?? "",
     e.contactUrgence ?? "",
     e.statutInscription,
-    estReinscrit(e) ? "Réinscrit" : "Non réinscrit",
+    estNouveauParCompteur(e)
+      ? estReinscrit(e)
+        ? "Inscrit"
+        : "Non inscrit"
+      : estReinscrit(e)
+        ? "Réinscrit"
+        : "Non réinscrit",
     e.responsables.map((r) => `${r.prenom} ${r.nom} (${r.lien})`).join(" / "),
   ]);
 
@@ -84,7 +97,7 @@ export async function GET(request: NextRequest) {
       "Code postal",
       "Contact d'urgence",
       "Statut",
-      "Réinscription",
+      "Inscription",
       "Responsables légaux",
     ],
     lignes,

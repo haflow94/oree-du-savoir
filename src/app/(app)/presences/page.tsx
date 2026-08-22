@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CheckSquare } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AutoSubmitInput } from "@/components/ui/auto-submit";
 import { CONTROL_CLASSES } from "@/components/ui/champ";
+import { IconChip } from "@/components/ui/icon-chip";
 
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
@@ -52,13 +54,16 @@ export default async function PresencesPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-pine-strong">Présences</h1>
-          <p className="text-sm text-ink-muted">
-            {estEnseignant
-              ? "Vos séances du jour."
-              : "Séances du jour, toutes classes."}
-          </p>
+        <div className="flex items-center gap-3">
+          <IconChip icon={CheckSquare} accent="sage" />
+          <div>
+            <h1 className="font-display text-3xl font-semibold text-pine-strong">Présences</h1>
+            <p className="text-sm text-ink-muted">
+              {estEnseignant
+                ? "Vos séances du jour."
+                : "Séances du jour, toutes classes."}
+            </p>
+          </div>
         </div>
         {administratif && (
           <Link href="/presences/fermetures" className={buttonVariants({ variant: "secondary" })}>

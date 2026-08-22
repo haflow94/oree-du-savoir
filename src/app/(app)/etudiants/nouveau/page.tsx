@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { Role } from "@/lib/roles";
 import { EtudiantForm } from "./etudiant-form";
+import { BackLink } from "@/components/ui/back-link";
 
 export default async function NouvelEtudiantPage() {
   await requireRole([Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU]);
@@ -8,7 +9,8 @@ export default async function NouvelEtudiantPage() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/etudiants" label="Étudiants" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Nouvel étudiant
         </h1>
         <p className="text-sm text-ink-muted">

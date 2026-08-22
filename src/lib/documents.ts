@@ -55,3 +55,15 @@ export const TYPE_DOCUMENT_LABELS: Record<string, string> = {
   JUSTIFICATIF_PAIEMENT: "Justificatif de paiement",
   AUTRE: "Autre",
 };
+
+// Documents attendus pour considérer le dossier papier d'un étudiant comme
+// complet (pièce d'identité, photo, dossier signé — voir
+// Projet/01_Cahier_fonctionnel_MVP.md §Documents). Le dossier généré et le
+// justificatif de paiement ne comptent pas : ce sont des sorties de
+// l'application, pas des pièces à fournir par la famille.
+export const TYPES_DOCUMENTS_REQUIS = ["PIECE_IDENTITE", "PHOTO", "DOSSIER_SIGNE"] as const;
+
+export function dossierDocumentaireComplet(documents: { type: string }[]): boolean {
+  const typesPresents = new Set(documents.map((d) => d.type));
+  return TYPES_DOCUMENTS_REQUIS.every((t) => typesPresents.has(t));
+}

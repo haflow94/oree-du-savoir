@@ -18,13 +18,31 @@ function estRole(valeur: string | null): valeur is Role {
   return valeur !== null && valeur in Role;
 }
 
+// Ids de sections cochées comme spécialités (checkboxes "specialites"),
+// dédupliqués. Champ optionnel : un enseignant sans spécialité déclarée
+// reste proposé pour toutes les sections (voir lib/enseignants-section.ts).
+function specialitesChoisies(formData: FormData): string[] {
+  return [...new Set(formData.getAll("specialites").filter((v): v is string => typeof v === "string"))];
+}
+
 // Ces actions sont partagées entre Administration > Comptes et
 // Administration > Enseignants : le champ caché "from" ramène vers la page
 // d'où l'action a été déclenchée plutôt que de toujours revenir sur la
 // première (voir administration/page.tsx et enseignants/page.tsx).
+// "utilisateurId", quand présent dans le formulaire, est aussi répercuté
+// dans l'URL de retour : les actions par compte (changerRoleAction,
+// reinitialiserMotDePasseAction, ...) sont déclenchées depuis une pastille
+// modale par compte (voir utilisateur-row.tsx) — ce paramètre permet à la
+// page de rouvrir la bonne pastille après une erreur, plutôt que de laisser
+// le message d'erreur s'afficher sans le formulaire concerné sous les yeux.
+// Absent, l'erreur ne peut venir que de creerUtilisateurAction.
 function retour(formData: FormData, erreur?: string): never {
   const base = champTexte(formData, "from") ?? "/administration";
-  redirect(erreur ? `${base}?error=${erreur}` : `${base}?ok=1`);
+  const utilisateurId = champTexte(formData, "utilisateurId");
+  const params = new URLSearchParams();
+  params.set(erreur ? "error" : "ok", erreur ?? "1");
+  if (utilisateurId) params.set("utilisateurId", utilisateurId);
+  redirect(`${base}?${params.toString()}`);
 }
 
 /**
@@ -59,6 +77,8 @@ export async function creerUtilisateurAction(formData: FormData): Promise<void> 
     retour(formData, "EMAIL_DEJA_UTILISE");
   }
 
+  const specialites = role === Role.ENSEIGNANT ? specialitesChoisies(formData) : [];
+
   const cree = await prisma.utilisateur.create({
     data: {
       email,
@@ -66,6 +86,7 @@ export async function creerUtilisateurAction(formData: FormData): Promise<void> 
       prenom,
       role,
       motDePasseHash: await hashPassword(motDePasse),
+      ...(specialites.length > 0 ? { specialites: { connect: specialites.map((id) => ({ id })) } } : {}),
     },
   });
 
@@ -75,12 +96,13 @@ export async function creerUtilisateurAction(formData: FormData): Promise<void> 
       action: "creation_compte",
       entite: "Utilisateur",
       entiteId: cree.id,
-      details: { email, role },
+      details: { email, role, specialites },
     },
   });
 
   revalidatePath("/administration");
   revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
   retour(formData);
 }
 
@@ -123,6 +145,7 @@ export async function changerActivationAction(formData: FormData): Promise<void>
 
   revalidatePath("/administration");
   revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
   retour(formData);
 }
 
@@ -162,6 +185,7 @@ export async function changerRoleAction(formData: FormData): Promise<void> {
 
   revalidatePath("/administration");
   revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
   retour(formData);
 }
 
@@ -197,6 +221,43 @@ export async function reinitialiserMotDePasseAction(
 
   revalidatePath("/administration");
   revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
+  retour(formData);
+}
+
+// Réservée aux comptes Enseignant (voir enseignants/page.tsx) : les autres
+// rôles n'ont pas de spécialité, le concept n'a de sens que pour filtrer les
+// enseignants proposés à l'affectation d'une classe (lib/enseignants.ts).
+export async function changerSpecialitesAction(formData: FormData): Promise<void> {
+  const session = await requireRole([Role.BUREAU]);
+
+  const utilisateurId = champTexte(formData, "utilisateurId");
+  if (!utilisateurId) retour(formData, "CHAMPS_MANQUANTS");
+
+  const cible = await prisma.utilisateur.findUnique({ where: { id: utilisateurId } });
+  if (!cible) retour(formData, "INTROUVABLE");
+  if (cible.role !== Role.ENSEIGNANT) retour(formData, "CHAMPS_MANQUANTS");
+
+  const specialites = specialitesChoisies(formData);
+
+  await prisma.$transaction([
+    prisma.utilisateur.update({
+      where: { id: utilisateurId },
+      data: { specialites: { set: specialites.map((id) => ({ id })) } },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "changement_specialites",
+        entite: "Utilisateur",
+        entiteId: utilisateurId,
+        details: { specialites },
+      },
+    }),
+  ]);
+
+  revalidatePath("/administration/enseignants");
+  revalidatePath("/classes/nouveau");
   retour(formData);
 }
 
@@ -220,5 +281,6 @@ export async function revoquerSessionsAction(formData: FormData): Promise<void> 
 
   revalidatePath("/administration");
   revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
   retour(formData);
 }

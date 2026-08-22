@@ -5,11 +5,12 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import { estAdministratif } from "@/lib/acces-presence";
-import { formaterMontant } from "@/lib/paiements";
+import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { TYPE_DOCUMENT_LABELS } from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
-import { estReinscrit } from "@/lib/sections-etudiant";
+import { estNouveau, estReinscrit } from "@/lib/sections-etudiant";
+import { BackLink } from "@/components/ui/back-link";
 import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
 import {
   modifierEtudiantAction,
@@ -53,19 +54,6 @@ const DD_CLASSES = "mt-0.5 text-sm text-ink";
 const ZONE_TITLE_CLASSES = "mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint";
 const ZONE_CLASSES = "scroll-mt-20 space-y-4";
 const NAV_LINK_CLASSES = "font-medium text-ink-muted hover:text-pine-strong";
-
-function resteEtStatut(dossier: {
-  montantDu: { toString(): string };
-  echeances: { paiements: { montant: { toString(): string } }[] }[];
-}) {
-  const du = Number.parseFloat(dossier.montantDu.toString());
-  const encaisse = dossier.echeances
-    .flatMap((e) => e.paiements)
-    .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
-  const reste = du - encaisse;
-  const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
-  return { du, encaisse, reste, statut } as const;
-}
 
 export default async function EtudiantDetailPage({
   params,
@@ -128,6 +116,10 @@ export default async function EtudiantDetailPage({
         dossiersAnnuels: etudiant.dossiersAnnuels.filter((d) => d.anneeScolaireId === anneeActiveId),
       })
     : false;
+  // Nouvel étudiant (aucun historique avant l'année active) : "Inscrit"/"Non
+  // inscrit" plutôt que "Réinscrit"/"Non réinscrit", qui suppose à tort une
+  // inscription passée (voir estNouveau).
+  const nouveauEtudiant = anneeActiveId ? estNouveau(etudiant, anneeActiveId) : true;
   const classesDisponibles =
     peutInscrire && anneeActiveId
       ? (
@@ -162,8 +154,8 @@ export default async function EtudiantDetailPage({
         lien: `/paiements/nouveau?etudiantId=${etudiant.id}&anneeScolaireId=${anneeActive.id}`,
       };
     } else {
-      const { reste } = resteEtStatut(dossierAnneeActive);
-      if (reste > 0) {
+      const { reste } = statutCotisation(dossierAnneeActive);
+      if (reste > 0 && !dossierAnneeActive.rembourse) {
         banniereFinance = {
           texte: `Reste ${formaterMontant(reste)} à encaisser pour ${anneeActive.libelle}.`,
           lien: `/paiements/${dossierAnneeActive.id}`,
@@ -176,17 +168,22 @@ export default async function EtudiantDetailPage({
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/etudiants" className="text-sm text-ink-muted hover:underline">
-            ← Étudiants
-          </Link>
-          <h1 className="mt-1 flex items-center gap-2 font-display text-2xl font-semibold text-pine-strong">
+          <BackLink href="/etudiants" label="Étudiants" />
+          <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold text-pine-strong">
             {etudiant.prenom} {etudiant.nom}
             {etudiant.statutInscription === "PREINSCRIT" && (
               <Badge variant="info">Préinscrit — à valider</Badge>
             )}
             {etudiant.statutInscription === "VALIDE" && anneeActive && (
               <Badge variant={reinscritAnneeActive ? "success" : "warning"}>
-                {reinscritAnneeActive ? "Réinscrit" : "Non réinscrit"} {anneeActive.libelle}
+                {nouveauEtudiant
+                  ? reinscritAnneeActive
+                    ? "Inscrit"
+                    : "Non inscrit"
+                  : reinscritAnneeActive
+                    ? "Réinscrit"
+                    : "Non réinscrit"}{" "}
+                {anneeActive.libelle}
               </Badge>
             )}
           </h1>
@@ -630,9 +627,8 @@ export default async function EtudiantDetailPage({
         ) : (
           <ul className="mt-4 divide-y divide-border">
             {etudiant.dossiersAnnuels.map((d) => {
-              const { du, reste, statut } = resteEtStatut(d);
-              const statutVariant =
-                statut === "Soldé" ? "success" : statut === "Partiel" ? "warning" : "danger";
+              const { du, reste, statut } = statutCotisation(d);
+              const statutVariant = STATUT_COTISATION_VARIANTS[statut];
               return (
                 <li key={d.id} className="flex items-center justify-between py-2.5">
                   <Link
@@ -698,18 +694,27 @@ export default async function EtudiantDetailPage({
               {etudiant.documents.map((d) => (
                 <li key={d.id} className="flex items-center justify-between py-2.5">
                   <div>
-                    <a
-                      href={`/etudiants/${etudiant.id}/documents/${d.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-medium text-ink hover:underline"
-                    >
-                      {d.nomFichier}
-                    </a>
+                    <p className="text-sm font-medium text-ink">{d.nomFichier}</p>
                     <p className="text-xs text-ink-faint">
                       {TYPE_DOCUMENT_LABELS[d.type]} ·{" "}
                       {new Date(d.creeLe).toLocaleDateString("fr-FR")}
                     </p>
+                    <div className="mt-1 flex gap-3">
+                      <a
+                        href={`/etudiants/${etudiant.id}/documents/${d.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-medium text-pine hover:underline"
+                      >
+                        Voir
+                      </a>
+                      <a
+                        href={`/etudiants/${etudiant.id}/documents/${d.id}?telecharger=1`}
+                        className="text-xs font-medium text-pine hover:underline"
+                      >
+                        Télécharger
+                      </a>
+                    </div>
                   </div>
                   <form id={`supprimer-document-${d.id}`} action={supprimerDocumentAction}>
                     <input type="hidden" name="etudiantId" value={etudiant.id} />

@@ -1,14 +1,16 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   MOYEN_LABELS,
   STATUT_CHEQUE_LABELS,
+  STATUT_COTISATION_VARIANTS,
   formaterMontant,
+  statutCotisation,
 } from "@/lib/paiements";
 import {
   ajouterEcheanceAction,
+  basculerRembourseAction,
   enregistrerPaiementAction,
   mettreAJourChequeAction,
   modifierMontantDuAction,
@@ -18,6 +20,7 @@ import {
 } from "./actions";
 import { Role, hasRole } from "@/lib/roles";
 import { ChampsMoyenPaiement } from "./champs-moyen-paiement";
+import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,21 +69,26 @@ export default async function DossierPaiementPage({
     notFound();
   }
 
-  const du = Number.parseFloat(dossier.montantDu.toString());
-  const encaisse = dossier.echeances
-    .flatMap((e) => e.paiements)
-    .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
-  const reste = du - encaisse;
+  const { du, encaisse, reste, statut } = statutCotisation(dossier);
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <Link href="/paiements" className="text-sm text-ink-muted hover:underline">
-          ← Paiements
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
-          {dossier.etudiant.prenom} {dossier.etudiant.nom} — {dossier.anneeScolaire.libelle}
-        </h1>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <BackLink href="/paiements" label="Paiements" />
+          <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold text-pine-strong">
+            {dossier.etudiant.prenom} {dossier.etudiant.nom} — {dossier.anneeScolaire.libelle}
+            <Badge variant={STATUT_COTISATION_VARIANTS[statut]}>{statut}</Badge>
+          </h1>
+        </div>
+        {peutGererCheque && (
+          <form action={basculerRembourseAction}>
+            <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+            <Button type="submit" variant="secondary" size="sm">
+              {dossier.rembourse ? "Annuler le remboursement" : "Marquer comme remboursé"}
+            </Button>
+          </form>
+        )}
       </div>
 
       {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}

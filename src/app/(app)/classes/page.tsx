@@ -1,27 +1,25 @@
 import Link from "next/link";
+import { GraduationCap } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import { Role, hasRole } from "@/lib/roles";
-import {
-  creerCoursAction,
-  modifierCoursAction,
-  supprimerCoursAction,
-  dupliquerClassesAction,
-} from "./actions";
-import { dupliquerClasseAction } from "./[id]/actions";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { supprimerClasseAction } from "./[id]/actions";
+import { CoursDialog } from "./cours-dialog";
+import { DupliquerClassesDialog } from "./dupliquer-classes-dialog";
+import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { AutoSubmitSelect } from "@/components/ui/auto-submit";
-import { CONTROL_CLASSES } from "@/components/ui/champ";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { IconChip } from "@/components/ui/icon-chip";
 
 const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
-const CONTROL_SM_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
-const LABEL_SM_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
+
+const ERREURS_COURS = ["CHAMPS_INVALIDES", "NOM_DEJA_UTILISE", "INTROUVABLE", "COURS_UTILISE"];
+const ERREURS_DUPLICATION = ["ANNEE_SOURCE_MANQUANTE", "AUCUNE_ANNEE_ACTIVE", "MEME_ANNEE"];
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Nom et section sont obligatoires.",
@@ -85,24 +83,28 @@ export default async function ClassesPage({
       cours: { include: { section: true } },
       anneeScolaire: true,
       enseignants: { include: { utilisateur: true } },
+      _count: { select: { seances: true, inscriptions: true } },
     },
   });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold text-pine-strong">Classes</h1>
-            {anneeActive && (
-              <Badge variant={anneeFiltre === anneeActive.id || !anneeFiltre ? "success" : "neutral"}>
-                Année active : {anneeActive.libelle}
-              </Badge>
-            )}
+        <div className="flex items-center gap-3">
+          <IconChip icon={GraduationCap} accent="sage" />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-3xl font-semibold text-pine-strong">Classes</h1>
+              {anneeActive && (
+                <Badge variant={anneeFiltre === anneeActive.id || !anneeFiltre ? "success" : "neutral"}>
+                  Année active : {anneeActive.libelle}
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-ink-muted">
+              Cours, classes, créneaux, enseignants, capacité.
+            </p>
           </div>
-          <p className="text-sm text-ink-muted">
-            Cours, classes, créneaux, enseignants, capacité.
-          </p>
         </div>
         {peutGerer && (
           <Link href="/classes/nouveau" className={buttonVariants({ variant: "primary" })}>
@@ -114,137 +116,29 @@ export default async function ClassesPage({
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
-      <Card>
-        <CardTitle>Cours</CardTitle>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {cours.length === 0 && (
-            <p className="text-sm text-ink-faint">Aucun cours enregistré.</p>
-          )}
-          {cours.map((c) =>
-            peutGerer ? (
-              <details key={c.id} className="rounded-lg border border-border px-3 py-1.5">
-                <summary className="cursor-pointer text-sm text-ink-muted">
-                  {c.nom}
-                  <span className="ml-1 text-xs text-ink-faint">({c.section.nom})</span>
-                </summary>
-                <form action={modifierCoursAction} className="mt-3 flex flex-wrap items-end gap-2">
-                  <input type="hidden" name="coursId" value={c.id} />
-                  <div>
-                    <label className={LABEL_SM_CLASSES}>Nom</label>
-                    <input name="nom" required defaultValue={c.nom} className={CONTROL_SM_CLASSES} />
-                  </div>
-                  <div>
-                    <label className={LABEL_SM_CLASSES}>Section</label>
-                    <select
-                      name="sectionId"
-                      required
-                      defaultValue={c.section.id}
-                      className={CONTROL_SM_CLASSES}
-                    >
-                      {sections.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button type="submit" variant="secondary" size="sm">
-                    Enregistrer
-                  </Button>
-                </form>
-                <form action={supprimerCoursAction} className="mt-2">
-                  <input type="hidden" name="coursId" value={c.id} />
-                  <button
-                    type="submit"
-                    disabled={c._count.classes > 0}
-                    title={
-                      c._count.classes > 0
-                        ? "Des classes sont rattachées à ce cours : impossible de le supprimer."
-                        : undefined
-                    }
-                    className="text-xs font-medium text-rust hover:underline disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline"
-                  >
-                    Supprimer ce cours
-                  </button>
-                </form>
-              </details>
-            ) : (
-              <Badge key={c.id} variant="neutral">
-                {c.nom} ({c.section.nom})
-              </Badge>
-            ),
-          )}
-        </div>
-        {peutGerer && (
-          <>
-            <form action={creerCoursAction} className="mt-4 flex flex-wrap gap-2">
-              <input
-                type="text"
-                name="nom"
-                required
-                placeholder="Nom du nouveau cours"
-                className={`w-full max-w-xs ${CONTROL_CLASSES}`}
-              />
-              <select name="sectionId" required defaultValue="" className={CONTROL_CLASSES}>
-                <option value="" disabled>
-                  Section
-                </option>
-                {sections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nom}
-                  </option>
-                ))}
-              </select>
-              <Button type="submit" variant="secondary">
-                Ajouter
-              </Button>
-            </form>
-            {sections.length === 0 && (
-              <p className="mt-2 text-sm text-ochre">
-                Aucune section enregistrée : exécutez le seed (
-                <code>npm run db:seed</code>) avant de créer un cours.
-              </p>
-            )}
-          </>
+      <div className="flex flex-wrap items-center gap-2">
+        <CoursDialog
+          cours={cours}
+          sections={sections}
+          peutGerer={peutGerer}
+          ouvrirAuChargement={!!error && ERREURS_COURS.includes(error)}
+        />
+        {peutGerer && anneeActive && annees.some((a) => a.id !== anneeActive.id) && (
+          <DupliquerClassesDialog
+            annees={annees}
+            anneeActive={anneeActive}
+            ouvrirAuChargement={!!error && ERREURS_DUPLICATION.includes(error)}
+          />
         )}
-      </Card>
+      </div>
 
-      {peutGerer && anneeActive && annees.some((a) => a.id !== anneeActive.id) && (
-        <Card>
-          <CardTitle>Dupliquer des classes vers l&apos;année active</CardTitle>
-          <p className="mt-1 text-xs text-ink-faint">
-            Copie cours, niveau, créneau, salle, capacité et enseignants d&apos;une
-            année vers {anneeActive.libelle} en un clic. Les classes déjà
-            présentes sur {anneeActive.libelle} (même cours, niveau, jour et
-            heure) ne sont pas dupliquées deux fois.
-          </p>
-          <form action={dupliquerClassesAction} className="mt-3 flex flex-wrap items-end gap-2">
-            <select name="anneeSourceId" defaultValue="" className={CONTROL_CLASSES}>
-              <option value="" disabled>
-                Depuis quelle année ?
-              </option>
-              {annees
-                .filter((a) => a.id !== anneeActive.id)
-                .map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.libelle}
-                  </option>
-                ))}
-            </select>
-            <Button type="submit" variant="secondary">
-              Dupliquer vers {anneeActive.libelle}
-            </Button>
-          </form>
-        </Card>
-      )}
-
-      <form className="flex flex-wrap gap-2" action="/classes" method="GET">
+      <form className={TOOLBAR_CLASSES} action="/classes" method="GET">
         <AutoSubmitSelect
           name="anneeScolaireId"
           defaultValue={anneeFiltre}
-          className={CONTROL_CLASSES}
+          className={CONTROL_SM_CLASSES}
         >
-          <option value="">Toutes les années</option>
+          <option value="">Toutes années</option>
           {annees.map((a) => (
             <option key={a.id} value={a.id}>
               {a.libelle}
@@ -252,15 +146,15 @@ export default async function ClassesPage({
             </option>
           ))}
         </AutoSubmitSelect>
-        <AutoSubmitSelect name="sectionId" defaultValue={sectionId ?? ""} className={CONTROL_CLASSES}>
-          <option value="">Toutes les sections</option>
+        <AutoSubmitSelect name="sectionId" defaultValue={sectionId ?? ""} className={CONTROL_SM_CLASSES}>
+          <option value="">Toutes sections</option>
           {sections.map((s) => (
             <option key={s.id} value={s.id}>
               {s.nom}
             </option>
           ))}
         </AutoSubmitSelect>
-        <AutoSubmitSelect name="jour" defaultValue={jour ?? ""} className={CONTROL_CLASSES}>
+        <AutoSubmitSelect name="jour" defaultValue={jour ?? ""} className={CONTROL_SM_CLASSES}>
           <option value="">Tous les jours</option>
           {JOURS_ORDONNES.map((j) => (
             <option key={j} value={j}>
@@ -268,8 +162,8 @@ export default async function ClassesPage({
             </option>
           ))}
         </AutoSubmitSelect>
-        <AutoSubmitSelect name="salle" defaultValue={salle ?? ""} className={CONTROL_CLASSES}>
-          <option value="">Toutes les salles</option>
+        <AutoSubmitSelect name="salle" defaultValue={salle ?? ""} className={CONTROL_SM_CLASSES}>
+          <option value="">Toutes salles</option>
           {sallesDistinctes.map(
             (c) =>
               c.salle && (
@@ -323,13 +217,27 @@ export default async function ClassesPage({
                 </Badge>
               </td>
               {peutGerer && (
-                <td className="px-4 py-3 text-right">
-                  <form action={dupliquerClasseAction}>
-                    <input type="hidden" name="classeId" value={c.id} />
-                    <button type="submit" className="text-xs font-medium text-pine hover:underline">
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end gap-3">
+                    <Link
+                      href={`/classes/nouveau?depuis=${c.id}`}
+                      className="text-xs font-medium text-pine hover:underline"
+                    >
                       Dupliquer
-                    </button>
-                  </form>
+                    </Link>
+                    <form id={`supprimer-classe-${c.id}`} action={supprimerClasseAction}>
+                      <input type="hidden" name="classeId" value={c.id} />
+                    </form>
+                    <ConfirmDialog
+                      formId={`supprimer-classe-${c.id}`}
+                      triggerLabel="Supprimer"
+                      title="Supprimer cette classe ?"
+                      description="Cette action supprime définitivement la classe et ne peut pas être annulée."
+                      confirmLabel="Supprimer définitivement"
+                      disabled={c._count.seances > 0 || c._count.inscriptions > 0}
+                      disabledTitle="Des séances ou des inscriptions existent déjà : impossible de supprimer cette classe."
+                    />
+                  </div>
                 </td>
               )}
             </tr>

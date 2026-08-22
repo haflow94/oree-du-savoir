@@ -47,9 +47,14 @@ export function filtreParSection(anneeScolaireId: string, sectionId: string) {
 }
 
 // Clause `include` prête à l'emploi pour ne récupérer que le dossier annuel
-// de l'année scolaire active (0 ou 1 ligne, contrainte unique etudiant+année).
+// de l'année scolaire active (0 ou 1 ligne, contrainte unique etudiant+année),
+// avec les échéances/paiements nécessaires au calcul du statut de cotisation
+// (voir `statutCotisation` dans src/lib/paiements.ts).
 export function inclureDossierAnnuelActif(anneeScolaireId: string) {
-  return { where: { anneeScolaireId } } as const;
+  return {
+    where: { anneeScolaireId },
+    include: { echeances: { include: { paiements: true } } },
+  } as const;
 }
 
 // Réinscrit pour l'année active = a un DossierAnnuel ET au moins une
@@ -71,6 +76,47 @@ export function filtreParReinscription(anneeScolaireId: string, reinscrit: boole
   return reinscrit
     ? { AND: [aDossier, aInscription] }
     : { OR: [{ dossiersAnnuels: { none: { anneeScolaireId } } }, { inscriptions: { none: { classe: { anneeScolaireId } } } }] };
+}
+
+// Un étudiant est "nouveau" pour une année scolaire donnée s'il n'a jamais eu
+// de DossierAnnuel ni d'InscriptionClasse sur une AUTRE année scolaire — sa
+// toute première inscription est celle de cette année-là. À distinguer d'un
+// "ancien" (déjà inscrit une année précédente) : sert à ne pas afficher
+// "Non réinscrit" — qui suppose à tort une inscription passée — pour un
+// étudiant qui n'a jamais été inscrit avant lui. À appeler avec l'historique
+// complet (toutes années) de l'étudiant.
+export function estNouveau(
+  etudiant: {
+    inscriptions: { classe: { anneeScolaireId: string } }[];
+    dossiersAnnuels: { anneeScolaireId: string }[];
+  },
+  anneeScolaireId: string,
+): boolean {
+  return (
+    etudiant.inscriptions.every((i) => i.classe.anneeScolaireId === anneeScolaireId) &&
+    etudiant.dossiersAnnuels.every((d) => d.anneeScolaireId === anneeScolaireId)
+  );
+}
+
+// Variante par compteurs de `estNouveau`, pour les listes qui ne chargent que
+// les inscriptions/dossiers annuels de l'année sélectionnée (voir
+// `inclureInscriptionsActives`/`inclureDossierAnnuelActif`) plutôt que tout
+// l'historique : compte séparément les enregistrements des AUTRES années via
+// `_count` (voir `compterHistoriqueAutreAnnee`).
+export function estNouveauParCompteur(etudiant: {
+  _count: { inscriptions: number; dossiersAnnuels: number };
+}): boolean {
+  return etudiant._count.inscriptions === 0 && etudiant._count.dossiersAnnuels === 0;
+}
+
+// Clause `_count.select` prête à l'emploi pour `estNouveauParCompteur` :
+// compte les inscriptions/dossiers annuels d'un étudiant sur une AUTRE année
+// scolaire que celle donnée.
+export function compterHistoriqueAutreAnnee(anneeScolaireId: string) {
+  return {
+    inscriptions: { where: { classe: { anneeScolaireId: { not: anneeScolaireId } } } },
+    dossiersAnnuels: { where: { anneeScolaireId: { not: anneeScolaireId } } },
+  } as const;
 }
 
 // Suggestion de montant dû pour un DossierAnnuel : somme des frais de

@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import {
+  compterHistoriqueAutreAnnee,
+  estNouveauParCompteur,
   estReinscrit,
   filtreParReinscription,
   filtreParSection,
@@ -15,7 +18,10 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { AutoSubmitSelect } from "@/components/ui/auto-submit";
-import { CONTROL_CLASSES } from "@/components/ui/champ";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
+import { IconChip } from "@/components/ui/icon-chip";
+import { statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
+import { dossierDocumentaireComplet } from "@/lib/documents";
 
 const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 
@@ -67,7 +73,14 @@ export default async function EtudiantsPage({
     },
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     include: {
-      _count: { select: { responsables: true } },
+      _count: {
+        select: {
+          responsables: true,
+          ...(anneeSelectionneeId
+            ? compterHistoriqueAutreAnnee(anneeSelectionneeId)
+            : { inscriptions: true, dossiersAnnuels: true }),
+        },
+      },
       // Pas d'année sélectionnée (cas anormal, aucune année scolaire en
       // base) : clause qui ne matche jamais, pour garder une forme
       // d'include statique plutôt que de bifurquer le type.
@@ -76,18 +89,22 @@ export default async function EtudiantsPage({
         : { where: { id: "" }, include: { classe: { include: { cours: { include: { section: true } } } } } },
       dossiersAnnuels: anneeSelectionneeId
         ? inclureDossierAnnuelActif(anneeSelectionneeId)
-        : { where: { id: "" } },
+        : { where: { id: "" }, include: { echeances: { include: { paiements: true } } } },
+      documents: { select: { type: true } },
     },
   });
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-pine-strong">Étudiants</h1>
-          <p className="text-sm text-ink-muted">
-            Fiche unique par personne, réinscription multi-années à venir.
-          </p>
+        <div className="flex items-center gap-3">
+          <IconChip icon={Users} accent="sage" />
+          <div>
+            <h1 className="font-display text-3xl font-semibold text-pine-strong">Étudiants</h1>
+            <p className="text-sm text-ink-muted">
+              Fiche unique par personne, réinscription multi-années à venir.
+            </p>
+          </div>
         </div>
         {hasRole(session.role, PEUT_CREER) && (
           <Link href="/etudiants/nouveau" className={buttonVariants({ variant: "primary" })}>
@@ -98,65 +115,73 @@ export default async function EtudiantsPage({
 
       {supprime && <Alert variant="success">Fiche supprimée.</Alert>}
 
-      <form className="flex flex-wrap gap-2" action="/etudiants" method="GET">
-        <label htmlFor="q" className="sr-only">
-          Rechercher par nom ou prénom
-        </label>
-        <input
-          id="q"
-          type="search"
-          name="q"
-          defaultValue={recherche}
-          placeholder="Rechercher par nom ou prénom…"
-          className={`w-full max-w-sm ${CONTROL_CLASSES}`}
-        />
-        <label htmlFor="anneeId" className="sr-only">
-          Année scolaire
-        </label>
-        <AutoSubmitSelect
-          id="anneeId"
-          name="anneeId"
-          defaultValue={anneeSelectionneeId ?? ""}
-          className={CONTROL_CLASSES}
-        >
-          {anneeScolaires.length === 0 && <option value="">Aucune année scolaire</option>}
-          {anneeScolaires.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.libelle}
-              {a.active ? " (active)" : ""}
-            </option>
-          ))}
-        </AutoSubmitSelect>
-        <label htmlFor="sectionId" className="sr-only">
-          Section
-        </label>
-        <AutoSubmitSelect
-          id="sectionId"
-          name="sectionId"
-          defaultValue={sectionId ?? ""}
-          className={CONTROL_CLASSES}
-        >
-          <option value="">Toutes les sections</option>
-          {sections.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.nom}
-            </option>
-          ))}
-        </AutoSubmitSelect>
-        <label htmlFor="reinscription" className="sr-only">
-          Réinscription
-        </label>
-        <AutoSubmitSelect
-          id="reinscription"
-          name="reinscription"
-          defaultValue={reinscription ?? ""}
-          className={CONTROL_CLASSES}
-        >
-          <option value="">Réinscrits et non réinscrits</option>
-          <option value="oui">Réinscrits</option>
-          <option value="non">Non réinscrits</option>
-        </AutoSubmitSelect>
-        <button type="submit" className={buttonVariants({ variant: "secondary" })}>
+      <form className={TOOLBAR_CLASSES} action="/etudiants" method="GET">
+        <div>
+          <label htmlFor="q" className="sr-only">
+            Rechercher par nom ou prénom
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={recherche}
+            placeholder="Nom ou prénom…"
+            className={`w-40 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
+        <div>
+          <label htmlFor="anneeId" className="sr-only">
+            Année scolaire
+          </label>
+          <AutoSubmitSelect
+            id="anneeId"
+            name="anneeId"
+            defaultValue={anneeSelectionneeId ?? ""}
+            className={CONTROL_SM_CLASSES}
+          >
+            {anneeScolaires.length === 0 && <option value="">Aucune année scolaire</option>}
+            {anneeScolaires.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.libelle}
+                {a.active ? " (active)" : ""}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        <div>
+          <label htmlFor="sectionId" className="sr-only">
+            Section
+          </label>
+          <AutoSubmitSelect
+            id="sectionId"
+            name="sectionId"
+            defaultValue={sectionId ?? ""}
+            className={CONTROL_SM_CLASSES}
+          >
+            <option value="">Toutes sections</option>
+            {sections.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nom}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        <div>
+          <label htmlFor="reinscription" className="sr-only">
+            Statut d&apos;inscription
+          </label>
+          <AutoSubmitSelect
+            id="reinscription"
+            name="reinscription"
+            defaultValue={reinscription ?? ""}
+            className={CONTROL_SM_CLASSES}
+          >
+            <option value="">Statut : tous</option>
+            <option value="oui">Inscrits</option>
+            <option value="non">Non inscrits</option>
+          </AutoSubmitSelect>
+        </div>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           Rechercher
         </button>
         <a
@@ -166,24 +191,25 @@ export default async function EtudiantsPage({
             ...(reinscription ? { reinscription } : {}),
             ...(anneeSelectionneeId ? { anneeId: anneeSelectionneeId } : {}),
           }).toString()}`}
-          className={buttonVariants({ variant: "secondary" })}
+          className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}
         >
           Exporter en CSV
         </a>
+        <p className="basis-full text-xs text-ink-faint">
+          Section(s) et statut se lisent pour l&apos;année scolaire choisie
+          ci-dessus (par défaut l&apos;année active). L&apos;export reprend
+          la recherche et tous les filtres.
+        </p>
       </form>
-      <p className="text-xs text-ink-faint">
-        Section(s) et Réinscription se lisent pour l&apos;année scolaire
-        choisie ci-dessus (par défaut l&apos;année active). L&apos;export
-        reprend la recherche et tous les filtres (laissez vides pour tout
-        exporter).
-      </p>
 
       <TableWrap>
         <TableHead>
           <th className="px-4 py-3">Nom</th>
           <th className="px-4 py-3">Prénom</th>
           <th className="px-4 py-3">Section(s)</th>
-          <th className="px-4 py-3">Réinscription</th>
+          <th className="px-4 py-3">Inscription</th>
+          <th className="px-4 py-3">Dossier</th>
+          <th className="px-4 py-3">Cotisation</th>
           <th className="px-4 py-3">Date de naissance</th>
           <th className="px-4 py-3">Téléphone</th>
           <th className="px-4 py-3">Email</th>
@@ -192,6 +218,9 @@ export default async function EtudiantsPage({
         <tbody className="divide-y divide-border">
           {etudiants.map((e) => {
             const sectionsEtudiant = sectionsDInscriptions(e.inscriptions);
+            const dossierComplet = dossierDocumentaireComplet(e.documents);
+            const dossierActif = e.dossiersAnnuels[0];
+            const cotisation = dossierActif ? statutCotisation(dossierActif) : null;
             return (
               <tr key={e.id} className="hover:bg-bg-sunken/40">
                 <td className="px-4 py-3 font-medium text-ink">
@@ -214,10 +243,32 @@ export default async function EtudiantsPage({
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  {estReinscrit(e) ? (
+                  {estNouveauParCompteur(e) ? (
+                    estReinscrit(e) ? (
+                      <Badge variant="success">Inscrit</Badge>
+                    ) : (
+                      <Badge variant="warning">Non inscrit</Badge>
+                    )
+                  ) : estReinscrit(e) ? (
                     <Badge variant="success">Réinscrit</Badge>
                   ) : (
                     <Badge variant="warning">Non réinscrit</Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {dossierComplet ? (
+                    <Badge variant="success">Complet</Badge>
+                  ) : (
+                    <Badge variant="warning">Incomplet</Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {cotisation ? (
+                    <Badge variant={STATUT_COTISATION_VARIANTS[cotisation.statut]}>
+                      {cotisation.statut}
+                    </Badge>
+                  ) : (
+                    <Badge variant="neutral">Aucun dossier</Badge>
                   )}
                 </td>
                 <td className="px-4 py-3 text-ink-muted">
@@ -233,7 +284,7 @@ export default async function EtudiantsPage({
           })}
           {etudiants.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={10} className="px-4 py-8 text-center text-ink-faint">
                 {recherche
                   ? "Aucun étudiant ne correspond à cette recherche."
                   : "Aucun étudiant enregistré pour l'instant."}

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +9,7 @@ import {
   TYPE_MOUVEMENT_LABELS,
 } from "@/lib/paiements";
 import { modifierMouvementAction, supprimerMouvementAction } from "../actions";
+import { BackLink } from "@/components/ui/back-link";
 import { Card } from "@/components/ui/card";
 import { Champ, ChampSelect } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
@@ -50,10 +50,8 @@ export default async function MouvementDetailPage({
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href="/tresorerie" className="text-sm text-ink-muted hover:underline">
-          ← Trésorerie
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/tresorerie" label="Trésorerie" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Modifier le mouvement
         </h1>
       </div>

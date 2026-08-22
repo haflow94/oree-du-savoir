@@ -33,3 +33,41 @@ export function formaterMontant(montant: number | string): string {
     currency: "EUR",
   });
 }
+
+export type StatutCotisation = "Gratuit" | "Soldé" | "Partiel" | "Impayé" | "Remboursé";
+
+export const STATUT_COTISATION_VARIANTS: Record<
+  StatutCotisation,
+  "success" | "warning" | "danger" | "info" | "neutral"
+> = {
+  Gratuit: "info",
+  Soldé: "success",
+  Partiel: "warning",
+  Impayé: "danger",
+  Remboursé: "neutral",
+};
+
+// Statut de cotisation d'un dossier annuel : calculé à partir du dû et de
+// l'encaissé, sauf "Remboursé" qui prime (basculé manuellement, voir
+// DossierAnnuel.rembourse) et "Gratuit" quand aucun montant n'est dû.
+export function statutCotisation(dossier: {
+  montantDu: { toString(): string };
+  rembourse?: boolean;
+  echeances: { paiements: { montant: { toString(): string } }[] }[];
+}): { du: number; encaisse: number; reste: number; statut: StatutCotisation } {
+  const du = Number.parseFloat(dossier.montantDu.toString());
+  const encaisse = dossier.echeances
+    .flatMap((e) => e.paiements)
+    .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
+  const reste = du - encaisse;
+  const statut: StatutCotisation = dossier.rembourse
+    ? "Remboursé"
+    : du === 0
+      ? "Gratuit"
+      : reste <= 0
+        ? "Soldé"
+        : encaisse > 0
+          ? "Partiel"
+          : "Impayé";
+  return { du, encaisse, reste, statut };
+}

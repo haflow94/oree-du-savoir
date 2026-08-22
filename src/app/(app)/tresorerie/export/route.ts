@@ -2,44 +2,51 @@ import { NextRequest } from "next/server";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
-import { MOYEN_LABELS, TYPE_MOUVEMENT_LABELS } from "@/lib/paiements";
+import { MOYEN_LABELS } from "@/lib/paiements";
 
 export async function GET(request: NextRequest) {
   await requireSession();
-  const dateDebut = request.nextUrl.searchParams.get("dateDebut");
-  const dateFin = request.nextUrl.searchParams.get("dateFin");
+  const params = request.nextUrl.searchParams;
+  const dateDebut = params.get("dateDebut");
+  const dateFin = params.get("dateFin");
+  const type = params.get("type");
+  const categorieId = params.get("categorieId");
+  const moyen = params.get("moyen");
 
-  // Le solde cumulé doit rester exact même filtré : on calcule sur tout
-  // l'historique jusqu'à dateFin, mais on n'exporte que les lignes à partir
-  // de dateDebut — sinon le solde affiché repartirait de zéro et ne
-  // correspondrait plus à la réalité de la trésorerie.
+  // Le solde cumulé doit rester exact même filtré : calculé sur tout
+  // l'historique chronologique, les filtres ne décidant que des lignes
+  // exportées — sinon le solde affiché ne correspondrait plus à la réalité
+  // de la trésorerie (voir la même règle sur la page /tresorerie).
   const mouvements = await prisma.mouvementTresorerie.findMany({
-    where: dateFin ? { date: { lte: new Date(dateFin) } } : undefined,
     orderBy: [{ date: "asc" }, { creeLe: "asc" }],
     include: { categorie: true },
   });
 
-  const debut = dateDebut ? new Date(dateDebut) : null;
   let solde = 0;
   const lignes: unknown[][] = [];
   for (const m of mouvements) {
     const montant = Number.parseFloat(m.montant.toString());
     solde += m.type === "RECETTE" ? montant : -montant;
-    if (debut && m.date < debut) continue;
+    const dateStr = m.date.toISOString().slice(0, 10);
+    if (dateDebut && dateStr < dateDebut) continue;
+    if (dateFin && dateStr > dateFin) continue;
+    if (type && m.type !== type) continue;
+    if (categorieId && m.categorieId !== categorieId) continue;
+    if (moyen && m.moyen !== moyen) continue;
     lignes.push([
-      m.date.toISOString().slice(0, 10),
+      dateStr,
       m.libelle,
       m.categorie?.nom ?? "",
-      TYPE_MOUVEMENT_LABELS[m.type],
       MOYEN_LABELS[m.moyen],
-      montant.toFixed(2),
+      m.type === "DEPENSE" ? montant.toFixed(2) : "",
+      m.type === "RECETTE" ? montant.toFixed(2) : "",
       solde.toFixed(2),
       m.justificatif ?? "",
     ]);
   }
 
   const csv = versCsv(
-    ["Date", "Libellé", "Catégorie", "Type", "Moyen", "Montant", "Solde cumulé", "Justificatif"],
+    ["Date", "Libellé", "Catégorie", "Moyen", "Débit", "Crédit", "Solde cumulé", "Justificatif"],
     lignes,
   );
 

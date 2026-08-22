@@ -1,17 +1,39 @@
 import Link from "next/link";
+import { Home } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS } from "@/lib/roles";
-import { formaterMontant } from "@/lib/paiements";
+import { formaterMontant, statutCotisation } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
+import { dossierDocumentaireComplet } from "@/lib/documents";
+import { activitesARappeler } from "@/lib/activites";
 import { Card } from "@/components/ui/card";
+import { IconChip, type Accent } from "@/components/ui/icon-chip";
+
+const ACCENT_TEXT: Record<Accent, string> = {
+  pine: "text-pine-strong",
+  sage: "text-sage",
+  ochre: "text-ochre",
+  sky: "text-sky",
+  rust: "text-rust",
+};
 
 export default async function DashboardPage() {
   const session = await requireSession();
 
-  const anneeActive = await prisma.anneeScolaire.findFirst({ where: { active: true } });
+  const [anneeActive, rappels] = await Promise.all([
+    prisma.anneeScolaire.findFirst({ where: { active: true } }),
+    activitesARappeler(),
+  ]);
 
-  const [nbEtudiants, nbClasses, dossiersAnnee, nbPreinscrits, nbNonReinscrits] = await Promise.all([
+  const [
+    nbEtudiants,
+    nbClasses,
+    dossiersAnnee,
+    nbPreinscrits,
+    nbNonReinscrits,
+    etudiantsValides,
+  ] = await Promise.all([
     prisma.etudiant.count({ where: { statutInscription: "VALIDE" } }),
     anneeActive
       ? prisma.classe.count({ where: { anneeScolaireId: anneeActive.id } })
@@ -21,6 +43,7 @@ export default async function DashboardPage() {
           where: { anneeScolaireId: anneeActive.id },
           select: {
             montantDu: true,
+            rembourse: true,
             echeances: { select: { paiements: { select: { montant: true } } } },
           },
         })
@@ -34,6 +57,13 @@ export default async function DashboardPage() {
           },
         })
       : Promise.resolve(0),
+    // Documents non liés à une année scolaire (pièce du dossier papier de
+    // l'étudiant, pas un paiement) : on regarde tous les étudiants au
+    // dossier confirmé, indépendamment de l'année active.
+    prisma.etudiant.findMany({
+      where: { statutInscription: "VALIDE" },
+      select: { documents: { select: { type: true } } },
+    }),
   ]);
 
   const resteAEncaisser = dossiersAnnee.reduce((total, d) => {
@@ -44,35 +74,96 @@ export default async function DashboardPage() {
     return total + Math.max(0, du - encaisse);
   }, 0);
 
-  const metrics = [
-    { label: "Étudiants", icon: "👥", valeur: nbEtudiants, href: "/etudiants" },
-    { label: "Classes", icon: "🏫", valeur: nbClasses, href: "/classes" },
+  const nbDossiersIncomplets = etudiantsValides.filter(
+    (e) => !dossierDocumentaireComplet(e.documents),
+  ).length;
+
+  const nbPaiementsIncomplets = dossiersAnnee.filter((d) => {
+    const { statut } = statutCotisation(d);
+    return statut === "Partiel" || statut === "Impayé";
+  }).length;
+
+  const metrics: {
+    label: string;
+    icon: string;
+    valeur: string | number;
+    href: string;
+    accent: Accent;
+  }[] = [
+    { label: "Étudiants", icon: "👥", valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
+    { label: "Classes", icon: "🏫", valeur: nbClasses, href: "/classes", accent: "sage" },
     {
       label: "Reste à encaisser",
       icon: "💳",
       valeur: formaterMontant(resteAEncaisser),
       href: "/paiements",
+      accent: "ochre",
     },
-    { label: "Dossiers à traiter", icon: "📁", valeur: nbPreinscrits, href: "/inscriptions" },
+    {
+      label: "Paiements incomplets",
+      icon: "🧾",
+      valeur: nbPaiementsIncomplets,
+      href: "/paiements",
+      accent: "rust",
+    },
+    {
+      label: "Dossiers à traiter",
+      icon: "📁",
+      valeur: nbPreinscrits,
+      href: "/inscriptions",
+      accent: "sky",
+    },
+    {
+      label: "Dossiers incomplets",
+      icon: "📎",
+      valeur: nbDossiersIncomplets,
+      href: "/etudiants",
+      accent: "sky",
+    },
     {
       label: "Non réinscrits",
       icon: "🔄",
       valeur: nbNonReinscrits,
       href: "/etudiants?reinscription=non",
+      accent: "rust",
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-pine-strong">
-          Bonjour {session.prenom}
-        </h1>
-        <p className="text-sm text-ink-muted">
-          Connecté en tant que {ROLE_LABELS[session.role]}
-          {anneeActive ? ` · Année active : ${anneeActive.libelle}` : ""}.
-        </p>
+      <div className="flex items-center gap-3">
+        <IconChip icon={Home} accent="pine" />
+        <div>
+          <h1 className="font-display text-3xl font-semibold text-pine-strong">
+            Bonjour {session.prenom}
+          </h1>
+          <p className="text-sm text-ink-muted">
+            Connecté en tant que {ROLE_LABELS[session.role]}
+            {anneeActive ? ` · Année active : ${anneeActive.libelle}` : ""}.
+          </p>
+        </div>
       </div>
+
+      {rappels.length > 0 && (
+        <div className="rounded-lg border border-l-4 border-sky-border bg-sky-bg px-4 py-3 text-sm text-sky">
+          <p className="font-medium">
+            {rappels.length === 1
+              ? "1 activité à venir bientôt"
+              : `${rappels.length} activités à venir bientôt`}
+          </p>
+          <ul className="mt-1.5 space-y-0.5">
+            {rappels.map((a) => (
+              <li key={a.id}>
+                <Link href="/activites" className="hover:underline">
+                  {a.titre}
+                </Link>
+                {" — "}
+                {new Date(a.date).toLocaleDateString("fr-FR", { timeZone: "UTC" })}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {metrics.map((m) => (
@@ -82,7 +173,9 @@ export default async function DashboardPage() {
                 <span className="mr-1.5">{m.icon}</span>
                 {m.label}
               </div>
-              <div className="mt-2 text-2xl font-bold text-ink">{m.valeur}</div>
+              <div className={`mt-2 text-2xl font-bold ${ACCENT_TEXT[m.accent]}`}>
+                {m.valeur}
+              </div>
             </Card>
           </Link>
         ))}
@@ -90,8 +183,9 @@ export default async function DashboardPage() {
 
       {!anneeActive && (
         <p className="text-sm text-ink-faint">
-          Aucune année scolaire active : les classes et le reste à encaisser
-          ne peuvent pas être calculés (voir Administration → Année scolaire).
+          Aucune année scolaire active : les classes, le reste à encaisser et
+          les paiements incomplets ne peuvent pas être calculés (voir
+          Administration → Année scolaire).
         </p>
       )}
     </div>

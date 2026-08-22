@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { peutAccederClasse } from "@/lib/acces-presence";
 import { JOUR_LABELS } from "@/lib/planning";
 import { STATUT_PRESENCE_CODES, STATUT_PRESENCE_LABELS } from "@/lib/presences";
+import { BackLink } from "@/components/ui/back-link";
 
 /**
  * Feuille papier de secours, préremplie avec la liste des inscrits. Utilisée
@@ -52,10 +53,13 @@ export default async function FeuillePapierPage({
   return (
     <div className="mx-auto max-w-3xl space-y-5 print:max-w-none">
       <div className="flex items-start justify-between gap-4 print:hidden">
-        <p className="text-sm text-ink-muted">
-          Imprimez cette feuille si l&apos;appel ne peut pas être fait dans
-          l&apos;application. Elle sera ensuite saisie par l&apos;administration.
-        </p>
+        <div>
+          <BackLink href={`/presences/${id}`} label="Séance" />
+          <p className="mt-2 text-sm text-ink-muted">
+            Imprimez cette feuille si l&apos;appel ne peut pas être fait dans
+            l&apos;application. Elle sera ensuite saisie par l&apos;administration.
+          </p>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-bg-elevated p-6 print:rounded-none print:border-0 print:p-0">

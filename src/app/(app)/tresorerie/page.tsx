@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Wallet } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -9,26 +10,37 @@ import {
   formaterMontant,
 } from "@/lib/paiements";
 import { Role, hasRole } from "@/lib/roles";
-import {
-  creerCategorieAction,
-  modifierCategorieAction,
-  changerActivationCategorieAction,
-  creerMouvementAction,
-} from "./actions";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { CategoriesDialog } from "./categories-dialog";
+import { NouveauMouvementDialog } from "./nouveau-mouvement-dialog";
+import { Card } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { IconChip } from "@/components/ui/icon-chip";
 import { TableWrap, TableHead } from "@/components/ui/table";
-import { CONTROL_CLASSES } from "@/components/ui/champ";
+import { Tabs } from "@/components/ui/tabs";
+import { AutoSubmitSelect, AutoSubmitInput } from "@/components/ui/auto-submit";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 
 const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
-const CONTROL_SM_CLASSES =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
-export default async function TresoreriePage() {
+function versDateStr(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+export default async function TresoreriePage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    dateDebut?: string;
+    dateFin?: string;
+    type?: string;
+    categorieId?: string;
+    moyen?: string;
+  }>;
+}) {
   const session = await requireSession();
   const peutGerer = hasRole(session.role, PEUT_GERER);
+  const { dateDebut, dateFin, type, categorieId, moyen } = await searchParams;
 
   const [mouvements, toutesCategories] = await Promise.all([
     prisma.mouvementTresorerie.findMany({
@@ -42,6 +54,11 @@ export default async function TresoreriePage() {
   const categoriesActives = toutesCategories.filter((c) => c.actif);
   const categories = peutGerer ? toutesCategories : categoriesActives;
 
+  // Le solde cumulé (colonne "Solde") doit toujours refléter l'historique
+  // complet, même quand la liste affichée est filtrée : calculé ici sur tous
+  // les mouvements dans l'ordre chronologique. Seules les LIGNES à afficher
+  // sont filtrées plus bas — jamais le calcul du solde lui-même, sous peine
+  // de fausser la trésorerie réelle affichée sur chaque ligne restante.
   const lignes = mouvements.reduce<
     Array<{
       id: string;
@@ -49,6 +66,7 @@ export default async function TresoreriePage() {
       libelle: string;
       type: (typeof mouvements)[number]["type"];
       moyen: (typeof mouvements)[number]["moyen"];
+      categorieId: string | null;
       categorieNom: string | null;
       montant: number;
       soldeCumule: number;
@@ -62,226 +80,352 @@ export default async function TresoreriePage() {
       libelle: m.libelle,
       type: m.type,
       moyen: m.moyen,
+      categorieId: m.categorieId,
       categorieNom: m.categorie?.nom ?? null,
       montant,
       soldeCumule: precedent + (m.type === "RECETTE" ? montant : -montant),
     });
     return acc;
   }, []);
-  const solde = lignes.at(-1)?.soldeCumule ?? 0;
+  const soldeActuel = lignes.at(-1)?.soldeCumule ?? 0;
+
+  const lignesFiltrees = lignes.filter((l) => {
+    if (dateDebut && versDateStr(l.date) < dateDebut) return false;
+    if (dateFin && versDateStr(l.date) > dateFin) return false;
+    if (type && l.type !== type) return false;
+    if (categorieId && l.categorieId !== categorieId) return false;
+    if (moyen && l.moyen !== moyen) return false;
+    return true;
+  });
+  // Le plus récent en tête : plus pratique au quotidien que l'ordre
+  // chronologique pur, sans jamais recalculer les soldes déjà attachés à
+  // chaque ligne ci-dessus.
+  const lignesAffichees = [...lignesFiltrees].reverse();
+
+  const totalCredits = lignesFiltrees
+    .filter((l) => l.type === "RECETTE")
+    .reduce((s, l) => s + l.montant, 0);
+  const totalDebits = lignesFiltrees
+    .filter((l) => l.type === "DEPENSE")
+    .reduce((s, l) => s + l.montant, 0);
+  const resultatPeriode = totalCredits - totalDebits;
+  const soldeFinPeriode = lignesFiltrees.at(-1)?.soldeCumule ?? soldeActuel;
+
+  const filtresActifs = Boolean(dateDebut || dateFin || type || categorieId || moyen);
+
+  const queryExport = new URLSearchParams();
+  if (dateDebut) queryExport.set("dateDebut", dateDebut);
+  if (dateFin) queryExport.set("dateFin", dateFin);
+  if (type) queryExport.set("type", type);
+  if (categorieId) queryExport.set("categorieId", categorieId);
+  if (moyen) queryExport.set("moyen", moyen);
+  const hrefExport = `/tresorerie/export${queryExport.size > 0 ? `?${queryExport}` : ""}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <IconChip icon={Wallet} accent="ochre" />
+          <div>
+            <h1 className="font-display text-3xl font-semibold text-pine-strong">Trésorerie</h1>
+            <p className="text-sm text-ink-muted">
+              Livre de caisse débit/crédit, solde calculé en cumul. Volontairement
+              simple : pas de comptabilité en partie double.
+            </p>
+          </div>
+        </div>
+        <Link href={hrefExport} className={buttonVariants({ variant: "secondary" })}>
+          Exporter en CSV{filtresActifs ? " (période affichée)" : ""}
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Card>
+          <div className="text-xs uppercase text-ink-faint">Solde actuel</div>
+          <div className="mt-1 text-2xl font-bold text-ink">{formaterMontant(soldeActuel)}</div>
+        </Card>
+        <Card>
+          <div className="text-xs uppercase text-ink-faint">
+            Crédit{filtresActifs ? " (filtré)" : ""}
+          </div>
+          <div className="mt-1 text-2xl font-bold text-sage">{formaterMontant(totalCredits)}</div>
+        </Card>
+        <Card>
+          <div className="text-xs uppercase text-ink-faint">
+            Débit{filtresActifs ? " (filtré)" : ""}
+          </div>
+          <div className="mt-1 text-2xl font-bold text-rust">{formaterMontant(totalDebits)}</div>
+        </Card>
+        <Card>
+          <div className="text-xs uppercase text-ink-faint">
+            Résultat{filtresActifs ? " (filtré)" : ""}
+          </div>
+          <div
+            className={`mt-1 text-2xl font-bold ${resultatPeriode >= 0 ? "text-sage" : "text-rust"}`}
+          >
+            {resultatPeriode >= 0 ? "+" : ""}
+            {formaterMontant(resultatPeriode)}
+          </div>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <CategoriesDialog categories={categories} peutGerer={peutGerer} />
+        {peutGerer && <NouveauMouvementDialog categoriesActives={categoriesActives} />}
+      </div>
+
+      <form className={TOOLBAR_CLASSES} action="/tresorerie" method="GET">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-pine-strong">Trésorerie</h1>
-          <p className="text-sm text-ink-muted">
-            Mouvements recette/dépense, solde calculé en cumul. Volontairement
-            simple : pas de comptabilité complète.
-          </p>
+          <label className={LABEL_XS_CLASSES}>Du</label>
+          <AutoSubmitInput
+            type="date"
+            name="dateDebut"
+            defaultValue={dateDebut ?? ""}
+            className={CONTROL_SM_CLASSES}
+          />
         </div>
-        <form action="/tresorerie/export" method="GET" className="flex flex-wrap items-end gap-2">
-          <div>
-            <label className={LABEL_XS_CLASSES}>Du</label>
-            <input type="date" name="dateDebut" className={CONTROL_CLASSES} />
-          </div>
-          <div>
-            <label className={LABEL_XS_CLASSES}>Au</label>
-            <input type="date" name="dateFin" className={CONTROL_CLASSES} />
-          </div>
-          <button type="submit" className={buttonVariants({ variant: "secondary" })}>
-            Exporter en CSV
-          </button>
-        </form>
-      </div>
-
-      {/* Sur mobile (grid-cols-1), l'ordre DOM place le tableau avant les
-          formulaires (order-1/order-2) ; à partir de lg, la grille à deux
-          colonnes replace les formulaires à gauche, tableau à droite —
-          toujours visible sans avoir à faire défiler devant les formulaires. */}
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="order-2 space-y-6 lg:order-1">
-          <Card className="p-4">
-            <div className="text-xs uppercase text-ink-faint">Solde actuel</div>
-            <div className="mt-1 text-2xl font-bold text-ink">{formaterMontant(solde)}</div>
-          </Card>
-
-          <Card>
-            <CardTitle>Catégories</CardTitle>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {categories.length === 0 && (
-                <p className="text-sm text-ink-faint">Aucune catégorie enregistrée.</p>
-              )}
-              {categories.map((c) =>
-                peutGerer ? (
-                  <details
-                    key={c.id}
-                    className={`rounded-lg border border-border px-3 py-1.5 ${c.actif ? "" : "opacity-50"}`}
-                  >
-                    <summary className="cursor-pointer text-sm text-ink-muted">
-                      {c.nom}
-                      {!c.actif && <span className="ml-1 text-xs text-ink-faint">(désactivée)</span>}
-                    </summary>
-                    <form action={modifierCategorieAction} className="mt-3 flex flex-wrap items-center gap-2">
-                      <input type="hidden" name="categorieId" value={c.id} />
-                      <input name="nom" required defaultValue={c.nom} className={CONTROL_SM_CLASSES} />
-                      <Button type="submit" variant="secondary" size="sm">
-                        Renommer
-                      </Button>
-                    </form>
-                    <form action={changerActivationCategorieAction} className="mt-2">
-                      <input type="hidden" name="categorieId" value={c.id} />
-                      <input type="hidden" name="actif" value={c.actif ? "0" : "1"} />
-                      <button type="submit" className="text-xs font-medium text-ink-muted hover:underline">
-                        {c.actif ? "Désactiver" : "Réactiver"}
-                      </button>
-                    </form>
-                  </details>
-                ) : (
-                  <Badge key={c.id} variant="neutral">
-                    {c.nom}
-                  </Badge>
-                ),
-              )}
-            </div>
-            {peutGerer && (
-              <form action={creerCategorieAction} className="mt-4 flex flex-col gap-2">
-                <input
-                  type="text"
-                  name="nom"
-                  required
-                  placeholder="Nom de la nouvelle catégorie"
-                  className={CONTROL_CLASSES}
-                />
-                <Button type="submit" variant="secondary">
-                  Ajouter
-                </Button>
-              </form>
-            )}
-          </Card>
-
-          {peutGerer && (
-            <details className="rounded-xl border border-border bg-bg-elevated p-5 shadow-card">
-              <summary className="cursor-pointer text-sm font-semibold text-ink">
-                + Nouveau mouvement
-              </summary>
-              <form action={creerMouvementAction} className="mt-4 flex flex-col gap-3">
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Date</label>
-                  <input type="date" name="date" required className={CONTROL_CLASSES} />
-                </div>
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Libellé</label>
-                  <input type="text" name="libelle" required className={CONTROL_CLASSES} />
-                </div>
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Type</label>
-                  <select name="type" required className={CONTROL_CLASSES}>
-                    {Object.values(TypeMouvement).map((t) => (
-                      <option key={t} value={t}>
-                        {TYPE_MOUVEMENT_LABELS[t]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Moyen</label>
-                  <select name="moyen" required className={CONTROL_CLASSES}>
-                    {Object.values(MoyenPaiement).map((m) => (
-                      <option key={m} value={m}>
-                        {MOYEN_LABELS[m]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Montant</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    name="montant"
-                    required
-                    className={CONTROL_CLASSES}
-                  />
-                </div>
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Catégorie</label>
-                  <select name="categorieId" className={CONTROL_CLASSES}>
-                    <option value="">—</option>
-                    {categoriesActives.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.nom}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Justificatif (référence, optionnel)</label>
-                  <input
-                    type="text"
-                    name="justificatif"
-                    placeholder="ex. nom du fichier scanné"
-                    className={CONTROL_CLASSES}
-                  />
-                </div>
-                <Button type="submit" variant="primary">
-                  Enregistrer
-                </Button>
-              </form>
-            </details>
-          )}
+        <div>
+          <label className={LABEL_XS_CLASSES}>Au</label>
+          <AutoSubmitInput
+            type="date"
+            name="dateFin"
+            defaultValue={dateFin ?? ""}
+            className={CONTROL_SM_CLASSES}
+          />
         </div>
-
-        <div className="order-1 lg:order-2">
-          <TableWrap>
-            <TableHead>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Libellé</th>
-              <th className="px-4 py-3">Catégorie</th>
-              <th className="px-4 py-3">Moyen</th>
-              <th className="px-4 py-3">Montant</th>
-              <th className="px-4 py-3">Solde</th>
-            </TableHead>
-            <tbody className="divide-y divide-border">
-              {lignes.map((m) => (
-                <tr key={m.id} className="hover:bg-bg-sunken/40">
-                  <td className="px-4 py-3 text-ink-muted">
-                    {new Date(m.date).toLocaleDateString("fr-FR")}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-ink">
-                    {peutGerer ? (
-                      <Link href={`/tresorerie/${m.id}`} className="hover:underline">
-                        {m.libelle}
-                      </Link>
-                    ) : (
-                      m.libelle
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-ink-muted">{m.categorieNom ?? "—"}</td>
-                  <td className="px-4 py-3 text-ink-muted">{MOYEN_LABELS[m.moyen]}</td>
-                  <td
-                    className={`px-4 py-3 font-medium ${
-                      m.type === "RECETTE" ? "text-sage" : "text-rust"
-                    }`}
-                  >
-                    {m.type === "RECETTE" ? "+" : "−"}
-                    {formaterMontant(m.montant)}
-                  </td>
-                  <td className="px-4 py-3 text-ink-muted">{formaterMontant(m.soldeCumule)}</td>
-                </tr>
-              ))}
-              {lignes.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-ink-faint">
-                    Aucun mouvement pour l&apos;instant.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </TableWrap>
+        <div>
+          <label className={LABEL_XS_CLASSES}>Type</label>
+          <AutoSubmitSelect name="type" defaultValue={type ?? ""} className={CONTROL_SM_CLASSES}>
+            <option value="">Tous</option>
+            {Object.values(TypeMouvement).map((t) => (
+              <option key={t} value={t}>
+                {TYPE_MOUVEMENT_LABELS[t]}
+              </option>
+            ))}
+          </AutoSubmitSelect>
         </div>
-      </div>
+        <div>
+          <label className={LABEL_XS_CLASSES}>Catégorie</label>
+          <AutoSubmitSelect
+            name="categorieId"
+            defaultValue={categorieId ?? ""}
+            className={CONTROL_SM_CLASSES}
+          >
+            <option value="">Toutes</option>
+            {toutesCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nom}
+                {!c.actif ? " (désactivée)" : ""}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        <div>
+          <label className={LABEL_XS_CLASSES}>Moyen</label>
+          <AutoSubmitSelect name="moyen" defaultValue={moyen ?? ""} className={CONTROL_SM_CLASSES}>
+            <option value="">Tous</option>
+            {Object.values(MoyenPaiement).map((m) => (
+              <option key={m} value={m}>
+                {MOYEN_LABELS[m]}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        {filtresActifs && (
+          <Link href="/tresorerie" className="text-xs font-medium text-ink-muted hover:underline">
+            Réinitialiser
+          </Link>
+        )}
+      </form>
+
+      <Tabs
+        tabs={[
+          {
+            id: "mouvements",
+            label: "Mouvements",
+            content: (
+              <TableWrap>
+                <TableHead>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Libellé</th>
+                  <th className="px-4 py-3">Catégorie</th>
+                  <th className="px-4 py-3">Moyen</th>
+                  <th className="px-4 py-3 text-right">Débit</th>
+                  <th className="px-4 py-3 text-right">Crédit</th>
+                  <th className="px-4 py-3 text-right">Solde</th>
+                </TableHead>
+                <tbody className="divide-y divide-border">
+                  {lignesAffichees.map((m) => (
+                    <tr key={m.id} className="hover:bg-bg-sunken/40">
+                      <td className="px-4 py-3 text-ink-muted">
+                        {new Date(m.date).toLocaleDateString("fr-FR")}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-ink">
+                        {peutGerer ? (
+                          <Link href={`/tresorerie/${m.id}`} className="hover:underline">
+                            {m.libelle}
+                          </Link>
+                        ) : (
+                          m.libelle
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-ink-muted">{m.categorieNom ?? "—"}</td>
+                      <td className="px-4 py-3 text-ink-muted">{MOYEN_LABELS[m.moyen]}</td>
+                      <td className="px-4 py-3 text-right font-medium text-rust">
+                        {m.type === "DEPENSE" ? formaterMontant(m.montant) : ""}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-sage">
+                        {m.type === "RECETTE" ? formaterMontant(m.montant) : ""}
+                      </td>
+                      <td className="px-4 py-3 text-right text-ink-muted">
+                        {formaterMontant(m.soldeCumule)}
+                      </td>
+                    </tr>
+                  ))}
+                  {lignesAffichees.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-ink-faint">
+                        {filtresActifs
+                          ? "Aucun mouvement pour ces filtres."
+                          : "Aucun mouvement pour l'instant."}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                {lignesAffichees.length > 0 && (
+                  <tfoot className="border-t border-border bg-bg-sunken text-sm font-semibold">
+                    <tr>
+                      <td className="px-4 py-3 text-ink-muted" colSpan={4}>
+                        Totaux{filtresActifs ? " (période affichée)" : ""}
+                      </td>
+                      <td className="px-4 py-3 text-right text-rust">{formaterMontant(totalDebits)}</td>
+                      <td className="px-4 py-3 text-right text-sage">{formaterMontant(totalCredits)}</td>
+                      <td className="px-4 py-3 text-right text-ink">{formaterMontant(soldeFinPeriode)}</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </TableWrap>
+            ),
+          },
+          {
+            id: "credit-debit",
+            label: "Crédit / Débit",
+            content: (
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-sage">
+                    Crédit{filtresActifs ? " (filtré)" : ""}
+                  </h3>
+                  <TableWrap>
+                    <TableHead>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Libellé</th>
+                      <th className="px-4 py-3">Catégorie</th>
+                      <th className="px-4 py-3 text-right">Montant</th>
+                    </TableHead>
+                    <tbody className="divide-y divide-border">
+                      {lignesAffichees
+                        .filter((m) => m.type === "RECETTE")
+                        .map((m) => (
+                          <tr key={m.id} className="hover:bg-bg-sunken/40">
+                            <td className="px-4 py-3 text-ink-muted">
+                              {new Date(m.date).toLocaleDateString("fr-FR")}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-ink">
+                              {peutGerer ? (
+                                <Link href={`/tresorerie/${m.id}`} className="hover:underline">
+                                  {m.libelle}
+                                </Link>
+                              ) : (
+                                m.libelle
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-ink-muted">{m.categorieNom ?? "—"}</td>
+                            <td className="px-4 py-3 text-right font-medium text-sage">
+                              {formaterMontant(m.montant)}
+                            </td>
+                          </tr>
+                        ))}
+                      {lignesAffichees.every((m) => m.type !== "RECETTE") && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
+                            Aucun crédit{filtresActifs ? " pour ces filtres." : "."}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="border-t border-border bg-bg-sunken text-sm font-semibold">
+                      <tr>
+                        <td className="px-4 py-3 text-ink-muted" colSpan={3}>
+                          Total
+                        </td>
+                        <td className="px-4 py-3 text-right text-sage">
+                          {formaterMontant(totalCredits)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </TableWrap>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-rust">
+                    Débit{filtresActifs ? " (filtré)" : ""}
+                  </h3>
+                  <TableWrap>
+                    <TableHead>
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Libellé</th>
+                      <th className="px-4 py-3">Catégorie</th>
+                      <th className="px-4 py-3 text-right">Montant</th>
+                    </TableHead>
+                    <tbody className="divide-y divide-border">
+                      {lignesAffichees
+                        .filter((m) => m.type === "DEPENSE")
+                        .map((m) => (
+                          <tr key={m.id} className="hover:bg-bg-sunken/40">
+                            <td className="px-4 py-3 text-ink-muted">
+                              {new Date(m.date).toLocaleDateString("fr-FR")}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-ink">
+                              {peutGerer ? (
+                                <Link href={`/tresorerie/${m.id}`} className="hover:underline">
+                                  {m.libelle}
+                                </Link>
+                              ) : (
+                                m.libelle
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-ink-muted">{m.categorieNom ?? "—"}</td>
+                            <td className="px-4 py-3 text-right font-medium text-rust">
+                              {formaterMontant(m.montant)}
+                            </td>
+                          </tr>
+                        ))}
+                      {lignesAffichees.every((m) => m.type !== "DEPENSE") && (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
+                            Aucun débit{filtresActifs ? " pour ces filtres." : "."}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                    <tfoot className="border-t border-border bg-bg-sunken text-sm font-semibold">
+                      <tr>
+                        <td className="px-4 py-3 text-ink-muted" colSpan={3}>
+                          Total
+                        </td>
+                        <td className="px-4 py-3 text-right text-rust">
+                          {formaterMontant(totalDebits)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </TableWrap>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

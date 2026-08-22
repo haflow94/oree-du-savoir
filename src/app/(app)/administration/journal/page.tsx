@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
 import { buttonVariants } from "@/components/ui/button";
+import { BackLink } from "@/components/ui/back-link";
 import { TableWrap, TableHead } from "@/components/ui/table";
 
 const PAR_PAGE = 50;
@@ -15,6 +16,7 @@ const ACTION_LABELS: Record<string, string> = {
   activation_compte: "Activation de compte",
   desactivation_compte: "Désactivation de compte",
   changement_role: "Changement de rôle",
+  changement_specialites: "Modification des spécialités",
   reinitialisation_mot_de_passe: "Réinitialisation de mot de passe",
   revocation_sessions: "Révocation des sessions",
   saisie_paiement: "Saisie d'un paiement",
@@ -74,10 +76,8 @@ export default async function JournalAuditPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
-          ← Administration
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/administration" label="Administration" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Journal d&apos;audit
         </h1>
         <p className="text-sm text-ink-muted">

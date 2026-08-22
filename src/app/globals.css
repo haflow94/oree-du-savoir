@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #efe6d3;
+  --color-bg: #faf6ec;
   --color-bg-elevated: #faf5e9;
   --color-bg-sunken: #e6dac0;
 
-  --color-ink: #1e2a1f;
+  --color-ink: #234634;
   --color-ink-muted: #56604e;
   --color-ink-faint: #8b9280;
   --color-on-accent: #f5efdd;
 
   --color-pine: #234634;
-  --color-pine-strong: #16301f;
+  --color-pine-strong: #0a5a0a;
   --color-pine-soft: #e1e7d5;
 
   --color-sage: #4c6b45;

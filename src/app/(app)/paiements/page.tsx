@@ -1,14 +1,16 @@
 import Link from "next/link";
+import { CreditCard } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { formaterMontant } from "@/lib/paiements";
+import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { Role, hasRole } from "@/lib/roles";
-import { filtreParSection } from "@/lib/sections-etudiant";
+import { filtreParSection, sectionsDInscriptions } from "@/lib/sections-etudiant";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { AutoSubmitSelect } from "@/components/ui/auto-submit";
-import { CONTROL_CLASSES } from "@/components/ui/champ";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
+import { IconChip } from "@/components/ui/icon-chip";
 
 const PEUT_CREER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
@@ -41,7 +43,13 @@ export default async function PaiementsPage({
     },
     orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
     include: {
-      etudiant: true,
+      etudiant: {
+        include: {
+          inscriptions: {
+            include: { classe: { include: { cours: { include: { section: true } } } } },
+          },
+        },
+      },
       anneeScolaire: true,
       echeances: { include: { paiements: true }, orderBy: { dateEcheance: "asc" } },
     },
@@ -62,16 +70,19 @@ export default async function PaiementsPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="font-display text-2xl font-semibold text-pine-strong">Paiements</h1>
-            {anneeActive && <Badge variant="success">Année active : {anneeActive.libelle}</Badge>}
+        <div className="flex items-center gap-3">
+          <IconChip icon={CreditCard} accent="ochre" />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-display text-3xl font-semibold text-pine-strong">Paiements</h1>
+              {anneeActive && <Badge variant="success">Année active : {anneeActive.libelle}</Badge>}
+            </div>
+            <p className="text-sm text-ink-muted">
+              Montant dû, échéances, encaissé, reste, par étudiant et par
+              année. Le dossier annuel porte le montant dû global (voir la
+              fiche pour les échéances et le détail des paiements).
+            </p>
           </div>
-          <p className="text-sm text-ink-muted">
-            Montant dû, échéances, encaissé, reste, par étudiant et par
-            année. Le dossier annuel porte le montant dû global (voir la
-            fiche pour les échéances et le détail des paiements).
-          </p>
         </div>
         {hasRole(session.role, PEUT_CREER) && (
           <Link href="/paiements/nouveau" className={buttonVariants({ variant: "primary" })}>
@@ -80,13 +91,13 @@ export default async function PaiementsPage({
         )}
       </div>
 
-      <form className="flex flex-wrap items-end gap-2" action="/paiements" method="GET">
+      <form className={TOOLBAR_CLASSES} action="/paiements" method="GET">
         <div>
           <label className={LABEL_XS_CLASSES}>Année scolaire</label>
           <AutoSubmitSelect
             name="anneeScolaireId"
             defaultValue={anneeFiltre}
-            className={CONTROL_CLASSES}
+            className={CONTROL_SM_CLASSES}
           >
             <option value="">Toutes les années</option>
             {annees.map((a) => (
@@ -99,7 +110,7 @@ export default async function PaiementsPage({
         </div>
         <div>
           <label className={LABEL_XS_CLASSES}>Section</label>
-          <AutoSubmitSelect name="sectionId" defaultValue={sectionId ?? ""} className={CONTROL_CLASSES}>
+          <AutoSubmitSelect name="sectionId" defaultValue={sectionId ?? ""} className={CONTROL_SM_CLASSES}>
             <option value="">Toutes les sections</option>
             {sections.map((s) => (
               <option key={s.id} value={s.id}>
@@ -110,20 +121,21 @@ export default async function PaiementsPage({
         </div>
         <a
           href={`/paiements/export?${paramsExport}`}
-          className={buttonVariants({ variant: "secondary" })}
+          className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}
         >
           Exporter en CSV
         </a>
+        <p className="basis-full text-xs text-ink-faint">
+          L&apos;export reprend l&apos;année et la section ci-dessus (laissez
+          « Toutes » pour tout exporter).
+        </p>
       </form>
-      <p className="text-xs text-ink-faint">
-        L&apos;export reprend l&apos;année et la section ci-dessus (laissez «
-        Toutes » pour tout exporter).
-      </p>
 
       <TableWrap>
         <TableHead>
           <th className="px-4 py-3">Étudiant</th>
           <th className="px-4 py-3">Année</th>
+          <th className="px-4 py-3">Section</th>
           <th className="px-4 py-3">Dû</th>
           {colonnesEcheances.map((i) => (
             <th key={i} className="whitespace-nowrap px-4 py-3">
@@ -136,16 +148,14 @@ export default async function PaiementsPage({
         </TableHead>
         <tbody className="divide-y divide-border">
           {dossiers.map((d) => {
-            const du = Number.parseFloat(d.montantDu.toString());
-            const paiements = d.echeances.flatMap((e) => e.paiements);
-            const encaisse = paiements.reduce(
-              (total, p) => total + Number.parseFloat(p.montant.toString()),
-              0,
+            const { du, encaisse, reste, statut } = statutCotisation(d);
+            const statutVariant = STATUT_COTISATION_VARIANTS[statut];
+            // Sections déduites des inscriptions actives sur l'année DU
+            // DOSSIER (pas forcément l'année filtrée en haut de page, quand
+            // "Toutes les années" est sélectionné) — voir lib/sections-etudiant.ts.
+            const sectionsEtudiant = sectionsDInscriptions(
+              d.etudiant.inscriptions.filter((i) => i.classe.anneeScolaireId === d.anneeScolaireId),
             );
-            const reste = du - encaisse;
-            const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
-            const statutVariant =
-              statut === "Soldé" ? "success" : statut === "Partiel" ? "warning" : "danger";
 
             return (
               <tr key={d.id} className="hover:bg-bg-sunken/40">
@@ -158,6 +168,19 @@ export default async function PaiementsPage({
                   <Badge variant={d.anneeScolaireId === anneeActive?.id ? "success" : "neutral"}>
                     {d.anneeScolaire.libelle}
                   </Badge>
+                </td>
+                <td className="px-4 py-3">
+                  {sectionsEtudiant.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {sectionsEtudiant.map((s) => (
+                        <Badge key={s.id} variant="neutral">
+                          {s.nom}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-ink-faint">—</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-ink-muted">{formaterMontant(du)}</td>
                 {colonnesEcheances.map((i) => {
@@ -199,7 +222,7 @@ export default async function PaiementsPage({
           })}
           {dossiers.length === 0 && (
             <tr>
-              <td colSpan={6 + maxEcheances} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={7 + maxEcheances} className="px-4 py-8 text-center text-ink-faint">
                 Aucun dossier de paiement pour l&apos;instant.
               </td>
             </tr>

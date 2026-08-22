@@ -194,6 +194,33 @@ export async function modifierMontantDuAction(formData: FormData): Promise<void>
   revalidatePath("/paiements");
 }
 
+export async function basculerRembourseAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER_CHEQUE);
+
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  if (!dossierAnnuelId) return;
+
+  const cible = await prisma.dossierAnnuel.findUnique({ where: { id: dossierAnnuelId } });
+  if (!cible) return;
+
+  const rembourse = !cible.rembourse;
+
+  await prisma.$transaction([
+    prisma.dossierAnnuel.update({ where: { id: dossierAnnuelId }, data: { rembourse } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: rembourse ? "marque_rembourse" : "annule_rembourse",
+        entite: "DossierAnnuel",
+        entiteId: dossierAnnuelId,
+      },
+    }),
+  ]);
+
+  revalidatePath(`/paiements/${dossierAnnuelId}`);
+  revalidatePath("/paiements");
+}
+
 export async function modifierPaiementAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER_CHEQUE);
 

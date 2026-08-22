@@ -7,6 +7,7 @@ import { montantSuggereDossier } from "@/lib/sections-etudiant";
 import { creerDossierAction } from "./actions";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
 import { buttonVariants } from "@/components/ui/button";
+import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -59,7 +60,8 @@ export default async function NouveauDossierPage({
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/paiements" label="Paiements" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Nouveau dossier de paiement
         </h1>
         <p className="text-sm text-ink-muted">

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
@@ -7,6 +6,7 @@ import {
   modifierAnneeScolaireAction,
   activerAnneeScolaireAction,
 } from "./actions";
+import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
@@ -41,10 +41,8 @@ export default async function AnneesScolairesPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
-          ← Administration
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/administration" label="Administration" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Années scolaires
         </h1>
         <p className="text-sm text-ink-muted">

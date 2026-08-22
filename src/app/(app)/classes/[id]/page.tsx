@@ -7,15 +7,17 @@ import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import { estAdministratif } from "@/lib/acces-presence";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
+import { enseignantsActifsAvecSections } from "@/lib/enseignants";
 import {
   genererSeancesAction,
   inscrireEtudiantAction,
   retirerEtudiantAction,
 } from "../../presences/actions";
-import { modifierClasseAction, supprimerClasseAction, dupliquerClasseAction } from "./actions";
+import { modifierClasseAction, supprimerClasseAction } from "./actions";
+import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -72,13 +74,20 @@ export default async function ClasseDetailPage({
   const administratif = estAdministratif(session.role);
   const peutInscrire = administratif || session.role === Role.ACCUEIL;
 
-  const enseignantsDisponibles = peutGerer
-    ? await prisma.utilisateur.findMany({
-        where: { role: Role.ENSEIGNANT, actif: true },
-        orderBy: [{ nom: "asc" }],
-      })
-    : [];
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
+  // Ne proposer que les enseignants déjà rattachés à la section de ce cours
+  // (voir lib/enseignants.ts) — sans quoi la liste mélangeait tous les
+  // enseignants actifs, toutes sections confondues. Un enseignant déjà
+  // assigné à cette classe reste affiché même hors filtre, pour ne jamais
+  // perdre la possibilité de le décocher.
+  const enseignantsDisponibles = peutGerer
+    ? (await enseignantsActifsAvecSections()).filter(
+        (e) =>
+          enseignantsAssignes.has(e.id) ||
+          e.sectionIds.length === 0 ||
+          e.sectionIds.includes(classe.cours.sectionId),
+      )
+    : [];
   const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
   const inscriptionsConfirmees = classe.inscriptions.filter((i) => i.statut === "CONFIRMEE");
   const inscriptionsEnAttente = classe.inscriptions.filter((i) => i.statut === "LISTE_ATTENTE");
@@ -102,11 +111,15 @@ export default async function ClasseDetailPage({
 
   // Un scanner de QR sur téléphone n'ouvre un lien que si le contenu est une
   // URL absolue (schéma + hôte) : un simple chemin relatif comme "/qr/xxx"
-  // s'affiche en texte brut, sans action possible. On lit donc l'hôte réel
-  // de la requête (peu importe IP/nom de domaine, cible de déploiement non
-  // figée — voir DEPLOIEMENT.md) plutôt que de coder une URL en dur.
+  // s'affiche en texte brut, sans action possible. Par défaut on lit l'hôte
+  // réel de la requête (peu importe IP/nom de domaine, cible de déploiement
+  // non figée — voir DEPLOIEMENT.md), mais si la page est ouverte via
+  // "localhost" ou un tunnel/nom interne (poste du staff en SSH sur le
+  // serveur, par ex.), ce host n'est pas joignable depuis un téléphone sur le
+  // même réseau : PUBLIC_HOST permet de forcer l'IP/le nom réellement
+  // accessible depuis la salle (voir .env.example).
   const enTetes = await headers();
-  const hote = enTetes.get("host") ?? "localhost:3000";
+  const hote = process.env.PUBLIC_HOST || enTetes.get("host") || "localhost:3000";
   const protocole = enTetes.get("x-forwarded-proto") ?? "http";
   const cheminQr = `/qr/${classe.qrToken}`;
   const urlQr = `${protocole}://${hote}${cheminQr}`;
@@ -119,10 +132,8 @@ export default async function ClasseDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/classes" className="text-sm text-ink-muted hover:underline">
-          ← Classes
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/classes" label="Classes" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           {classe.cours.nom}
           {classe.niveau && ` — ${classe.niveau}`}
         </h1>
@@ -150,12 +161,12 @@ export default async function ClasseDetailPage({
           <div className="mb-3 flex items-center justify-between">
             <CardTitle>Modifier la classe</CardTitle>
             <div className="flex items-center gap-3">
-              <form action={dupliquerClasseAction}>
-                <input type="hidden" name="classeId" value={classe.id} />
-                <Button type="submit" variant="secondary" size="sm">
-                  Dupliquer cette classe
-                </Button>
-              </form>
+              <Link
+                href={`/classes/nouveau?depuis=${classe.id}`}
+                className={buttonVariants({ variant: "secondary", size: "sm" })}
+              >
+                Dupliquer cette classe
+              </Link>
               <form id="supprimer-classe" action={supprimerClasseAction}>
                 <input type="hidden" name="classeId" value={classe.id} />
               </form>

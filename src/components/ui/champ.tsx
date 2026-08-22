@@ -12,6 +12,20 @@ const LABEL_CLASSES = "mb-1 block text-sm font-medium text-ink";
 export const CONTROL_CLASSES =
   "w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
+// Variante sans `w-full`, pour les contrôles alignés en ligne (barres de
+// filtres, formulaires inline) : sans elle, un <select> hérite de w-full et
+// réclame toute la largeur de son conteneur flex, ce qui force chaque
+// contrôle sur sa propre ligne dans une barre de filtres (voir TOOLBAR_CLASSES).
+export const CONTROL_SM_CLASSES =
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+
+// Barre de filtres compacte : les contrôles (avec CONTROL_SM_CLASSES) et
+// actions restent sur une seule ligne autant que possible au lieu de
+// repousser le tableau sous plusieurs lignes de filtres. Un enfant avec
+// `basis-full` (ex. texte d'aide) retombe proprement sur sa propre ligne.
+export const TOOLBAR_CLASSES =
+  "flex flex-wrap items-end gap-2 rounded-xl border border-border bg-bg-elevated px-3 py-2.5 shadow-card";
+
 export function Champ({
   label,
   hint,

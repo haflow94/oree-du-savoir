@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
@@ -7,6 +6,7 @@ import {
   modifierPeriodeFermetureAction,
   supprimerPeriodeFermetureAction,
 } from "../actions";
+import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,10 +34,8 @@ export default async function FermeturesPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link href="/presences" className="text-sm text-ink-muted hover:underline">
-          ← Présences
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/presences" label="Présences" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Vacances et fermetures
         </h1>
         <p className="text-sm text-ink-muted">

@@ -30,6 +30,12 @@ enum Role {
   ACCUEIL
   TRESORIER
   ENSEIGNANT
+  // Compte dédié à la gestion des activités associatives (voir
+  // (app)/activites, (app)/calendrier et Administration → Responsables
+  // d'activités), sans les droits Bureau/Administration sur le reste de
+  // l'appli. Comme ENSEIGNANT, séparé des ROLES_STAFF (lib/roles.ts) : sa
+  // propre page de comptes plutôt que mélangé à Administration → Comptes.
+  ACTIVITE
 }
 
 model Utilisateur {
@@ -43,11 +49,18 @@ model Utilisateur {
   creeLe         DateTime  @default(now())
   dernierLogin   DateTime?
 
-  sessions          Session[]
-  journalAudit      JournalAudit[]
-  classesEnseignees ClasseEnseignant[]
-  seancesValidees   Seance[]
-  documentsAjoutes  Document[]
+  sessions             Session[]
+  journalAudit         JournalAudit[]
+  classesEnseignees    ClasseEnseignant[]
+  seancesValidees      Seance[]
+  documentsAjoutes     Document[]
+  activitesCreees      Activite[]
+  activitesResponsable ActiviteResponsable[]
+  // Spécialités déclarées d'un enseignant (Section dans laquelle il peut
+  // intervenir), affectées à la création/modification du compte — sert à
+  // filtrer les enseignants proposés lors de la création d'une classe (voir
+  // lib/enseignants.ts), indépendamment de tout historique d'affectation.
+  specialites          Section[]             @relation("EnseignantSpecialites")
 
   @@map("utilisateurs")
 }
@@ -103,6 +116,70 @@ model PeriodeFermeture {
 
   @@index([anneeScolaireId])
   @@map("periodes_fermeture")
+}
+
+// Fréquence de récurrence d'une Activite. Volontairement minimal (pas
+// d'intervalle personnalisé type "tous les 2 mardis", pas de RRULE) : une
+// activité récurrente génère une ligne Activite par occurrence au moment de
+// la création (voir src/lib/activites.ts#datesOccurrencesActivite), toutes
+// partageant le même serieId. Chaque occurrence reste ensuite modifiable/
+// supprimable indépendamment, comme les Seance générées depuis une Classe.
+enum FrequenceActivite {
+  AUCUNE
+  QUOTIDIENNE
+  HEBDOMADAIRE
+  MENSUELLE
+}
+
+// Événement associatif ponctuel ou récurrent (sortie, fête, réunion,
+// examen...), affiché sur le calendrier aux côtés des cours (Seance) et des
+// vacances (PeriodeFermeture), avec une couleur dédiée pour rester
+// distinguable des cours d'un coup d'œil (voir (app)/calendrier/page.tsx).
+// Le rappel (bandeau tableau de bord + pastille menu, RAPPEL_JOURS avant la
+// date, voir src/lib/activites.ts) est géré entièrement par l'application,
+// sans email ni dépendance à n8n (règle non négociable, voir
+// Projet/04_Regles_non_negociables.md).
+model Activite {
+  id                String            @id @default(cuid())
+  titre             String
+  contenu           String?
+  date              DateTime          @db.Date
+  // Dernier jour d'UNE occurrence quand elle dure plusieurs jours consécutifs
+  // (ex. un camp de 3 jours) ; null = activité d'une seule journée.
+  dateFin           DateTime?         @db.Date
+  heureDebut        String? // "HH:MM" ; null = journée entière, pas d'horaire précis
+  heureFin          String?
+  lieu              String?
+  // Propriétés de la SÉRIE, dupliquées sur chaque occurrence générée pour
+  // affichage/traçabilité (ex. "fait partie d'une série hebdomadaire
+  // jusqu'au ..."), non réditables occurrence par occurrence après coup.
+  frequence         FrequenceActivite @default(AUCUNE)
+  dateFinRecurrence DateTime?         @db.Date
+  serieId           String?
+
+  creeParId    String?
+  creePar      Utilisateur?          @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+  responsables ActiviteResponsable[]
+  creeLe       DateTime              @default(now())
+  modifieLe    DateTime              @updatedAt
+
+  @@index([date])
+  @@index([serieId])
+  @@map("activites")
+}
+
+// Membres du staff désignés comme responsables/organisateurs d'une activité
+// (plusieurs possibles, même principe que ClasseEnseignant pour les
+// classes) : n'importe quel rôle staff, pas seulement Enseignant — une
+// sortie associative est typiquement portée par le Bureau ou l'Accueil.
+model ActiviteResponsable {
+  activiteId    String
+  activite      Activite    @relation(fields: [activiteId], references: [id], onDelete: Cascade)
+  utilisateurId String
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+
+  @@id([activiteId, utilisateurId])
+  @@map("activite_responsables")
 }
 
 enum Civilite {
@@ -235,8 +312,9 @@ model Section {
   remboursementAvant29Jours Int // % des frais de formation remboursé
   creeLe                    DateTime @default(now())
 
-  cours                  Cours[]
-  souhaitsPreinscription Etudiant[]
+  cours                   Cours[]
+  souhaitsPreinscription  Etudiant[]
+  enseignantsSpecialistes Utilisateur[] @relation("EnseignantSpecialites")
 
   @@map("sections")
 }
@@ -421,6 +499,11 @@ model DossierAnnuel {
   anneeScolaireId String
   anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
   montantDu       Decimal       @db.Decimal(10, 2)
+  // Basculé manuellement par le Trésorier/Bureau quand la cotisation a été
+  // remboursée à la famille : prime sur le statut calculé (soldé/partiel/
+  // impayé) pour l'affichage, sans toucher aux échéances/paiements déjà
+  // enregistrés (traçabilité conservée).
+  rembourse       Boolean       @default(false)
   creeLe          DateTime      @default(now())
 
   echeances Echeance[]

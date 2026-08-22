@@ -42,7 +42,7 @@ export default async function AppelPage({
       <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
         <div className="mx-auto max-w-3xl space-y-6">
           <div>
-            <h1 className="font-display text-2xl font-semibold text-pine-strong">
+            <h1 className="font-display text-3xl font-semibold text-pine-strong">
               {seance.classe.cours.nom}
               {seance.classe.niveau && ` — ${seance.classe.niveau}`}
             </h1>

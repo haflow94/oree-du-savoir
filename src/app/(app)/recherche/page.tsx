@@ -20,7 +20,7 @@ export default async function RecherchePage({
   if (!recherche) {
     return (
       <div className="space-y-6">
-        <h1 className="font-display text-2xl font-semibold text-pine-strong">Recherche</h1>
+        <h1 className="font-display text-3xl font-semibold text-pine-strong">Recherche</h1>
         <p className="text-sm text-ink-muted">
           Cherche un étudiant, une classe/un cours, ou un mouvement de
           trésorerie depuis la barre en haut de l&apos;écran.
@@ -76,7 +76,7 @@ export default async function RecherchePage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-pine-strong">
+        <h1 className="font-display text-3xl font-semibold text-pine-strong">
           Résultats pour « {recherche} »
         </h1>
         <p className="text-sm text-ink-muted">

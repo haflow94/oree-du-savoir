@@ -1,25 +1,14 @@
-import Link from "next/link";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, ROLE_LABELS, ROLES_STAFF } from "@/lib/roles";
-import {
-  creerUtilisateurAction,
-  changerActivationAction,
-  changerRoleAction,
-  reinitialiserMotDePasseAction,
-  revoquerSessionsAction,
-} from "../actions";
+import { Role, ROLES_STAFF } from "@/lib/roles";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
-import { Card, CardTitle } from "@/components/ui/card";
-import { Champ, ChampSelect } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { NouveauCompteDialog } from "../nouveau-compte-dialog";
+import { UtilisateurRow } from "../utilisateur-row";
 
-const CONTROL_SM_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
-const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
+const FROM = "/administration/enseignants";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Tous les champs obligatoires doivent être renseignés.",
@@ -31,152 +20,76 @@ const MESSAGES: Record<string, string> = {
 export default async function EnseignantsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; utilisateurId?: string }>;
 }) {
   await requireRole([Role.BUREAU]);
-  const { error, ok } = await searchParams;
+  const { error, ok, utilisateurId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
-  const enseignants = await prisma.utilisateur.findMany({
-    where: { role: Role.ENSEIGNANT },
-    orderBy: [{ actif: "desc" }, { nom: "asc" }],
-    include: {
-      _count: { select: { sessions: true, classesEnseignees: true } },
-    },
-  });
+  const [enseignants, sections] = await Promise.all([
+    prisma.utilisateur.findMany({
+      where: { role: Role.ENSEIGNANT },
+      orderBy: [{ actif: "desc" }, { nom: "asc" }],
+      include: {
+        _count: { select: { sessions: true, classesEnseignees: true } },
+        specialites: { select: { id: true } },
+      },
+    }),
+    prisma.section.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
+  ]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/administration" className="text-sm text-ink-muted hover:underline">
-          ← Administration
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">Enseignants</h1>
-        <p className="text-sm text-ink-muted">
-          Comptes enseignants, séparés du staff (Bureau, Administration,
-          Accueil, Trésorier) géré depuis Administration → Comptes.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <BackLink href="/administration" label="Administration" />
+          <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">Enseignants</h1>
+          <p className="text-sm text-ink-muted">
+            Comptes enseignants, séparés du staff (Bureau, Administration,
+            Accueil, Trésorier) géré depuis Administration → Comptes.
+          </p>
+        </div>
+        <NouveauCompteDialog
+          ouvrirAuChargement={!!error && !utilisateurId}
+          from={FROM}
+          roleFixe={Role.ENSEIGNANT}
+          titre="Créer un compte enseignant"
+          triggerLabel="+ Nouveau compte enseignant"
+          sectionsDisponibles={sections}
+        />
       </div>
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
-      <Card>
-        <CardTitle>Créer un compte enseignant</CardTitle>
-        <form action={creerUtilisateurAction} className="mt-3 grid gap-3 sm:grid-cols-2">
-          <input type="hidden" name="from" value="/administration/enseignants" />
-          <input type="hidden" name="role" value={Role.ENSEIGNANT} />
-          <Champ label="Prénom" name="prenom" required />
-          <Champ label="Nom" name="nom" required />
-          <Champ label="Email" name="email" type="email" required autoComplete="off" />
-          <Champ
-            label={`Mot de passe initial (${LONGUEUR_MIN_MOT_DE_PASSE} caractères minimum)`}
-            name="motDePasse"
-            type="password"
-            required
-            minLength={LONGUEUR_MIN_MOT_DE_PASSE}
-            autoComplete="new-password"
-          />
-          <div className="flex justify-end sm:col-span-2">
-            <Button type="submit" variant="primary">
-              Créer le compte
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <div className="space-y-3">
-        {enseignants.map((u) => (
-          <Card key={u.id} className={u.actif ? "" : "opacity-75"}>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="font-medium text-ink">
-                  {u.prenom} {u.nom}
-                </div>
-                <div className="text-sm text-ink-muted">{u.email}</div>
-                <div className="mt-1 text-xs text-ink-faint">
-                  {u._count.classesEnseignees} classe(s) ·{" "}
-                  {u.dernierLogin
-                    ? `Dernière connexion : ${new Date(u.dernierLogin).toLocaleString("fr-FR")}`
-                    : "Jamais connecté"}
-                  {u._count.sessions > 0 && ` · ${u._count.sessions} session(s) active(s)`}
-                </div>
-              </div>
-              <Badge variant={u.actif ? "success" : "danger"}>
-                {u.actif ? "Actif" : "Désactivé"}
-              </Badge>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-end gap-4 border-t border-border pt-4">
-              <form action={changerRoleAction} className="flex items-end gap-2">
-                <input type="hidden" name="from" value="/administration/enseignants" />
-                <input type="hidden" name="utilisateurId" value={u.id} />
-                <ChampSelect label="Faire passer vers le staff" name="role" defaultValue="">
-                  <option value="" disabled>
-                    Choisir un rôle…
-                  </option>
-                  {ROLES_STAFF.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </ChampSelect>
-                <Button type="submit" variant="secondary" size="sm">
-                  Changer
-                </Button>
-              </form>
-
-              <form action={reinitialiserMotDePasseAction} className="flex items-end gap-2">
-                <input type="hidden" name="from" value="/administration/enseignants" />
-                <input type="hidden" name="utilisateurId" value={u.id} />
-                <div>
-                  <label className={LABEL_XS_CLASSES}>Nouveau mot de passe</label>
-                  <input
-                    type="password"
-                    name="motDePasse"
-                    required
-                    minLength={LONGUEUR_MIN_MOT_DE_PASSE}
-                    autoComplete="new-password"
-                    className={`w-44 ${CONTROL_SM_CLASSES}`}
-                  />
-                </div>
-                <Button type="submit" variant="secondary" size="sm">
-                  Réinitialiser
-                </Button>
-              </form>
-
-              {u._count.sessions > 0 && (
-                <form action={revoquerSessionsAction}>
-                  <input type="hidden" name="from" value="/administration/enseignants" />
-                  <input type="hidden" name="utilisateurId" value={u.id} />
-                  <Button type="submit" variant="secondary" size="sm">
-                    Révoquer les sessions
-                  </Button>
-                </form>
-              )}
-
-              <form action={changerActivationAction}>
-                <input type="hidden" name="from" value="/administration/enseignants" />
-                <input type="hidden" name="utilisateurId" value={u.id} />
-                <input type="hidden" name="activer" value={u.actif ? "0" : "1"} />
-                <button
-                  type="submit"
-                  className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${
-                    u.actif
-                      ? "border-rust-border text-rust hover:bg-rust-bg"
-                      : "border-sage-border text-sage hover:bg-sage-bg"
-                  }`}
-                >
-                  {u.actif ? "Désactiver" : "Réactiver"}
-                </button>
-              </form>
-            </div>
-          </Card>
-        ))}
-        {enseignants.length === 0 && (
-          <EmptyState message="Aucun compte enseignant pour l'instant." />
-        )}
-      </div>
+      {enseignants.length === 0 ? (
+        <EmptyState message="Aucun compte enseignant pour l'instant." />
+      ) : (
+        <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-card">
+          {enseignants.map((u) => (
+            <UtilisateurRow
+              key={u.id}
+              utilisateur={{
+                id: u.id,
+                prenom: u.prenom,
+                nom: u.nom,
+                email: u.email,
+                role: u.role,
+                actif: u.actif,
+                dernierLogin: u.dernierLogin,
+                sessionsActives: u._count.sessions,
+              }}
+              ouvrirAuChargement={!!error && utilisateurId === u.id}
+              from={FROM}
+              infoExtra={`${u._count.classesEnseignees} classe(s)`}
+              roleOptions={ROLES_STAFF}
+              rolePlaceholder="Faire passer vers le staff…"
+              sectionsDisponibles={sections}
+              specialiteIds={u.specialites.map((s) => s.id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

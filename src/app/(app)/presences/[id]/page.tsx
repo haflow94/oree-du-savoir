@@ -7,6 +7,7 @@ import { chargerSeanceAvecAppel } from "@/lib/appel";
 import { annulerSeanceAction } from "../actions";
 import { FeuilleAppel } from "./feuille-appel";
 import { buttonVariants } from "@/components/ui/button";
+import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 
 export default async function SeancePage({
@@ -30,10 +31,8 @@ export default async function SeancePage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/presences" className="text-sm text-ink-muted hover:underline">
-          ← Présences
-        </Link>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-pine-strong">
+        <BackLink href="/presences" label="Présences" />
+        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           {seance.classe.cours.nom}
           {seance.classe.niveau && ` — ${seance.classe.niveau}`}
         </h1>

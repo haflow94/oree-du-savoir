@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { ClipboardList } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { TableWrap, TableHead } from "@/components/ui/table";
+import { IconChip } from "@/components/ui/icon-chip";
 
 export default async function InscriptionsPage() {
   await requireSession();
@@ -14,12 +16,15 @@ export default async function InscriptionsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-pine-strong">Inscriptions</h1>
-        <p className="text-sm text-ink-muted">
-          Préinscriptions en attente de contrôle sur place (signature,
-          documents, paiement) avant validation.
-        </p>
+      <div className="flex items-center gap-3">
+        <IconChip icon={ClipboardList} accent="sky" />
+        <div>
+          <h1 className="font-display text-3xl font-semibold text-pine-strong">Inscriptions</h1>
+          <p className="text-sm text-ink-muted">
+            Préinscriptions en attente de contrôle sur place (signature,
+            documents, paiement) avant validation.
+          </p>
+        </div>
       </div>
 
       <Card>
