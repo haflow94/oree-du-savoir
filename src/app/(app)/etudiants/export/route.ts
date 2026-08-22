@@ -3,7 +3,6 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
 import {
-  anneeScolaireActiveId,
   estReinscrit,
   filtreParReinscription,
   filtreParSection,
@@ -16,7 +15,14 @@ export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim();
   const sectionId = request.nextUrl.searchParams.get("sectionId")?.trim();
   const reinscription = request.nextUrl.searchParams.get("reinscription")?.trim();
-  const anneeActiveId = await anneeScolaireActiveId();
+  const anneeIdDemandee = request.nextUrl.searchParams.get("anneeId")?.trim();
+  const anneeDemandee = anneeIdDemandee
+    ? await prisma.anneeScolaire.findUnique({ where: { id: anneeIdDemandee } })
+    : null;
+  const anneeSelectionneeId =
+    anneeDemandee?.id ??
+    (await prisma.anneeScolaire.findFirst({ where: { active: true } }))?.id ??
+    null;
 
   const etudiants = await prisma.etudiant.findMany({
     where: {
@@ -28,21 +34,21 @@ export async function GET(request: NextRequest) {
             ],
           }
         : {}),
-      ...(sectionId && anneeActiveId ? filtreParSection(anneeActiveId, sectionId) : {}),
+      ...(sectionId && anneeSelectionneeId ? filtreParSection(anneeSelectionneeId, sectionId) : {}),
       ...(reinscription === "oui" || reinscription === "non"
-        ? anneeActiveId
-          ? filtreParReinscription(anneeActiveId, reinscription === "oui")
+        ? anneeSelectionneeId
+          ? filtreParReinscription(anneeSelectionneeId, reinscription === "oui")
           : {}
         : {}),
     },
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     include: {
       responsables: true,
-      inscriptions: anneeActiveId
-        ? inclureInscriptionsActives(anneeActiveId)
+      inscriptions: anneeSelectionneeId
+        ? inclureInscriptionsActives(anneeSelectionneeId)
         : { where: { id: "" }, include: { classe: { include: { cours: { include: { section: true } } } } } },
-      dossiersAnnuels: anneeActiveId
-        ? inclureDossierAnnuelActif(anneeActiveId)
+      dossiersAnnuels: anneeSelectionneeId
+        ? inclureDossierAnnuelActif(anneeSelectionneeId)
         : { where: { id: "" } },
     },
   });

@@ -3,7 +3,6 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import {
-  anneeScolaireActiveId,
   estReinscrit,
   filtreParReinscription,
   filtreParSection,
@@ -28,17 +27,27 @@ export default async function EtudiantsPage({
     q?: string;
     sectionId?: string;
     reinscription?: string;
+    anneeId?: string;
     supprime?: string;
   }>;
 }) {
   const session = await requireSession();
-  const { q, sectionId, reinscription, supprime } = await searchParams;
+  const { q, sectionId, reinscription, anneeId, supprime } = await searchParams;
   const recherche = q?.trim() ?? "";
 
-  const [anneeActiveId, sections] = await Promise.all([
-    anneeScolaireActiveId(),
+  const [anneeScolaires, sections] = await Promise.all([
+    prisma.anneeScolaire.findMany({ orderBy: { dateDebut: "desc" } }),
     prisma.section.findMany({ orderBy: { nom: "asc" } }),
   ]);
+  const anneeActive = anneeScolaires.find((a) => a.active) ?? null;
+  // Année pour laquelle on regarde sections/réinscription : sélectionnable
+  // (utile pour préparer/suivre la prochaine année scolaire avant de la
+  // basculer en "active", sans perturber les présences de l'année en cours),
+  // par défaut l'année active.
+  const anneeSelectionneeId =
+    (anneeId && anneeScolaires.some((a) => a.id === anneeId) ? anneeId : null) ??
+    anneeActive?.id ??
+    null;
 
   const etudiants = await prisma.etudiant.findMany({
     where: {
@@ -50,23 +59,24 @@ export default async function EtudiantsPage({
             ],
           }
         : {}),
-      ...(sectionId && anneeActiveId ? filtreParSection(anneeActiveId, sectionId) : {}),
+      ...(sectionId && anneeSelectionneeId ? filtreParSection(anneeSelectionneeId, sectionId) : {}),
       ...(reinscription === "oui" || reinscription === "non"
-        ? anneeActiveId
-          ? filtreParReinscription(anneeActiveId, reinscription === "oui")
+        ? anneeSelectionneeId
+          ? filtreParReinscription(anneeSelectionneeId, reinscription === "oui")
           : {}
         : {}),
     },
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     include: {
       _count: { select: { responsables: true } },
-      // Pas d'année active (cas anormal) : clause qui ne matche jamais, pour
-      // garder une forme d'include statique plutôt que de bifurquer le type.
-      inscriptions: anneeActiveId
-        ? inclureInscriptionsActives(anneeActiveId)
+      // Pas d'année sélectionnée (cas anormal, aucune année scolaire en
+      // base) : clause qui ne matche jamais, pour garder une forme
+      // d'include statique plutôt que de bifurquer le type.
+      inscriptions: anneeSelectionneeId
+        ? inclureInscriptionsActives(anneeSelectionneeId)
         : { where: { id: "" }, include: { classe: { include: { cours: { include: { section: true } } } } } },
-      dossiersAnnuels: anneeActiveId
-        ? inclureDossierAnnuelActif(anneeActiveId)
+      dossiersAnnuels: anneeSelectionneeId
+        ? inclureDossierAnnuelActif(anneeSelectionneeId)
         : { where: { id: "" } },
     },
   });
@@ -101,6 +111,23 @@ export default async function EtudiantsPage({
           placeholder="Rechercher par nom ou prénom…"
           className={`w-full max-w-sm ${CONTROL_CLASSES}`}
         />
+        <label htmlFor="anneeId" className="sr-only">
+          Année scolaire
+        </label>
+        <AutoSubmitSelect
+          id="anneeId"
+          name="anneeId"
+          defaultValue={anneeSelectionneeId ?? ""}
+          className={CONTROL_CLASSES}
+        >
+          {anneeScolaires.length === 0 && <option value="">Aucune année scolaire</option>}
+          {anneeScolaires.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.libelle}
+              {a.active ? " (active)" : ""}
+            </option>
+          ))}
+        </AutoSubmitSelect>
         <label htmlFor="sectionId" className="sr-only">
           Section
         </label>
@@ -127,8 +154,8 @@ export default async function EtudiantsPage({
           className={CONTROL_CLASSES}
         >
           <option value="">Réinscrits et non réinscrits</option>
-          <option value="oui">Réinscrits cette année</option>
-          <option value="non">Non réinscrits cette année</option>
+          <option value="oui">Réinscrits</option>
+          <option value="non">Non réinscrits</option>
         </AutoSubmitSelect>
         <button type="submit" className={buttonVariants({ variant: "secondary" })}>
           Rechercher
@@ -138,6 +165,7 @@ export default async function EtudiantsPage({
             ...(recherche ? { q: recherche } : {}),
             ...(sectionId ? { sectionId } : {}),
             ...(reinscription ? { reinscription } : {}),
+            ...(anneeSelectionneeId ? { anneeId: anneeSelectionneeId } : {}),
           }).toString()}`}
           className={buttonVariants({ variant: "secondary" })}
         >
@@ -145,8 +173,10 @@ export default async function EtudiantsPage({
         </a>
       </form>
       <p className="text-xs text-ink-faint">
-        L&apos;export reprend la recherche et les filtres Section/Réinscription
-        ci-dessus (laissez vides pour tout exporter).
+        Section(s) et Réinscription se lisent pour l&apos;année scolaire
+        choisie ci-dessus (par défaut l&apos;année active). L&apos;export
+        reprend la recherche et tous les filtres (laissez vides pour tout
+        exporter).
       </p>
 
       <TableWrap>
