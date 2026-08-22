@@ -25,8 +25,15 @@ export const config = {
      * Toutes les routes sauf :
      * - /login (page de connexion elle-même)
      * - /preinscription (formulaire public, sans compte)
-     * - ressources statiques Next.js et favicon
+     * - ressources statiques Next.js, favicon et logo
+     *
+     * Les fichiers sous /public doivent rester exclus : next/image résout
+     * une image locale via une requête interne simulée qui ne transmet
+     * jamais les cookies (voir next/dist/server/image-optimizer.js,
+     * fetchInternalImage) — sans cette exclusion, ce garde-fou la
+     * redirigerait systématiquement vers /login et casserait l'image pour
+     * tout le monde, connecté ou non.
      */
-    "/((?!login|preinscription|_next/static|_next/image|favicon.ico).*)",
+    "/((?!login|preinscription|_next/static|_next/image|favicon.ico|logo-loree-du-savoir.png).*)",
   ],
 };
