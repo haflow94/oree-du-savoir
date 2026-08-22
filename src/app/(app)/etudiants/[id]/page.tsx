@@ -9,7 +9,7 @@ import { formaterMontant } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { TYPE_DOCUMENT_LABELS } from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
-import { anneeScolaireActiveId } from "@/lib/sections-etudiant";
+import { estReinscrit } from "@/lib/sections-etudiant";
 import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
 import {
   modifierEtudiantAction,
@@ -66,7 +66,7 @@ export default async function EtudiantDetailPage({
   const { error, ok, classeSectionId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
-  const [etudiant, sections] = await Promise.all([
+  const [etudiant, sections, anneeActive] = await Promise.all([
     prisma.etudiant.findUnique({
       where: { id },
       include: {
@@ -92,6 +92,7 @@ export default async function EtudiantDetailPage({
       },
     }),
     prisma.section.findMany({ orderBy: { nom: "asc" } }),
+    prisma.anneeScolaire.findFirst({ where: { active: true } }),
   ]);
 
   if (!etudiant) {
@@ -99,7 +100,13 @@ export default async function EtudiantDetailPage({
   }
 
   const dejaInscritClasseIds = new Set(etudiant.inscriptions.map((i) => i.classe.id));
-  const anneeActiveId = peutInscrire ? await anneeScolaireActiveId() : null;
+  const anneeActiveId = anneeActive?.id ?? null;
+  const reinscritAnneeActive = anneeActiveId
+    ? estReinscrit({
+        inscriptions: etudiant.inscriptions.filter((i) => i.classe.anneeScolaireId === anneeActiveId),
+        dossiersAnnuels: etudiant.dossiersAnnuels.filter((d) => d.anneeScolaireId === anneeActiveId),
+      })
+    : false;
   const classesDisponibles =
     peutInscrire && anneeActiveId
       ? (
@@ -131,6 +138,11 @@ export default async function EtudiantDetailPage({
             {etudiant.prenom} {etudiant.nom}
             {etudiant.statutInscription === "PREINSCRIT" && (
               <Badge variant="info">Préinscrit — à valider</Badge>
+            )}
+            {etudiant.statutInscription === "VALIDE" && anneeActive && (
+              <Badge variant={reinscritAnneeActive ? "success" : "warning"}>
+                {reinscritAnneeActive ? "Réinscrit" : "Non réinscrit"} {anneeActive.libelle}
+              </Badge>
             )}
           </h1>
         </div>

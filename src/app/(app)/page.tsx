@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS } from "@/lib/roles";
 import { formaterMontant } from "@/lib/paiements";
+import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { Card } from "@/components/ui/card";
 
 export default async function DashboardPage() {
@@ -10,7 +11,7 @@ export default async function DashboardPage() {
 
   const anneeActive = await prisma.anneeScolaire.findFirst({ where: { active: true } });
 
-  const [nbEtudiants, nbClasses, dossiersAnnee, nbPreinscrits] = await Promise.all([
+  const [nbEtudiants, nbClasses, dossiersAnnee, nbPreinscrits, nbNonReinscrits] = await Promise.all([
     prisma.etudiant.count({ where: { statutInscription: "VALIDE" } }),
     anneeActive
       ? prisma.classe.count({ where: { anneeScolaireId: anneeActive.id } })
@@ -25,6 +26,14 @@ export default async function DashboardPage() {
         })
       : Promise.resolve([]),
     prisma.etudiant.count({ where: { statutInscription: "PREINSCRIT" } }),
+    anneeActive
+      ? prisma.etudiant.count({
+          where: {
+            statutInscription: "VALIDE",
+            ...filtreParReinscription(anneeActive.id, false),
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   const resteAEncaisser = dossiersAnnee.reduce((total, d) => {
@@ -45,6 +54,12 @@ export default async function DashboardPage() {
       href: "/paiements",
     },
     { label: "Dossiers à traiter", icon: "📁", valeur: nbPreinscrits, href: "/inscriptions" },
+    {
+      label: "Non réinscrits",
+      icon: "🔄",
+      valeur: nbNonReinscrits,
+      href: "/etudiants?reinscription=non",
+    },
   ];
 
   return (
