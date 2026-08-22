@@ -72,3 +72,30 @@ export function filtreParReinscription(anneeScolaireId: string, reinscrit: boole
     ? { AND: [aDossier, aInscription] }
     : { OR: [{ dossiersAnnuels: { none: { anneeScolaireId } } }, { inscriptions: { none: { classe: { anneeScolaireId } } } }] };
 }
+
+// Suggestion de montant dû pour un DossierAnnuel : somme des frais de
+// formation + frais de dossier des Sections où l'étudiant suit réellement
+// une classe cette année-là (Etudiant -> InscriptionClasse -> Classe ->
+// Cours -> Section). Toujours une SUGGESTION éditable, jamais imposée — le
+// staff garde la main (fratrie, remise…). Retourne null si l'étudiant n'a
+// aucun cours suivi cette année (rien à suggérer).
+export async function montantSuggereDossier(
+  etudiantId: string,
+  anneeScolaireId: string,
+): Promise<number | null> {
+  const inscriptions = await prisma.inscriptionClasse.findMany({
+    where: { etudiantId, classe: { anneeScolaireId } },
+    include: { classe: { include: { cours: { include: { section: true } } } } },
+  });
+  const sections = sectionsDInscriptions(inscriptions);
+  if (sections.length === 0) return null;
+
+  const sectionsCompletes = await prisma.section.findMany({
+    where: { id: { in: sections.map((s) => s.id) } },
+  });
+  return sectionsCompletes.reduce(
+    (somme, s) =>
+      somme + Number.parseFloat(s.fraisFormation.toString()) + Number.parseFloat(s.fraisDossier.toString()),
+    0,
+  );
+}

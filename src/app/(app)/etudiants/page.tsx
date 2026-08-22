@@ -15,10 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { AutoSubmitSelect } from "@/components/ui/auto-submit";
+import { CONTROL_CLASSES } from "@/components/ui/champ";
 
 const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
-const CONTROL_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 export default async function EtudiantsPage({
   searchParams,

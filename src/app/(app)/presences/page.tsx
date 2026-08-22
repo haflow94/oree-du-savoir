@@ -10,10 +10,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AutoSubmitInput } from "@/components/ui/auto-submit";
+import { CONTROL_CLASSES } from "@/components/ui/champ";
 
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
-const CONTROL_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 export default async function PresencesPage({
   searchParams,

@@ -11,9 +11,8 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { CONTROL_CLASSES } from "@/components/ui/champ";
 
-const CONTROL_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const CONTROL_SM_CLASSES =
   "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";

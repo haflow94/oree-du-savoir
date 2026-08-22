@@ -6,7 +6,10 @@ import type {
 } from "react";
 
 const LABEL_CLASSES = "mb-1 block text-sm font-medium text-ink";
-const CONTROL_CLASSES =
+// Source unique : réutilisée par tout input/select/textarea de l'appli,
+// géré par ce fichier ou construit à la main ailleurs (voir auto-submit.tsx
+// et les formulaires de filtre qui l'importent directement).
+export const CONTROL_CLASSES =
   "w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 export function Champ({

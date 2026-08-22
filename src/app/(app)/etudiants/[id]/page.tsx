@@ -50,6 +50,22 @@ const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 sha
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 const DT_CLASSES = "text-xs font-medium uppercase text-ink-faint";
 const DD_CLASSES = "mt-0.5 text-sm text-ink";
+const ZONE_TITLE_CLASSES = "mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint";
+const ZONE_CLASSES = "scroll-mt-20 space-y-4";
+const NAV_LINK_CLASSES = "font-medium text-ink-muted hover:text-pine-strong";
+
+function resteEtStatut(dossier: {
+  montantDu: { toString(): string };
+  echeances: { paiements: { montant: { toString(): string } }[] }[];
+}) {
+  const du = Number.parseFloat(dossier.montantDu.toString());
+  const encaisse = dossier.echeances
+    .flatMap((e) => e.paiements)
+    .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
+  const reste = du - encaisse;
+  const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
+  return { du, encaisse, reste, statut } as const;
+}
 
 export default async function EtudiantDetailPage({
   params,
@@ -132,6 +148,30 @@ export default async function EtudiantDetailPage({
     etudiant.inscriptions.length === 0 &&
     etudiant._count.presences === 0;
 
+  // Bandeau d'état : ce que la fiche cachait jusqu'ici (dossier financier de
+  // l'année active manquant, ou pas encore soldé) devient visible en tête,
+  // au lieu d'être enterré dans la carte Situation financière.
+  const dossierAnneeActive = anneeActiveId
+    ? etudiant.dossiersAnnuels.find((d) => d.anneeScolaireId === anneeActiveId)
+    : undefined;
+  let banniereFinance: { texte: string; lien: string } | null = null;
+  if (etudiant.statutInscription === "VALIDE" && anneeActive) {
+    if (!dossierAnneeActive) {
+      banniereFinance = {
+        texte: `Dossier financier ${anneeActive.libelle} manquant.`,
+        lien: `/paiements/nouveau?etudiantId=${etudiant.id}&anneeScolaireId=${anneeActive.id}`,
+      };
+    } else {
+      const { reste } = resteEtStatut(dossierAnneeActive);
+      if (reste > 0) {
+        banniereFinance = {
+          texte: `Reste ${formaterMontant(reste)} à encaisser pour ${anneeActive.libelle}.`,
+          lien: `/paiements/${dossierAnneeActive.id}`,
+        };
+      }
+    }
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
@@ -182,6 +222,37 @@ export default async function EtudiantDetailPage({
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
+      {banniereFinance && (
+        <Alert variant="warning">
+          {peutCreerDossier ? (
+            <Link href={banniereFinance.lien} className="underline">
+              {banniereFinance.texte}
+            </Link>
+          ) : (
+            banniereFinance.texte
+          )}
+        </Alert>
+      )}
+
+      <nav className="flex flex-wrap gap-4 border-b border-border pb-2 text-sm">
+        <a href="#zone-profil" className={NAV_LINK_CLASSES}>
+          Profil
+        </a>
+        <a href="#cours-suivis" className={NAV_LINK_CLASSES}>
+          Cours suivis
+        </a>
+        <a href="#zone-finances" className={NAV_LINK_CLASSES}>
+          Situation financière
+        </a>
+        {peutModifier && (
+          <a href="#zone-documents" className={NAV_LINK_CLASSES}>
+            Documents
+          </a>
+        )}
+      </nav>
+
+      <section id="zone-profil" className={ZONE_CLASSES}>
+      <p className={ZONE_TITLE_CLASSES}>Profil</p>
       {peutModifier ? (
         <form action={modifierEtudiantAction} className="space-y-6">
           <input type="hidden" name="etudiantId" value={etudiant.id} />
@@ -420,9 +491,11 @@ export default async function EtudiantDetailPage({
           </details>
         )}
       </Card>
+      </section>
 
-      <Card id="cours-suivis">
-        <CardTitle>Cours suivis</CardTitle>
+      <section id="cours-suivis" className={ZONE_CLASSES}>
+      <p className={ZONE_TITLE_CLASSES}>Cours suivis</p>
+      <Card>
         {etudiant.sectionSouhaitee && (
           <div className="mt-3">
             <Alert variant="info">
@@ -518,17 +591,35 @@ export default async function EtudiantDetailPage({
           </div>
         )}
       </Card>
+      </section>
+
+      <section id="zone-finances" className={ZONE_CLASSES}>
+      <p className={ZONE_TITLE_CLASSES}>Situation financière</p>
+
+      {peutCreerDossier && anneeActive && etudiant.statutInscription === "VALIDE" && !dossierAnneeActive && (
+        <div className="rounded-lg border border-dashed border-border-strong bg-bg-sunken/40 p-4 text-center">
+          <p className="text-sm text-ink-muted">
+            Aucun dossier pour l&apos;année <strong>{anneeActive.libelle}</strong>.
+          </p>
+          <Link
+            href={`/paiements/nouveau?etudiantId=${etudiant.id}&anneeScolaireId=${anneeActive.id}`}
+            className={`mt-2 inline-flex ${buttonVariants({ variant: "primary", size: "sm" })}`}
+          >
+            Créer le dossier {anneeActive.libelle}
+          </Link>
+        </div>
+      )}
 
       <Card>
         <div className="flex items-center justify-between">
-          <CardTitle>Situation financière</CardTitle>
+          <span className="text-xs text-ink-faint">Historique des dossiers</span>
           {peutCreerDossier && (
             <Link
               href={`/paiements/nouveau?etudiantId=${etudiant.id}`}
               className="flex items-center gap-1 text-xs font-medium text-pine hover:underline"
             >
               <Plus size={12} aria-hidden />
-              Nouveau dossier (réinscription)
+              Nouveau dossier
             </Link>
           )}
         </div>
@@ -539,12 +630,7 @@ export default async function EtudiantDetailPage({
         ) : (
           <ul className="mt-4 divide-y divide-border">
             {etudiant.dossiersAnnuels.map((d) => {
-              const du = Number.parseFloat(d.montantDu.toString());
-              const encaisse = d.echeances
-                .flatMap((e) => e.paiements)
-                .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
-              const reste = du - encaisse;
-              const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
+              const { du, reste, statut } = resteEtStatut(d);
               const statutVariant =
                 statut === "Soldé" ? "success" : statut === "Partiel" ? "warning" : "danger";
               return (
@@ -566,8 +652,11 @@ export default async function EtudiantDetailPage({
           </ul>
         )}
       </Card>
+      </section>
 
       {peutModifier && (
+      <section id="zone-documents" className={ZONE_CLASSES}>
+      <p className={ZONE_TITLE_CLASSES}>Documents</p>
         <Card>
           <CardTitle>Dossier officiel</CardTitle>
           <p className="mb-3 mt-1 text-xs text-ink-faint">
@@ -597,9 +686,7 @@ export default async function EtudiantDetailPage({
             </form>
           )}
         </Card>
-      )}
 
-      {peutModifier && (
         <Card>
           <CardTitle>Documents</CardTitle>
           {etudiant.documents.length === 0 ? (
@@ -672,6 +759,7 @@ export default async function EtudiantDetailPage({
             </Button>
           </form>
         </Card>
+      </section>
       )}
     </div>
   );
