@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/nav";
@@ -35,7 +36,7 @@ export function Sidebar({
           backgroundSize: "56px 56px",
         }}
       />
-      <div className="mb-6 px-3 font-display text-lg font-semibold tracking-tight text-on-accent">
+      <div className="mb-6 px-3 font-display text-2xl font-semibold tracking-tight text-on-accent">
         L&apos;Orée du Savoir
       </div>
       <nav className="flex flex-1 flex-col gap-1">
@@ -66,6 +67,17 @@ export function Sidebar({
           );
         })}
       </nav>
+      <div className="mt-4 flex justify-center border-t border-white/10 pt-4">
+        <div className="rounded-xl bg-[#f8f6ee] px-3 py-2.5 shadow-sm">
+          <Image
+            src="/logo-loree-du-savoir.png"
+            alt="Logo de l'association L'Orée du Savoir"
+            width={480}
+            height={633}
+            className="h-auto w-28"
+          />
+        </div>
+      </div>
     </aside>
   );
 }
