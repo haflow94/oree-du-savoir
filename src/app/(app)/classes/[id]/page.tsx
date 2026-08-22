@@ -12,9 +12,9 @@ import {
   inscrireEtudiantAction,
   retirerEtudiantAction,
 } from "../../presences/actions";
-import { modifierClasseAction, supprimerClasseAction } from "./actions";
+import { modifierClasseAction, supprimerClasseAction, dupliquerClasseAction } from "./actions";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Champ, ChampSelect } from "@/components/ui/champ";
+import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
@@ -22,8 +22,6 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
-const CONTROL_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const MESSAGES: Record<string, string> = {
@@ -151,7 +149,13 @@ export default async function ClasseDetailPage({
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <CardTitle>Modifier la classe</CardTitle>
-            <>
+            <div className="flex items-center gap-3">
+              <form action={dupliquerClasseAction}>
+                <input type="hidden" name="classeId" value={classe.id} />
+                <Button type="submit" variant="secondary" size="sm">
+                  Dupliquer cette classe
+                </Button>
+              </form>
               <form id="supprimer-classe" action={supprimerClasseAction}>
                 <input type="hidden" name="classeId" value={classe.id} />
               </form>
@@ -164,7 +168,7 @@ export default async function ClasseDetailPage({
                 disabled={!peutSupprimer}
                 disabledTitle="Des séances ou des inscriptions existent déjà : impossible de supprimer cette classe."
               />
-            </>
+            </div>
           </div>
           <form action={modifierClasseAction} className="space-y-4">
             <input type="hidden" name="classeId" value={classe.id} />

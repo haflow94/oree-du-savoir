@@ -9,16 +9,16 @@ import {
   supprimerCoursAction,
   dupliquerClassesAction,
 } from "./actions";
+import { dupliquerClasseAction } from "./[id]/actions";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { AutoSubmitSelect } from "@/components/ui/auto-submit";
+import { CONTROL_CLASSES } from "@/components/ui/champ";
 
 const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
-const CONTROL_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const CONTROL_SM_CLASSES =
   "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_SM_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
@@ -290,6 +290,7 @@ export default async function ClassesPage({
           <th className="px-4 py-3">Capacité</th>
           <th className="px-4 py-3">Enseignant(s)</th>
           <th className="px-4 py-3">Année</th>
+          {peutGerer && <th className="px-4 py-3" />}
         </TableHead>
         <tbody className="divide-y divide-border">
           {classes.map((c) => (
@@ -321,11 +322,21 @@ export default async function ClassesPage({
                   {c.anneeScolaire.libelle}
                 </Badge>
               </td>
+              {peutGerer && (
+                <td className="px-4 py-3 text-right">
+                  <form action={dupliquerClasseAction}>
+                    <input type="hidden" name="classeId" value={c.id} />
+                    <button type="submit" className="text-xs font-medium text-pine hover:underline">
+                      Dupliquer
+                    </button>
+                  </form>
+                </td>
+              )}
             </tr>
           ))}
           {classes.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={peutGerer ? 8 : 7} className="px-4 py-8 text-center text-ink-faint">
                 Aucune classe enregistrée pour l&apos;instant.
               </td>
             </tr>

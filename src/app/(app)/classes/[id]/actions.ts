@@ -80,6 +80,56 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
   retour(classeId);
 }
 
+// Copie une classe existante (cours, année, niveau, créneau, salle, capacité,
+// enseignants) pour éviter de tout resaisir quand on ouvre un second groupe
+// très proche du premier (ex. même cours à un autre horaire). La copie part
+// sans séances ni inscriptions ; on redirige vers sa fiche pour ajuster le
+// créneau si besoin.
+export async function dupliquerClasseAction(formData: FormData): Promise<void> {
+  const session = await requireRole(PEUT_GERER);
+
+  const classeId = champTexte(formData, "classeId");
+  if (!classeId) redirect("/classes");
+
+  const source = await prisma.classe.findUnique({
+    where: { id: classeId },
+    include: { enseignants: true },
+  });
+  if (!source) redirect("/classes");
+
+  const copie = await prisma.$transaction(async (tx) => {
+    const nouvelle = await tx.classe.create({
+      data: {
+        coursId: source.coursId,
+        anneeScolaireId: source.anneeScolaireId,
+        niveau: source.niveau,
+        semestre: source.semestre,
+        jour: source.jour,
+        heureDebut: source.heureDebut,
+        heureFin: source.heureFin,
+        salle: source.salle,
+        capacite: source.capacite,
+        enseignants: {
+          create: source.enseignants.map((e) => ({ utilisateurId: e.utilisateurId })),
+        },
+      },
+    });
+    await tx.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "duplication_classe",
+        entite: "Classe",
+        entiteId: nouvelle.id,
+        details: { depuisClasseId: classeId },
+      },
+    });
+    return nouvelle;
+  });
+
+  revalidatePath("/classes");
+  redirect(`/classes/${copie.id}?ok=1`);
+}
+
 export async function supprimerClasseAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER);
 
