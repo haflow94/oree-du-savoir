@@ -10,6 +10,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CONTROL_CLASSES } from "@/components/ui/champ";
 
@@ -17,12 +18,23 @@ const CONTROL_SM_CLASSES =
   "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
+const MESSAGES: Record<string, string> = {
+  CHAMPS_MANQUANTS: "Tous les champs sont obligatoires.",
+  FERMETURE_INTROUVABLE: "Cette période n'existe plus.",
+};
+
 function versChampDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
-export default async function FermeturesPage() {
+export default async function FermeturesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; ok?: string }>;
+}) {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
+  const { error, ok } = await searchParams;
+  const message = error ? MESSAGES[error] : undefined;
 
   const annees = await prisma.anneeScolaire.findMany({
     orderBy: { libelle: "desc" },
@@ -43,6 +55,9 @@ export default async function FermeturesPage() {
           ponctuel, annulez plutôt la séance concernée.
         </p>
       </div>
+
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       <Card>
         <CardTitle>Ajouter une période</CardTitle>

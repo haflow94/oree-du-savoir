@@ -7,6 +7,15 @@ import { FeuilleAppel } from "@/app/(app)/presences/[id]/feuille-appel";
 import { Alert } from "@/components/ui/alert";
 import { QuitterButton } from "@/components/ui/quitter-button";
 
+const MESSAGES: Record<string, string> = {
+  SEANCE_INDISPONIBLE: "Cette séance est annulée ou introuvable.",
+  ACCES_REFUSE: "Vous n'avez pas accès à cette classe.",
+  DELAI_CORRECTION_DEPASSE:
+    "Le délai de correction est dépassé : contactez l'administration.",
+  SAISIE_INCOMPLETE:
+    "Merci de renseigner un statut pour chaque étudiant inscrit avant de valider : aucune présence n'a été enregistrée.",
+};
+
 // Destination unique de la connexion faite en scannant le QR d'une classe
 // (voir /qr/[token] et requireSession dans src/lib/auth.ts) : volontairement
 // HORS du layout (app) — jamais de sidebar, jamais de topbar, jamais de lien
@@ -14,10 +23,14 @@ import { QuitterButton } from "@/components/ui/quitter-button";
 // seul moyen de sortir d'ici est le bouton Déconnexion.
 export default async function AppelPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ seanceId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { seanceId } = await params;
+  const { error } = await searchParams;
+  const message = error ? MESSAGES[error] : undefined;
   const session = await requireSession({ allowedSeanceId: seanceId });
 
   const donnees = await chargerSeanceAvecAppel(seanceId, session);
@@ -53,6 +66,8 @@ export default async function AppelPage({
               {seance.classe.salle && ` · ${seance.classe.salle}`}
             </p>
           </div>
+
+          {message && <Alert variant="danger">{message}</Alert>}
 
           {seance.statut === "ANNULEE" ? (
             <Alert variant="warning">

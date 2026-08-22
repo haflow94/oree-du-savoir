@@ -10,12 +10,25 @@ import { buttonVariants } from "@/components/ui/button";
 import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 
+const MESSAGES: Record<string, string> = {
+  SEANCE_INDISPONIBLE: "Cette séance est annulée ou introuvable.",
+  ACCES_REFUSE: "Vous n'avez pas accès à cette classe.",
+  DELAI_CORRECTION_DEPASSE:
+    "Le délai de correction est dépassé : contactez l'administration.",
+  SAISIE_INCOMPLETE:
+    "Merci de renseigner un statut pour chaque étudiant inscrit avant de valider : aucune présence n'a été enregistrée.",
+};
+
 export default async function SeancePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { id } = await params;
+  const { error } = await searchParams;
+  const message = error ? MESSAGES[error] : undefined;
   const session = await requireSession();
 
   const donnees = await chargerSeanceAvecAppel(id, session);
@@ -44,6 +57,8 @@ export default async function SeancePage({
         </p>
       </div>
 
+      {message && <Alert variant="danger">{message}</Alert>}
+
       {seance.statut === "VALIDEE" && (
         <Alert variant="success">
           Appel validé
@@ -54,6 +69,12 @@ export default async function SeancePage({
           {seance.saisieViaPapier && " (saisi depuis la feuille papier)"}.
           {verrouillee &&
             " Le délai de correction est dépassé : contactez l'administration."}
+        </Alert>
+      )}
+
+      {seance.statut === "ANNULEE" && (
+        <Alert variant="info">
+          Séance annulée{seance.motifAnnulation && ` : ${seance.motifAnnulation}`}.
         </Alert>
       )}
 

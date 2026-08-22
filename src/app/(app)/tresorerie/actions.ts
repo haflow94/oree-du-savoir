@@ -16,33 +16,40 @@ function champTexte(formData: FormData, nom: string): string | null {
   return nettoye.length > 0 ? nettoye : null;
 }
 
+function retourListe(erreur?: string): never {
+  redirect(erreur ? `/tresorerie?error=${erreur}` : "/tresorerie?ok=1");
+}
+
 export async function creerCategorieAction(formData: FormData): Promise<void> {
   await requireRole(PEUT_GERER);
   const nom = champTexte(formData, "nom");
-  if (!nom) return;
+  if (!nom) retourListe("CHAMPS_MANQUANTS");
 
   await prisma.categorieMouvement.create({ data: { nom } });
   revalidatePath("/tresorerie");
+  retourListe();
 }
 
 export async function modifierCategorieAction(formData: FormData): Promise<void> {
   await requireRole(PEUT_GERER);
   const categorieId = champTexte(formData, "categorieId");
   const nom = champTexte(formData, "nom");
-  if (!categorieId || !nom) return;
+  if (!categorieId || !nom) retourListe("CHAMPS_MANQUANTS");
 
   await prisma.categorieMouvement.update({ where: { id: categorieId }, data: { nom } });
   revalidatePath("/tresorerie");
+  retourListe();
 }
 
 export async function changerActivationCategorieAction(formData: FormData): Promise<void> {
   await requireRole(PEUT_GERER);
   const categorieId = champTexte(formData, "categorieId");
   const actif = formData.get("actif") === "1";
-  if (!categorieId) return;
+  if (!categorieId) retourListe("CHAMPS_MANQUANTS");
 
   await prisma.categorieMouvement.update({ where: { id: categorieId }, data: { actif } });
   revalidatePath("/tresorerie");
+  retourListe();
 }
 
 export async function creerMouvementAction(formData: FormData): Promise<void> {
@@ -63,7 +70,7 @@ export async function creerMouvementAction(formData: FormData): Promise<void> {
     !moyenBrut ||
     !(moyenBrut in MoyenPaiement)
   ) {
-    return;
+    retourListe("CHAMPS_INVALIDES");
   }
 
   await prisma.mouvementTresorerie.create({
@@ -79,6 +86,7 @@ export async function creerMouvementAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/tresorerie");
+  retourListe();
 }
 
 function retourMouvement(mouvementId: string, erreur?: string): never {

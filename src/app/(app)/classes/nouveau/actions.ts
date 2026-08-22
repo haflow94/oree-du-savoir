@@ -54,5 +54,5 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
     },
   });
 
-  redirect(`/classes?creee=${classe.id}`);
+  redirect(`/classes/${classe.id}?ok=1`);
 }

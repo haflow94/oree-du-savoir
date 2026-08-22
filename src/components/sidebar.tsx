@@ -30,13 +30,13 @@ export function Sidebar({
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-pine-strong px-3 py-5 text-sage-bg/80 md:flex">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-56 opacity-[0.08]"
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.08]"
         style={{
           backgroundImage: `url("${MOTIF_ENTRELACS}")`,
           backgroundSize: "56px 56px",
         }}
       />
-      <div className="mb-6 px-3 font-display text-2xl font-semibold tracking-tight text-on-accent">
+      <div className="mb-16 px-3 font-display text-3xl font-semibold tracking-tight text-on-accent underline decoration-ochre decoration-2 underline-offset-8">
         L&apos;Orée du Savoir
       </div>
       <nav className="flex flex-1 flex-col gap-1">
@@ -50,13 +50,13 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2.5 rounded-md px-3 py-2.5 font-display text-xl tracking-tight transition-colors ${
+              className={`flex items-center gap-2.5 rounded-md px-3 py-2 font-display text-base tracking-tight transition-colors ${
                 active
                   ? "bg-ochre/25 font-semibold text-on-accent"
                   : "font-medium text-sage-bg/80 hover:bg-white/10 hover:text-on-accent"
               }`}
             >
-              <Icon aria-hidden size={20} strokeWidth={1.75} />
+              <Icon aria-hidden size={16} strokeWidth={1.75} />
               {item.label}
               {!!badges?.[item.href] && (
                 <span className="ml-auto rounded-full bg-ochre px-1.5 py-0.5 text-[10px] font-semibold text-on-accent">

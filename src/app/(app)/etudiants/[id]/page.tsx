@@ -41,6 +41,7 @@ const MESSAGES: Record<string, string> = {
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
     "Impossible de supprimer : un dossier annuel, une inscription ou des présences existent déjà pour cet étudiant.",
+  INSCRIPTION_INVALIDE: "Sélectionnez une classe à inscrire.",
 };
 
 function versChampDate(date: Date | null): string {
@@ -344,7 +345,7 @@ export default async function EtudiantDetailPage({
 
           <div className="flex justify-end">
             <Button type="submit" variant="primary">
-              Enregistrer les modifications
+              Enregistrer les informations personnelles
             </Button>
           </div>
         </form>
@@ -530,6 +531,7 @@ export default async function EtudiantDetailPage({
                 </div>
                 {peutInscrire && (
                   <form action={retirerEtudiantAction}>
+                    <input type="hidden" name="origine" value="etudiant" />
                     <input type="hidden" name="inscriptionId" value={i.id} />
                     <input type="hidden" name="classeId" value={i.classe.id} />
                     <input type="hidden" name="etudiantId" value={etudiant.id} />
@@ -562,6 +564,7 @@ export default async function EtudiantDetailPage({
 
             {classesDisponibles.length > 0 ? (
               <form action={inscrireEtudiantAction} className="flex flex-wrap items-end gap-2">
+                <input type="hidden" name="origine" value="etudiant" />
                 <input type="hidden" name="etudiantId" value={etudiant.id} />
                 <ChampSelect label="Classe" name="classeId" required className="w-full max-w-sm">
                   {classesDisponibles.map((c) => (

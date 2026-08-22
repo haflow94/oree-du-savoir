@@ -37,6 +37,13 @@ const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const ERROR_MESSAGES: Record<string, string> = {
   DOSSIER_EXISTANT: "Un dossier existe déjà pour cet étudiant sur cette année.",
+  CHAMPS_MANQUANTS: "Merci de renseigner tous les champs obligatoires.",
+  CHAMPS_INVALIDES: "Le moyen de paiement ou le statut sélectionné n'est pas valide.",
+  ECHEANCE_INTROUVABLE: "Cette échéance n'existe plus.",
+  ECHEANCE_UTILISEE: "Impossible de supprimer : un paiement existe déjà sur cette échéance.",
+  DOSSIER_INTROUVABLE: "Ce dossier n'existe plus.",
+  PAIEMENT_INTROUVABLE: "Ce paiement n'existe plus.",
+  CHEQUE_INTROUVABLE: "Ce chèque n'existe plus.",
 };
 
 export default async function DossierPaiementPage({
@@ -44,13 +51,13 @@ export default async function DossierPaiementPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const session = await requireSession();
   const peutSaisir = hasRole(session.role, PEUT_SAISIR);
   const peutGererCheque = hasRole(session.role, PEUT_GERER_CHEQUE);
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, ok } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
   const dossier = await prisma.dossierAnnuel.findUnique({
@@ -92,6 +99,7 @@ export default async function DossierPaiementPage({
       </div>
 
       {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
+      {ok && !errorMessage && <Alert variant="success">Modification enregistrée.</Alert>}
 
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4">
@@ -159,6 +167,7 @@ export default async function DossierPaiementPage({
                     action={modifierEcheanceAction}
                     className="mt-2 flex flex-wrap items-end gap-2"
                   >
+                    <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                     <input type="hidden" name="echeanceId" value={e.id} />
                     <div>
                       <label className={LABEL_XS_CLASSES}>Libellé</label>
@@ -196,6 +205,7 @@ export default async function DossierPaiementPage({
                     </Button>
                   </form>
                   <form action={supprimerEcheanceAction} className="mt-2">
+                    <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                     <input type="hidden" name="echeanceId" value={e.id} />
                     <button
                       type="submit"
@@ -243,6 +253,7 @@ export default async function DossierPaiementPage({
                               action={modifierPaiementAction}
                               className="mt-1 flex items-center gap-2"
                             >
+                              <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                               <input type="hidden" name="paiementId" value={p.id} />
                               <input
                                 type="number"
@@ -262,6 +273,7 @@ export default async function DossierPaiementPage({
                       </div>
                       {p.cheque && peutGererCheque && (
                         <form action={mettreAJourChequeAction} className="mt-2 flex flex-wrap items-center gap-2">
+                          <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                           <input type="hidden" name="chequeId" value={p.cheque.id} />
                           <select
                             name="statut"
@@ -297,6 +309,7 @@ export default async function DossierPaiementPage({
                     Nouveau paiement
                   </h4>
                   <form action={enregistrerPaiementAction} className="flex flex-wrap items-end gap-2">
+                    <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                     <input type="hidden" name="echeanceId" value={e.id} />
                     <div>
                       <label className={LABEL_XS_CLASSES}>Montant</label>

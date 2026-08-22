@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireSession, requireRole } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { requireSession, requireRole, type SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
 import { peutAccederClasse, estAdministratif } from "@/lib/acces-presence";
@@ -19,6 +20,25 @@ function champTexte(formData: FormData, nom: string): string | null {
   return nettoye.length > 0 ? nettoye : null;
 }
 
+function retourClasse(classeId: string, erreur?: string): never {
+  redirect(erreur ? `/classes/${classeId}?error=${erreur}` : `/classes/${classeId}?ok=1`);
+}
+
+// inscrireEtudiantAction/retirerEtudiantAction sont utilisées à la fois
+// depuis la fiche classe et depuis la fiche étudiant (voir les deux
+// page.tsx) : le champ caché "origine" indique où rediriger après coup.
+function retourInscription(
+  origine: string | null,
+  classeId: string,
+  etudiantId: string | null,
+  erreur?: string,
+): never {
+  if (origine === "etudiant" && etudiantId) {
+    redirect(erreur ? `/etudiants/${etudiantId}?error=${erreur}` : `/etudiants/${etudiantId}?ok=1`);
+  }
+  retourClasse(classeId, erreur);
+}
+
 /**
  * (Re)génère les séances d'une classe sur son année scolaire, en sautant les
  * périodes de fermeture. Idempotent : les séances déjà présentes ne sont pas
@@ -28,7 +48,7 @@ export async function genererSeancesAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
 
   const classeId = champTexte(formData, "classeId");
-  if (!classeId) return;
+  if (!classeId) redirect("/classes");
 
   const classe = await prisma.classe.findUnique({
     where: { id: classeId },
@@ -36,7 +56,7 @@ export async function genererSeancesAction(formData: FormData): Promise<void> {
       anneeScolaire: { include: { periodesFermeture: true } },
     },
   });
-  if (!classe) return;
+  if (!classe) retourClasse(classeId, "CLASSE_INTROUVABLE");
 
   const dates = datesDesSeances(
     classe.jour,
@@ -52,14 +72,17 @@ export async function genererSeancesAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/classes/${classeId}`);
   revalidatePath("/presences");
+  retourClasse(classeId);
 }
 
 export async function inscrireEtudiantAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION, Role.ACCUEIL]);
 
+  const origine = champTexte(formData, "origine");
   const classeId = champTexte(formData, "classeId");
   const etudiantId = champTexte(formData, "etudiantId");
-  if (!classeId || !etudiantId) return;
+  if (!classeId) redirect("/classes");
+  if (!etudiantId) retourInscription(origine, classeId, etudiantId, "INSCRIPTION_INVALIDE");
 
   const statut = await statutPourNouvelleInscription(classeId);
   await prisma.$transaction([
@@ -78,15 +101,18 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
 
   revalidatePath(`/classes/${classeId}`);
   revalidatePath(`/etudiants/${etudiantId}`);
+  retourInscription(origine, classeId, etudiantId);
 }
 
 export async function retirerEtudiantAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION, Role.ACCUEIL]);
 
+  const origine = champTexte(formData, "origine");
   const inscriptionId = champTexte(formData, "inscriptionId");
   const classeId = champTexte(formData, "classeId");
   const etudiantId = champTexte(formData, "etudiantId");
-  if (!inscriptionId || !classeId) return;
+  if (!classeId) redirect("/classes");
+  if (!inscriptionId) retourInscription(origine, classeId, etudiantId, "INSCRIPTION_INVALIDE");
 
   await prisma.inscriptionClasse.delete({ where: { id: inscriptionId } });
   // La place libérée (si elle était confirmée) revient à la plus ancienne
@@ -96,13 +122,26 @@ export async function retirerEtudiantAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/classes/${classeId}`);
   if (etudiantId) revalidatePath(`/etudiants/${etudiantId}`);
+  retourInscription(origine, classeId, etudiantId);
+}
+
+// Une session restreinte au QR (voir requireSession dans src/lib/auth.ts) ne
+// doit jamais atterrir sur /presences/{id} : cette page appelle
+// requireSession() sans allowedSeanceId et la renverrait aussitôt vers
+// /appel/{id}, cassant la page pour l'enseignant connecté via QR. On la
+// redirige donc directement vers sa feuille isolée ; le staff connecté
+// normalement garde /presences/{id} comme avant.
+function retourSeance(seanceId: string, erreur?: string, session?: SessionUser): never {
+  const base =
+    session?.seanceRestreinteId === seanceId ? `/appel/${seanceId}` : `/presences/${seanceId}`;
+  redirect(erreur ? `${base}?error=${erreur}` : `${base}?ok=1`);
 }
 
 export async function annulerSeanceAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
 
   const seanceId = champTexte(formData, "seanceId");
-  if (!seanceId) return;
+  if (!seanceId) redirect("/presences");
 
   await prisma.seance.update({
     where: { id: seanceId },
@@ -114,6 +153,11 @@ export async function annulerSeanceAction(formData: FormData): Promise<void> {
 
   revalidatePath("/presences");
   revalidatePath(`/presences/${seanceId}`);
+  retourSeance(seanceId);
+}
+
+function retourFermetures(erreur?: string): never {
+  redirect(erreur ? `/presences/fermetures?error=${erreur}` : "/presences/fermetures?ok=1");
 }
 
 export async function creerPeriodeFermetureAction(
@@ -125,7 +169,9 @@ export async function creerPeriodeFermetureAction(
   const libelle = champTexte(formData, "libelle");
   const dateDebut = champTexte(formData, "dateDebut");
   const dateFin = champTexte(formData, "dateFin");
-  if (!anneeScolaireId || !libelle || !dateDebut || !dateFin) return;
+  if (!anneeScolaireId || !libelle || !dateDebut || !dateFin) {
+    retourFermetures("CHAMPS_MANQUANTS");
+  }
 
   await prisma.periodeFermeture.create({
     data: {
@@ -137,6 +183,7 @@ export async function creerPeriodeFermetureAction(
   });
 
   revalidatePath("/presences/fermetures");
+  retourFermetures();
 }
 
 export async function modifierPeriodeFermetureAction(
@@ -148,7 +195,8 @@ export async function modifierPeriodeFermetureAction(
   const libelle = champTexte(formData, "libelle");
   const dateDebut = champTexte(formData, "dateDebut");
   const dateFin = champTexte(formData, "dateFin");
-  if (!periodeId || !libelle || !dateDebut || !dateFin) return;
+  if (!periodeId) redirect("/presences/fermetures");
+  if (!libelle || !dateDebut || !dateFin) retourFermetures("CHAMPS_MANQUANTS");
 
   await prisma.$transaction([
     prisma.periodeFermeture.update({
@@ -166,6 +214,7 @@ export async function modifierPeriodeFermetureAction(
   ]);
 
   revalidatePath("/presences/fermetures");
+  retourFermetures();
 }
 
 export async function supprimerPeriodeFermetureAction(
@@ -174,10 +223,10 @@ export async function supprimerPeriodeFermetureAction(
   const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
 
   const periodeId = champTexte(formData, "periodeId");
-  if (!periodeId) return;
+  if (!periodeId) redirect("/presences/fermetures");
 
   const cible = await prisma.periodeFermeture.findUnique({ where: { id: periodeId } });
-  if (!cible) return;
+  if (!cible) retourFermetures("FERMETURE_INTROUVABLE");
 
   await prisma.$transaction([
     prisma.periodeFermeture.delete({ where: { id: periodeId } }),
@@ -193,6 +242,7 @@ export async function supprimerPeriodeFermetureAction(
   ]);
 
   revalidatePath("/presences/fermetures");
+  retourFermetures();
 }
 
 /**
@@ -203,7 +253,7 @@ export async function supprimerPeriodeFermetureAction(
  */
 export async function validerPresencesAction(formData: FormData): Promise<void> {
   const seanceId = champTexte(formData, "seanceId");
-  if (!seanceId) return;
+  if (!seanceId) redirect("/presences");
 
   const session = await requireSession({ allowedSeanceId: seanceId });
 
@@ -222,9 +272,13 @@ export async function validerPresencesAction(formData: FormData): Promise<void> 
       },
     },
   });
-  if (!seance || seance.statut === "ANNULEE") return;
+  if (!seance || seance.statut === "ANNULEE") {
+    retourSeance(seanceId, "SEANCE_INDISPONIBLE", session);
+  }
 
-  if (!(await peutAccederClasse(session, seance.classeId))) return;
+  if (!(await peutAccederClasse(session, seance.classeId))) {
+    retourSeance(seanceId, "ACCES_REFUSE", session);
+  }
 
   // Une séance déjà validée n'est modifiable par l'enseignant que le jour
   // même ; l'administration peut corriger sans limite.
@@ -233,7 +287,7 @@ export async function validerPresencesAction(formData: FormData): Promise<void> 
     !estAdministratif(session.role) &&
     !enseignantPeutCorriger(seance.date)
   ) {
-    return;
+    retourSeance(seanceId, "DELAI_CORRECTION_DEPASSE", session);
   }
 
   const saisies = seance.classe.inscriptions
@@ -249,7 +303,9 @@ export async function validerPresencesAction(formData: FormData): Promise<void> 
 
   // Refuse une validation partielle : mieux vaut ne rien écrire que d'écrire
   // une feuille incomplète qui ressemblerait à une feuille validée.
-  if (saisies.length !== seance.classe.inscriptions.length) return;
+  if (saisies.length !== seance.classe.inscriptions.length) {
+    retourSeance(seanceId, "SAISIE_INCOMPLETE", session);
+  }
 
   const saisieViaPapier = formData.get("saisieViaPapier") === "1";
 
@@ -285,4 +341,7 @@ export async function validerPresencesAction(formData: FormData): Promise<void> 
 
   revalidatePath("/presences");
   revalidatePath(`/presences/${seanceId}`);
+  // Pas de redirect avec ?ok=1 ici : la page affiche déjà un état de succès
+  // dérivé du statut VALIDEE en base (voir presences/[id]/page.tsx), donc un
+  // message générique en plus ferait doublon.
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque } from "@/generated/prisma/enums";
@@ -16,13 +17,20 @@ function champTexte(formData: FormData, nom: string): string | null {
   return nettoye.length > 0 ? nettoye : null;
 }
 
+function retour(dossierAnnuelId: string, erreur?: string): never {
+  redirect(
+    erreur ? `/paiements/${dossierAnnuelId}?error=${erreur}` : `/paiements/${dossierAnnuelId}?ok=1`,
+  );
+}
+
 export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
   await requireRole(PEUT_SAISIR);
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const montant = champTexte(formData, "montant");
   const dateEcheance = champTexte(formData, "dateEcheance");
-  if (!dossierAnnuelId || !montant || !dateEcheance) return;
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!montant || !dateEcheance) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
 
   await prisma.echeance.create({
     data: {
@@ -34,21 +42,24 @@ export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
   });
 
   revalidatePath(`/paiements/${dossierAnnuelId}`);
+  retour(dossierAnnuelId);
 }
 
 export async function enregistrerPaiementAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_SAISIR);
 
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
   const montant = champTexte(formData, "montant");
   const moyenBrut = champTexte(formData, "moyen");
+  if (!dossierAnnuelId) redirect("/paiements");
   if (!echeanceId || !montant || !moyenBrut || !(moyenBrut in MoyenPaiement)) {
-    return;
+    retour(dossierAnnuelId, "CHAMPS_INVALIDES");
   }
   const moyen = moyenBrut as MoyenPaiement;
 
   const echeance = await prisma.echeance.findUnique({ where: { id: echeanceId } });
-  if (!echeance) return;
+  if (!echeance) retour(dossierAnnuelId, "ECHEANCE_INTROUVABLE");
 
   const paiement = await prisma.paiement.create({
     data: {
@@ -92,18 +103,21 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
 
   revalidatePath(`/paiements/${echeance.dossierAnnuelId}`);
   revalidatePath("/paiements");
+  retour(echeance.dossierAnnuelId);
 }
 
 export async function modifierEcheanceAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER_CHEQUE);
 
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
   const montant = champTexte(formData, "montant");
   const dateEcheance = champTexte(formData, "dateEcheance");
-  if (!echeanceId || !montant || !dateEcheance) return;
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!echeanceId || !montant || !dateEcheance) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
 
   const cible = await prisma.echeance.findUnique({ where: { id: echeanceId } });
-  if (!cible) return;
+  if (!cible) retour(dossierAnnuelId, "ECHEANCE_INTROUVABLE");
 
   await prisma.$transaction([
     prisma.echeance.update({
@@ -128,25 +142,28 @@ export async function modifierEcheanceAction(formData: FormData): Promise<void> 
   // Le dossier réellement modifié est celui de l'échéance elle-même, pas la
   // valeur (potentiellement obsolète/manipulée) soumise par le formulaire.
   revalidatePath(`/paiements/${cible.dossierAnnuelId}`);
+  retour(cible.dossierAnnuelId);
 }
 
 export async function supprimerEcheanceAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER_CHEQUE);
 
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
-  if (!echeanceId) return;
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!echeanceId) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
 
   const cible = await prisma.echeance.findUnique({
     where: { id: echeanceId },
     include: { _count: { select: { paiements: true } } },
   });
-  if (!cible) return;
+  if (!cible) retour(dossierAnnuelId, "ECHEANCE_INTROUVABLE");
 
   // Un paiement déjà encaissé sur cette échéance implique une écriture
   // financière déjà constituée : on refuse la suppression plutôt que de la
   // faire disparaître silencieusement (voir modifierPaiementAction pour
   // corriger un paiement, ou saisir un mouvement compensatoire).
-  if (cible._count.paiements > 0) return;
+  if (cible._count.paiements > 0) retour(cible.dossierAnnuelId, "ECHEANCE_UTILISEE");
 
   await prisma.$transaction([
     prisma.echeance.delete({ where: { id: echeanceId } }),
@@ -162,6 +179,7 @@ export async function supprimerEcheanceAction(formData: FormData): Promise<void>
   ]);
 
   revalidatePath(`/paiements/${cible.dossierAnnuelId}`);
+  retour(cible.dossierAnnuelId);
 }
 
 export async function modifierMontantDuAction(formData: FormData): Promise<void> {
@@ -169,10 +187,11 @@ export async function modifierMontantDuAction(formData: FormData): Promise<void>
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const montantDu = champTexte(formData, "montantDu");
-  if (!dossierAnnuelId || !montantDu) return;
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!montantDu) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
 
   const cible = await prisma.dossierAnnuel.findUnique({ where: { id: dossierAnnuelId } });
-  if (!cible) return;
+  if (!cible) retour(dossierAnnuelId, "DOSSIER_INTROUVABLE");
 
   await prisma.$transaction([
     prisma.dossierAnnuel.update({
@@ -192,16 +211,17 @@ export async function modifierMontantDuAction(formData: FormData): Promise<void>
 
   revalidatePath(`/paiements/${dossierAnnuelId}`);
   revalidatePath("/paiements");
+  retour(dossierAnnuelId);
 }
 
 export async function basculerRembourseAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER_CHEQUE);
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
-  if (!dossierAnnuelId) return;
+  if (!dossierAnnuelId) redirect("/paiements");
 
   const cible = await prisma.dossierAnnuel.findUnique({ where: { id: dossierAnnuelId } });
-  if (!cible) return;
+  if (!cible) retour(dossierAnnuelId, "DOSSIER_INTROUVABLE");
 
   const rembourse = !cible.rembourse;
 
@@ -219,20 +239,23 @@ export async function basculerRembourseAction(formData: FormData): Promise<void>
 
   revalidatePath(`/paiements/${dossierAnnuelId}`);
   revalidatePath("/paiements");
+  retour(dossierAnnuelId);
 }
 
 export async function modifierPaiementAction(formData: FormData): Promise<void> {
   const session = await requireRole(PEUT_GERER_CHEQUE);
 
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const paiementId = champTexte(formData, "paiementId");
   const montant = champTexte(formData, "montant");
-  if (!paiementId || !montant) return;
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!paiementId || !montant) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
 
   const cible = await prisma.paiement.findUnique({
     where: { id: paiementId },
     include: { echeance: true },
   });
-  if (!cible) return;
+  if (!cible) retour(dossierAnnuelId, "PAIEMENT_INTROUVABLE");
 
   await prisma.$transaction([
     prisma.paiement.update({ where: { id: paiementId }, data: { montant } }),
@@ -249,15 +272,18 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
 
   revalidatePath(`/paiements/${cible.echeance.dossierAnnuelId}`);
   revalidatePath("/paiements");
+  retour(cible.echeance.dossierAnnuelId);
 }
 
 export async function mettreAJourChequeAction(formData: FormData): Promise<void> {
   await requireRole(PEUT_GERER_CHEQUE);
 
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const chequeId = champTexte(formData, "chequeId");
   const statutBrut = champTexte(formData, "statut");
+  if (!dossierAnnuelId) redirect("/paiements");
   if (!chequeId || !statutBrut || !(statutBrut in StatutCheque)) {
-    return;
+    retour(dossierAnnuelId, "CHAMPS_INVALIDES");
   }
   const statut = statutBrut as StatutCheque;
 
@@ -265,7 +291,7 @@ export async function mettreAJourChequeAction(formData: FormData): Promise<void>
     where: { id: chequeId },
     include: { paiement: { include: { echeance: true } } },
   });
-  if (!cible) return;
+  if (!cible) retour(dossierAnnuelId, "CHEQUE_INTROUVABLE");
 
   await prisma.cheque.update({
     where: { id: chequeId },
@@ -278,4 +304,5 @@ export async function mettreAJourChequeAction(formData: FormData): Promise<void>
   });
 
   revalidatePath(`/paiements/${cible.paiement.echeance.dossierAnnuelId}`);
+  retour(cible.paiement.echeance.dossierAnnuelId);
 }

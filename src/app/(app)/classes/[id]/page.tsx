@@ -30,6 +30,8 @@ const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Jour et horaires sont obligatoires.",
   CLASSE_UTILISEE:
     "Impossible de supprimer : des séances ou des inscriptions existent déjà pour cette classe.",
+  CLASSE_INTROUVABLE: "Cette classe n'existe plus.",
+  INSCRIPTION_INVALIDE: "Sélectionnez un étudiant à inscrire.",
 };
 
 export default async function ClasseDetailPage({
@@ -321,6 +323,7 @@ export default async function ClasseDetailPage({
                 </div>
                 {peutInscrire && (
                   <form action={retirerEtudiantAction}>
+                    <input type="hidden" name="origine" value="classe" />
                     <input type="hidden" name="inscriptionId" value={i.id} />
                     <input type="hidden" name="classeId" value={classe.id} />
                     <input type="hidden" name="etudiantId" value={i.etudiantId} />
@@ -351,6 +354,7 @@ export default async function ClasseDetailPage({
 
             {etudiantsDisponibles.length > 0 ? (
               <form action={inscrireEtudiantAction} className="flex flex-wrap gap-2">
+                <input type="hidden" name="origine" value="classe" />
                 <input type="hidden" name="classeId" value={classe.id} />
                 <select name="etudiantId" required className={`w-full max-w-xs ${CONTROL_CLASSES}`}>
                   {etudiantsDisponibles.map((e) => (

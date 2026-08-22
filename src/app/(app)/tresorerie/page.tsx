@@ -13,6 +13,7 @@ import { Role, hasRole } from "@/lib/roles";
 import { CategoriesDialog } from "./categories-dialog";
 import { NouveauMouvementDialog } from "./nouveau-mouvement-dialog";
 import { Card } from "@/components/ui/card";
+import { Alert } from "@/components/ui/alert";
 import { buttonVariants } from "@/components/ui/button";
 import { IconChip } from "@/components/ui/icon-chip";
 import { TableWrap, TableHead } from "@/components/ui/table";
@@ -22,6 +23,11 @@ import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 
 const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
+
+const MESSAGES: Record<string, string> = {
+  CHAMPS_MANQUANTS: "Le nom de la catégorie est obligatoire.",
+  CHAMPS_INVALIDES: "Merci de renseigner tous les champs du mouvement.",
+};
 
 function versDateStr(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -37,12 +43,15 @@ export default async function TresoreriePage({
     categorieId?: string;
     moyen?: string;
     q?: string;
+    error?: string;
+    ok?: string;
   }>;
 }) {
   const session = await requireSession();
   const peutGerer = hasRole(session.role, PEUT_GERER);
-  const { dateDebut, dateFin, type, categorieId, moyen, q } = await searchParams;
+  const { dateDebut, dateFin, type, categorieId, moyen, q, error, ok } = await searchParams;
   const recherche = q?.trim().toLowerCase() ?? "";
+  const message = error ? MESSAGES[error] : undefined;
 
   const [mouvements, toutesCategories] = await Promise.all([
     prisma.mouvementTresorerie.findMany({
@@ -148,6 +157,9 @@ export default async function TresoreriePage({
           Exporter en CSV{filtresActifs ? " (période affichée)" : ""}
         </Link>
       </div>
+
+      {message && <Alert variant="danger">{message}</Alert>}
+      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Card>
