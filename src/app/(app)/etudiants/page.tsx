@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { Role, hasRole } from "@/lib/roles";
 import {
   anneeScolaireActiveId,
+  estReinscrit,
+  filtreParReinscription,
   filtreParSection,
+  inclureDossierAnnuelActif,
   inclureInscriptionsActives,
   sectionsDInscriptions,
 } from "@/lib/sections-etudiant";
@@ -21,10 +24,15 @@ const CONTROL_CLASSES =
 export default async function EtudiantsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; sectionId?: string; supprime?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    sectionId?: string;
+    reinscription?: string;
+    supprime?: string;
+  }>;
 }) {
   const session = await requireSession();
-  const { q, sectionId, supprime } = await searchParams;
+  const { q, sectionId, reinscription, supprime } = await searchParams;
   const recherche = q?.trim() ?? "";
 
   const [anneeActiveId, sections] = await Promise.all([
@@ -43,6 +51,11 @@ export default async function EtudiantsPage({
           }
         : {}),
       ...(sectionId && anneeActiveId ? filtreParSection(anneeActiveId, sectionId) : {}),
+      ...(reinscription === "oui" || reinscription === "non"
+        ? anneeActiveId
+          ? filtreParReinscription(anneeActiveId, reinscription === "oui")
+          : {}
+        : {}),
     },
     orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     include: {
@@ -52,6 +65,9 @@ export default async function EtudiantsPage({
       inscriptions: anneeActiveId
         ? inclureInscriptionsActives(anneeActiveId)
         : { where: { id: "" }, include: { classe: { include: { cours: { include: { section: true } } } } } },
+      dossiersAnnuels: anneeActiveId
+        ? inclureDossierAnnuelActif(anneeActiveId)
+        : { where: { id: "" } },
     },
   });
 
@@ -101,6 +117,19 @@ export default async function EtudiantsPage({
             </option>
           ))}
         </AutoSubmitSelect>
+        <label htmlFor="reinscription" className="sr-only">
+          Réinscription
+        </label>
+        <AutoSubmitSelect
+          id="reinscription"
+          name="reinscription"
+          defaultValue={reinscription ?? ""}
+          className={CONTROL_CLASSES}
+        >
+          <option value="">Réinscrits et non réinscrits</option>
+          <option value="oui">Réinscrits cette année</option>
+          <option value="non">Non réinscrits cette année</option>
+        </AutoSubmitSelect>
         <button type="submit" className={buttonVariants({ variant: "secondary" })}>
           Rechercher
         </button>
@@ -108,6 +137,7 @@ export default async function EtudiantsPage({
           href={`/etudiants/export?${new URLSearchParams({
             ...(recherche ? { q: recherche } : {}),
             ...(sectionId ? { sectionId } : {}),
+            ...(reinscription ? { reinscription } : {}),
           }).toString()}`}
           className={buttonVariants({ variant: "secondary" })}
         >
@@ -115,8 +145,8 @@ export default async function EtudiantsPage({
         </a>
       </form>
       <p className="text-xs text-ink-faint">
-        L&apos;export reprend la recherche et le filtre Section ci-dessus
-        (laissez vides pour tout exporter).
+        L&apos;export reprend la recherche et les filtres Section/Réinscription
+        ci-dessus (laissez vides pour tout exporter).
       </p>
 
       <TableWrap>
@@ -124,6 +154,7 @@ export default async function EtudiantsPage({
           <th className="px-4 py-3">Nom</th>
           <th className="px-4 py-3">Prénom</th>
           <th className="px-4 py-3">Section(s)</th>
+          <th className="px-4 py-3">Réinscription</th>
           <th className="px-4 py-3">Date de naissance</th>
           <th className="px-4 py-3">Téléphone</th>
           <th className="px-4 py-3">Email</th>
@@ -153,6 +184,13 @@ export default async function EtudiantsPage({
                     </div>
                   )}
                 </td>
+                <td className="px-4 py-3">
+                  {estReinscrit(e) ? (
+                    <Badge variant="success">Réinscrit</Badge>
+                  ) : (
+                    <Badge variant="warning">Non réinscrit</Badge>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-ink-muted">
                   {e.dateNaissance
                     ? new Date(e.dateNaissance).toLocaleDateString("fr-FR")
@@ -166,7 +204,7 @@ export default async function EtudiantsPage({
           })}
           {etudiants.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={8} className="px-4 py-8 text-center text-ink-faint">
                 {recherche
                   ? "Aucun étudiant ne correspond à cette recherche."
                   : "Aucun étudiant enregistré pour l'instant."}
