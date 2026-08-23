@@ -2,7 +2,7 @@
 
 import { Menu, Search, LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
-import type { NavItem } from "@/lib/nav";
+import { NAV_ITEMS } from "@/lib/nav";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { logoutAction } from "@/app/(app)/logout-action";
 
@@ -10,13 +10,19 @@ type TopbarProps = {
   nom: string;
   prenom: string;
   role: Role;
-  /** Liens déjà filtrés selon les droits de la session (voir (app)/layout.tsx). */
-  items: NavItem[];
+  /**
+   * Href déjà filtrés selon les droits de la session (voir (app)/layout.tsx).
+   * Uniquement des chaînes : NAV_ITEMS (avec ses icônes, non sérialisables)
+   * reste importé ici côté client plutôt que transmis en prop depuis le
+   * Server Component.
+   */
+  hrefsVisibles: string[];
   anneeActive: string | null;
 };
 
-export function Topbar({ nom, prenom, role, items, anneeActive }: TopbarProps) {
+export function Topbar({ nom, prenom, role, hrefsVisibles, anneeActive }: TopbarProps) {
   const pathname = usePathname();
+  const items = NAV_ITEMS.filter((item) => hrefsVisibles.includes(item.href));
   const current =
     items.find((item) =>
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),

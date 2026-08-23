@@ -29,19 +29,24 @@ export default async function AppLayout({
   // Le tableau de bord (item sans module) agrège plusieurs modules, jamais
   // pertinent pour Enseignant qui n'a accès qu'à Présences (voir la
   // redirection dans (app)/page.tsx) — masqué ici pour cohérence du menu.
-  const items = NAV_ITEMS.filter(
+  //
+  // On ne fait transiter que les `href` visibles (des chaînes, sérialisables)
+  // du Server Component vers Sidebar/Topbar ("use client") : NAV_ITEMS
+  // contient des composants icône (LucideIcon), que Next.js refuse de
+  // sérialiser à travers la frontière serveur/client si on les passe en prop.
+  const hrefsVisibles = NAV_ITEMS.filter(
     (item, i) => visibilites[i] && !(item.href === "/" && session.role === Role.ENSEIGNANT),
-  );
+  ).map((item) => item.href);
 
   return (
     <div className="flex min-h-screen flex-1">
-      <Sidebar items={items} badges={{ "/activites": rappels.length }} />
+      <Sidebar hrefsVisibles={hrefsVisibles} badges={{ "/activites": rappels.length }} />
       <div className="relative flex min-w-0 flex-1 flex-col">
         <Topbar
           nom={session.nom}
           prenom={session.prenom}
           role={session.role}
-          items={items}
+          hrefsVisibles={hrefsVisibles}
           anneeActive={anneeActive?.libelle ?? null}
         />
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
