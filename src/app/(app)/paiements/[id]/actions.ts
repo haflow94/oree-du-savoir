@@ -302,3 +302,31 @@ export async function mettreAJourChequeAction(formData: FormData): Promise<void>
   revalidatePath(`/paiements/${cible.paiement.echeance.dossierAnnuelId}`);
   retour(cible.paiement.echeance.dossierAnnuelId);
 }
+
+export async function mettreAJourPrelevementAction(formData: FormData): Promise<void> {
+  await requireModule(Module.PAIEMENTS, "ECRITURE");
+
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  const prelevementId = champTexte(formData, "prelevementId");
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!prelevementId) retour(dossierAnnuelId, "CHAMPS_INVALIDES");
+
+  const cible = await prisma.prelevement.findUnique({
+    where: { id: prelevementId },
+    include: { paiement: { include: { echeance: true } } },
+  });
+  if (!cible) retour(dossierAnnuelId, "PRELEVEMENT_INTROUVABLE");
+
+  const rejete = formData.get("rejete") === "on";
+
+  await prisma.prelevement.update({
+    where: { id: prelevementId },
+    data: {
+      rejete,
+      motifRejet: rejete ? champTexte(formData, "motifRejet") : null,
+    },
+  });
+
+  revalidatePath(`/paiements/${cible.paiement.echeance.dossierAnnuelId}`);
+  retour(cible.paiement.echeance.dossierAnnuelId);
+}

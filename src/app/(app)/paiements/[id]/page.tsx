@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
+  INCIDENT_LABELS,
   MOYEN_LABELS,
   STATUT_CHEQUE_LABELS,
   STATUT_COTISATION_VARIANTS,
   formaterMontant,
+  incidentDePaiement,
   statutCotisation,
 } from "@/lib/paiements";
 import {
@@ -12,6 +14,7 @@ import {
   basculerRembourseAction,
   enregistrerPaiementAction,
   mettreAJourChequeAction,
+  mettreAJourPrelevementAction,
   modifierMontantDuAction,
   modifierPaiementAction,
   modifierEcheanceAction,
@@ -41,6 +44,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   DOSSIER_INTROUVABLE: "Ce dossier n'existe plus.",
   PAIEMENT_INTROUVABLE: "Ce paiement n'existe plus.",
   CHEQUE_INTROUVABLE: "Ce chèque n'existe plus.",
+  PRELEVEMENT_INTROUVABLE: "Ce prélèvement n'existe plus.",
 };
 
 export default async function DossierPaiementPage({
@@ -78,8 +82,17 @@ export default async function DossierPaiementPage({
 
   const { du, encaisse, reste, statut } = statutCotisation(dossier);
 
+  // Incidents (chèque impayé, prélèvement rejeté) toutes échéances
+  // confondues sur ce dossier — voir lib/paiements.ts#incidentDePaiement.
+  const incidents = dossier.echeances.flatMap((e) =>
+    e.paiements.flatMap((p) => {
+      const incident = incidentDePaiement(p);
+      return incident ? [{ echeance: e, paiement: p, incident }] : [];
+    }),
+  );
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <BackLink href="/paiements" label="Paiements" />
@@ -101,6 +114,31 @@ export default async function DossierPaiementPage({
       {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
       {ok && !errorMessage && <Alert variant="success">Modification enregistrée.</Alert>}
 
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        <aside className="space-y-4 lg:order-first">
+          <Card>
+            <CardTitle>Incidents</CardTitle>
+            {incidents.length === 0 ? (
+              <p className="mt-3 text-sm text-ink-faint">Aucun incident sur ce dossier.</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {incidents.map(({ echeance, paiement, incident }) => (
+                  <li key={paiement.id} className="rounded-lg border border-rust-border bg-rust-bg p-2.5">
+                    <Badge variant="danger">{INCIDENT_LABELS[incident.type]}</Badge>
+                    <p className="mt-1.5 text-xs text-ink">
+                      {echeance.libelle || "Échéance"} · {formaterMontant(paiement.montant.toString())}
+                    </p>
+                    {incident.motif && (
+                      <p className="mt-0.5 text-xs text-ink-muted">{incident.motif}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </aside>
+
+        <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
         <Card className="p-4">
           <div className="text-xs uppercase text-ink-faint">Dû</div>
@@ -225,7 +263,9 @@ export default async function DossierPaiementPage({
 
               {e.paiements.length > 0 && (
                 <ul className="mt-3 space-y-2 border-t border-border pt-3">
-                  {e.paiements.map((p) => (
+                  {e.paiements.map((p) => {
+                    const incident = incidentDePaiement(p);
+                    return (
                     <li key={p.id} className="text-sm text-ink-muted">
                       <div className="flex flex-wrap items-center gap-2">
                         <span>{formaterMontant(p.montant.toString())}</span>
@@ -243,6 +283,12 @@ export default async function DossierPaiementPage({
                             {p.prelevement.referenceMandat &&
                               `mandat ${p.prelevement.referenceMandat}`}
                           </Badge>
+                        )}
+                        <span className="text-xs uppercase text-ink-faint">Incident :</span>
+                        {incident ? (
+                          <Badge variant="danger">{INCIDENT_LABELS[incident.type]}</Badge>
+                        ) : (
+                          <span className="text-xs text-ink-faint">—</span>
                         )}
                         {peutGererCheque && (
                           <details>
@@ -298,8 +344,36 @@ export default async function DossierPaiementPage({
                           </Button>
                         </form>
                       )}
+                      {p.prelevement && peutGererCheque && (
+                        <form
+                          action={mettreAJourPrelevementAction}
+                          className="mt-2 flex flex-wrap items-center gap-2"
+                        >
+                          <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                          <input type="hidden" name="prelevementId" value={p.prelevement.id} />
+                          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+                            <input
+                              type="checkbox"
+                              name="rejete"
+                              defaultChecked={p.prelevement.rejete}
+                            />
+                            Rejeté
+                          </label>
+                          <input
+                            type="text"
+                            name="motifRejet"
+                            placeholder="Motif si rejeté"
+                            defaultValue={p.prelevement.motifRejet ?? ""}
+                            className={CONTROL_XS_CLASSES}
+                          />
+                          <Button type="submit" variant="secondary" size="sm">
+                            Mettre à jour
+                          </Button>
+                        </form>
+                      )}
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
 
@@ -373,6 +447,8 @@ export default async function DossierPaiementPage({
           </form>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }

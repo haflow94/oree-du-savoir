@@ -61,9 +61,9 @@ Public/unauthenticated actions (e.g. `src/app/preinscription/actions.ts`) skip s
 - `Document` stores metadata only; the actual file lives on disk under `DOCUMENTS_DIR` (`src/lib/documents.ts`). Never build a file path from client input — always resolve through the DB row's stored `cheminRelatif`.
 - `JournalAudit` is the append-only trail for sensitive actions across the app, surfaced at *Administration → Journal d'audit* (Bureau-only).
 
-### PDF generation (`src/lib/dossier-officiel.tsx`)
+### Official dossier generation (`src/lib/dossier-officiel.ts`)
 
-The official "dossier d'inscription" is generated server-side with `@react-pdf/renderer` (no headless browser/Chromium dependency — keeps the Docker image light) from live DB data (étudiant + chosen `Section`'s tariffs/refund schedule), not a static template. Route handler `(app)/etudiants/[id]/dossier/route.ts` renders it, persists it as a `Document` (type DOSSIER_GENERE) so it stays retrievable after the physical signature, and streams it back.
+The official "dossier d'inscription" is generated server-side as a `.docx`, not a PDF: `docxtemplater` + `pizzip` fill the association's original Word templates (one per `Section`, under `src/lib/dossier-templates/`, tagged by hand with `{tag}` placeholders) with live DB data (étudiant + responsable + chosen `Section`'s tariffs/refund schedule) — no headless browser/Chromium dependency, keeps the Docker image light, and keeps the exact wording/formatting the association already knows. Route handler `(app)/etudiants/[id]/dossier/route.ts` renders it, persists it as a `Document` (type DOSSIER_GENERE) so it stays retrievable after the physical signature, and streams it back.
 
 ### Non-negotiable rules (`Projet/04_Regles_non_negociables.md`)
 

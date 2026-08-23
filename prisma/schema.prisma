@@ -628,8 +628,11 @@ model Cheque {
 
 // Détails spécifiques au prélèvement SEPA, en 1-1 avec le paiement
 // (uniquement quand Paiement.moyen = PRELEVEMENT). Pas de cycle de statut
-// comme pour le chèque : la trésorerie reste simple (règle non négociable),
-// à revoir seulement si le suivi des rejets de prélèvement s'avère utile.
+// multi-étapes comme pour le chèque (RECU/DEPOSE/ENCAISSE) : la trésorerie
+// reste simple (règle non négociable) — juste un incident binaire (rejeté ou
+// non) + son motif, symétrique à `Cheque.motifRejet`, pour le suivi des
+// incidents de paiement (voir lib/paiements.ts#incidentDePaiement,
+// (app)/paiements/[id]).
 model Prelevement {
   id              String   @id @default(cuid())
   paiementId      String   @unique
@@ -638,6 +641,8 @@ model Prelevement {
   bic             String?
   titulaire       String?
   referenceMandat String?
+  rejete          Boolean  @default(false)
+  motifRejet      String?
 
   @@map("prelevements")
 }

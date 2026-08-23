@@ -21,6 +21,30 @@ export const STATUT_CHEQUE_LABELS: Record<StatutCheque, string> = {
   REJETE: "Rejeté",
 };
 
+// Incident de paiement : chèque impayé (Cheque.statut = REJETE) ou
+// prélèvement rejeté (Prelevement.rejete) — les deux seuls moyens ayant une
+// sous-table dédiée, donc les deux seuls pouvant échouer après coup
+// (espèces/CB/virement sont considérés définitifs à la saisie).
+export type IncidentPaiement = { type: "CHEQUE" | "PRELEVEMENT"; motif: string | null };
+
+export const INCIDENT_LABELS: Record<IncidentPaiement["type"], string> = {
+  CHEQUE: "Chèque impayé",
+  PRELEVEMENT: "Prélèvement rejeté",
+};
+
+export function incidentDePaiement(paiement: {
+  cheque?: { statut: StatutCheque; motifRejet: string | null } | null;
+  prelevement?: { rejete: boolean; motifRejet: string | null } | null;
+}): IncidentPaiement | null {
+  if (paiement.cheque && paiement.cheque.statut === "REJETE") {
+    return { type: "CHEQUE", motif: paiement.cheque.motifRejet };
+  }
+  if (paiement.prelevement?.rejete) {
+    return { type: "PRELEVEMENT", motif: paiement.prelevement.motifRejet };
+  }
+  return null;
+}
+
 export const TYPE_MOUVEMENT_LABELS: Record<TypeMouvement, string> = {
   RECETTE: "Recette",
   DEPENSE: "Dépense",
