@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasRole, Role } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import {
   VUES_CALENDRIER,
   VUE_LABELS,
@@ -25,8 +24,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { IconChip } from "@/components/ui/icon-chip";
-
-const PEUT_GERER = [Role.BUREAU, Role.ADMINISTRATION, Role.ACTIVITE];
 
 function parJour<T>(items: T[], dateDe: (item: T) => Date): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -74,8 +71,8 @@ export default async function CalendrierPage({
 }: {
   searchParams: Promise<{ vue?: string; date?: string }>;
 }) {
-  const session = await requireSession();
-  const peutGerer = hasRole(session.role, PEUT_GERER);
+  const session = await requireModule(Module.CALENDRIER, "LECTURE");
+  const peutGerer = await peutAccederModule(session.role, Module.CALENDRIER, "ECRITURE");
   const { vue: vueParam, date: dateParam } = await searchParams;
   const vue: VueCalendrier = estVueCalendrier(vueParam) ? vueParam : "semaine";
   const dateRef = depuisParamDate(dateParam) ?? aujourdhuiUTC();

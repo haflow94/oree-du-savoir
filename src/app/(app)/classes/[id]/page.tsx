@@ -2,9 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, hasRole } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { estAdministratif } from "@/lib/acces-presence";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import { enseignantsActifsAvecSections } from "@/lib/enseignants";
@@ -23,7 +22,6 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
 const LABEL_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const MESSAGES: Record<string, string> = {
@@ -45,8 +43,8 @@ export default async function ClasseDetailPage({
     etudQ?: string;
   }>;
 }) {
-  const session = await requireSession();
-  const peutGerer = hasRole(session.role, PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "LECTURE");
+  const peutGerer = await peutAccederModule(session.role, Module.CLASSES, "ECRITURE");
   const { id } = await params;
   const { error, ok, etudQ } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
@@ -74,7 +72,7 @@ export default async function ClasseDetailPage({
   }
 
   const administratif = estAdministratif(session.role);
-  const peutInscrire = administratif || session.role === Role.ACCUEIL;
+  const peutInscrire = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
 
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
   // Ne proposer que les enseignants déjà rattachés à la section de ce cours

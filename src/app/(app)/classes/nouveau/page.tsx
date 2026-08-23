@@ -1,6 +1,5 @@
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import { enseignantsActifsAvecSections } from "@/lib/enseignants";
 import { NouvelleClasseForm } from "./nouvelle-classe-form";
 import { BackLink } from "@/components/ui/back-link";
@@ -16,7 +15,7 @@ export default async function NouvelleClassePage({
 }: {
   searchParams: Promise<{ error?: string; depuis?: string }>;
 }) {
-  await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
+  await requireModule(Module.CLASSES, "ECRITURE");
   const { error, depuis } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 

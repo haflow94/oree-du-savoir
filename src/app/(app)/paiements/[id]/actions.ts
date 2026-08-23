@@ -2,13 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque } from "@/generated/prisma/enums";
-import { Role } from "@/lib/roles";
-
-const PEUT_SAISIR = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
-const PEUT_GERER_CHEQUE = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -24,7 +20,7 @@ function retour(dossierAnnuelId: string, erreur?: string): never {
 }
 
 export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_SAISIR);
+  await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const montant = champTexte(formData, "montant");
@@ -46,7 +42,7 @@ export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
 }
 
 export async function enregistrerPaiementAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_SAISIR);
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
@@ -107,7 +103,7 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
 }
 
 export async function modifierEcheanceAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER_CHEQUE);
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
@@ -146,7 +142,7 @@ export async function modifierEcheanceAction(formData: FormData): Promise<void> 
 }
 
 export async function supprimerEcheanceAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER_CHEQUE);
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
@@ -183,7 +179,7 @@ export async function supprimerEcheanceAction(formData: FormData): Promise<void>
 }
 
 export async function modifierMontantDuAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER_CHEQUE);
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const montantDu = champTexte(formData, "montantDu");
@@ -215,7 +211,7 @@ export async function modifierMontantDuAction(formData: FormData): Promise<void>
 }
 
 export async function basculerRembourseAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER_CHEQUE);
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   if (!dossierAnnuelId) redirect("/paiements");
@@ -243,7 +239,7 @@ export async function basculerRembourseAction(formData: FormData): Promise<void>
 }
 
 export async function modifierPaiementAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER_CHEQUE);
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const paiementId = champTexte(formData, "paiementId");
@@ -276,7 +272,7 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
 }
 
 export async function mettreAJourChequeAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_GERER_CHEQUE);
+  await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const chequeId = champTexte(formData, "chequeId");

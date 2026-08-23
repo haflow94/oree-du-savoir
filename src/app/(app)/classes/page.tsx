@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { GraduationCap } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
-import { Role, hasRole } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { supprimerClasseAction } from "./[id]/actions";
 import { CoursDialog } from "./cours-dialog";
 import { DupliquerClassesDialog } from "./dupliquer-classes-dialog";
@@ -15,8 +14,6 @@ import { AutoSubmitSelect } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconChip } from "@/components/ui/icon-chip";
-
-const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
 
 const ERREURS_COURS = ["CHAMPS_INVALIDES", "NOM_DEJA_UTILISE", "INTROUVABLE", "COURS_UTILISE"];
 const ERREURS_DUPLICATION = ["ANNEE_SOURCE_MANQUANTE", "AUCUNE_ANNEE_ACTIVE", "MEME_ANNEE"];
@@ -45,8 +42,8 @@ export default async function ClassesPage({
     q?: string;
   }>;
 }) {
-  const session = await requireSession();
-  const peutGerer = hasRole(session.role, PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "LECTURE");
+  const peutGerer = await peutAccederModule(session.role, Module.CLASSES, "ECRITURE");
   const { error, ok, sectionId, jour, salle, anneeScolaireId, q } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   const recherche = q?.trim() ?? "";

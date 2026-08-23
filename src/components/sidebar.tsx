@@ -3,9 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "@/lib/nav";
-import type { Role } from "@/lib/roles";
-import { hasRole } from "@/lib/roles";
+import type { NavItem } from "@/lib/nav";
 
 // Entrelacs géométrique discret (losanges imbriqués), en filigrane derrière
 // le menu — clin d'œil à l'identité de l'école, jamais au-dessus du texte.
@@ -14,17 +12,15 @@ const MOTIF_ENTRELACS = `data:image/svg+xml,${encodeURIComponent(
 )}`;
 
 export function Sidebar({
-  role,
+  items,
   badges,
 }: {
-  role: Role;
+  /** Liens déjà filtrés selon les droits de la session (voir (app)/layout.tsx). */
+  items: NavItem[];
   /** Compteur à afficher en pastille à côté d'un lien, par href (ex. rappels d'activités). */
   badges?: Partial<Record<string, number>>;
 }) {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter(
-    (item) => !item.rolesAllowed || hasRole(role, item.rolesAllowed),
-  );
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-pine-strong px-3 py-5 text-sage-bg/80 md:flex">

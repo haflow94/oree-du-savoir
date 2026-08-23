@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Trash2, Upload } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, hasRole } from "@/lib/roles";
-import { estAdministratif } from "@/lib/acces-presence";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { TYPE_DOCUMENT_LABELS } from "@/lib/documents";
@@ -30,10 +28,6 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChampSelectAuto } from "@/components/ui/auto-submit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-
-const PEUT_MODIFIER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
-const PEUT_CREER_DOSSIER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
-const PEUT_SUPPRIMER = [Role.ADMINISTRATION, Role.BUREAU];
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Le nom et le prénom sont obligatoires.",
@@ -63,10 +57,15 @@ export default async function EtudiantDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; ok?: string; classeSectionId?: string }>;
 }) {
-  const session = await requireSession();
-  const peutModifier = hasRole(session.role, PEUT_MODIFIER);
-  const peutCreerDossier = hasRole(session.role, PEUT_CREER_DOSSIER);
-  const peutInscrire = estAdministratif(session.role) || session.role === Role.ACCUEIL;
+  const session = await requireModule(Module.ETUDIANTS, "LECTURE");
+  const [peutModifier, peutGererDocuments, peutCreerDossier, peutInscrire, peutSupprimer] =
+    await Promise.all([
+      peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE"),
+      peutAccederModule(session.role, Module.DOCUMENTS, "ECRITURE"),
+      peutAccederModule(session.role, Module.PAIEMENTS, "ECRITURE"),
+      peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE"),
+      peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE"),
+    ]);
   const { id } = await params;
   const { error, ok, classeSectionId: classeSectionIdParam } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
@@ -135,7 +134,6 @@ export default async function EtudiantDetailPage({
         ).filter((c) => !dejaInscritClasseIds.has(c.id))
       : [];
 
-  const peutSupprimer = hasRole(session.role, PEUT_SUPPRIMER);
   const etudiantSupprimable =
     etudiant.dossiersAnnuels.length === 0 &&
     etudiant.inscriptions.length === 0 &&
@@ -242,7 +240,7 @@ export default async function EtudiantDetailPage({
         <a href="#zone-finances" className={NAV_LINK_CLASSES}>
           Situation financière
         </a>
-        {peutModifier && (
+        {peutGererDocuments && (
           <a href="#zone-documents" className={NAV_LINK_CLASSES}>
             Documents
           </a>
@@ -653,7 +651,7 @@ export default async function EtudiantDetailPage({
       </Card>
       </section>
 
-      {peutModifier && (
+      {peutGererDocuments && (
       <section id="zone-documents" className={ZONE_CLASSES}>
       <p className={ZONE_TITLE_CLASSES}>Documents</p>
         <Card>

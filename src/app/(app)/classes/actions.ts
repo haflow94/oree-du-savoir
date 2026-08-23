@@ -2,18 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
-
-const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 function retour(erreur?: string): never {
   redirect(erreur ? `/classes?error=${erreur}` : "/classes?ok=1");
 }
 
 export async function creerCoursAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_GERER);
+  await requireModule(Module.CLASSES, "ECRITURE");
   const nom = String(formData.get("nom") ?? "").trim();
   const sectionId = String(formData.get("sectionId") ?? "").trim();
   if (!nom || !sectionId) retour("CHAMPS_INVALIDES");
@@ -28,7 +25,7 @@ export async function creerCoursAction(formData: FormData): Promise<void> {
 }
 
 export async function modifierCoursAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
   const coursId = String(formData.get("coursId") ?? "").trim();
   const nom = String(formData.get("nom") ?? "").trim();
   const sectionId = String(formData.get("sectionId") ?? "").trim();
@@ -63,7 +60,7 @@ export async function modifierCoursAction(formData: FormData): Promise<void> {
 // à l'identique. Idempotent par (cours, niveau, jour, heure de début) : ne
 // duplique jamais une classe déjà présente sur l'année active.
 export async function dupliquerClassesAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
   const anneeSourceId = String(formData.get("anneeSourceId") ?? "").trim();
   if (!anneeSourceId) retour("ANNEE_SOURCE_MANQUANTE");
 
@@ -127,7 +124,7 @@ export async function dupliquerClassesAction(formData: FormData): Promise<void> 
 }
 
 export async function supprimerCoursAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
   const coursId = String(formData.get("coursId") ?? "").trim();
   if (!coursId) retour("CHAMPS_INVALIDES");
 

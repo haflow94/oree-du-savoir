@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { JOUR_LABELS } from "@/lib/planning";
 import { genererDossierOfficielDocx } from "@/lib/dossier-officiel";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
-
-const PEUT_GENERER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 const MIME_DOCX =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -21,7 +18,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await requireRole(PEUT_GENERER);
+  const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
   const { id: etudiantId } = await params;
   const sectionId = request.nextUrl.searchParams.get("sectionId");
   if (!sectionId) {

@@ -2,14 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { Civilite, TypeDocument } from "@/generated/prisma/enums";
 import { enregistrerDocumentEtudiant, supprimerFichierDocument } from "@/lib/documents";
-
-const PEUT_MODIFIER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
-const PEUT_SUPPRIMER = [Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -32,7 +28,7 @@ function retour(etudiantId: string, erreur?: string): never {
 }
 
 export async function modifierEtudiantAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   const nom = champTexte(formData, "nom");
@@ -80,7 +76,7 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
 }
 
 export async function validerInscriptionAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   if (!etudiantId) redirect("/etudiants");
@@ -110,7 +106,7 @@ function estTypeDocument(valeur: string | null): valeur is TypeDocument {
 }
 
 export async function televerserDocumentAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   const type = champTexte(formData, "type");
@@ -150,7 +146,7 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
 }
 
 export async function supprimerDocumentAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   const documentId = champTexte(formData, "documentId");
@@ -179,7 +175,7 @@ export async function supprimerDocumentAction(formData: FormData): Promise<void>
 }
 
 export async function supprimerEtudiantAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_SUPPRIMER);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   if (!etudiantId) redirect("/etudiants");
@@ -229,7 +225,7 @@ export async function supprimerEtudiantAction(formData: FormData): Promise<void>
 }
 
 export async function ajouterResponsableAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   const nom = champTexte(formData, "nom");
@@ -265,7 +261,7 @@ export async function ajouterResponsableAction(formData: FormData): Promise<void
 }
 
 export async function modifierResponsableAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   const responsableId = champTexte(formData, "responsableId");
@@ -303,7 +299,7 @@ export async function modifierResponsableAction(formData: FormData): Promise<voi
 }
 
 export async function supprimerResponsableAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_MODIFIER);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
   const responsableId = champTexte(formData, "responsableId");

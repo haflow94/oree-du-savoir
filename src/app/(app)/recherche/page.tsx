@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, hasRole } from "@/lib/roles";
+import { peutAccederModule, Module } from "@/lib/permissions";
 import { JOUR_LABELS } from "@/lib/planning";
 import { Card, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-
-const PEUT_VOIR_DOCUMENTS = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
 
 export default async function RecherchePage({
   searchParams,
@@ -29,38 +27,53 @@ export default async function RecherchePage({
     );
   }
 
-  const peutVoirDocuments = hasRole(session.role, PEUT_VOIR_DOCUMENTS);
+  // Page ouverte à tout rôle connecté (agrège plusieurs modules) : chaque
+  // catégorie n'est cherchée que si la session a au moins lecture sur son
+  // module (voir la grille de permissions, lib/permissions.ts).
+  const [peutVoirEtudiants, peutVoirClasses, peutVoirTresorerie, peutVoirDocuments] =
+    await Promise.all([
+      peutAccederModule(session.role, Module.ETUDIANTS, "LECTURE"),
+      peutAccederModule(session.role, Module.CLASSES, "LECTURE"),
+      peutAccederModule(session.role, Module.TRESORERIE, "LECTURE"),
+      peutAccederModule(session.role, Module.DOCUMENTS, "LECTURE"),
+    ]);
 
   const [etudiants, classes, mouvements, documents] = await Promise.all([
-    prisma.etudiant.findMany({
-      where: {
-        OR: [
-          { nom: { contains: recherche, mode: "insensitive" } },
-          { prenom: { contains: recherche, mode: "insensitive" } },
-          { email: { contains: recherche, mode: "insensitive" } },
-          { telephoneMobile: { contains: recherche, mode: "insensitive" } },
-        ],
-      },
-      orderBy: [{ nom: "asc" }, { prenom: "asc" }],
-      take: 20,
-    }),
-    prisma.classe.findMany({
-      where: {
-        OR: [
-          { cours: { nom: { contains: recherche, mode: "insensitive" } } },
-          { niveau: { contains: recherche, mode: "insensitive" } },
-          { salle: { contains: recherche, mode: "insensitive" } },
-        ],
-      },
-      include: { cours: true, anneeScolaire: true },
-      orderBy: { jour: "asc" },
-      take: 20,
-    }),
-    prisma.mouvementTresorerie.findMany({
-      where: { libelle: { contains: recherche, mode: "insensitive" } },
-      orderBy: { date: "desc" },
-      take: 20,
-    }),
+    peutVoirEtudiants
+      ? prisma.etudiant.findMany({
+          where: {
+            OR: [
+              { nom: { contains: recherche, mode: "insensitive" } },
+              { prenom: { contains: recherche, mode: "insensitive" } },
+              { email: { contains: recherche, mode: "insensitive" } },
+              { telephoneMobile: { contains: recherche, mode: "insensitive" } },
+            ],
+          },
+          orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+          take: 20,
+        })
+      : Promise.resolve([]),
+    peutVoirClasses
+      ? prisma.classe.findMany({
+          where: {
+            OR: [
+              { cours: { nom: { contains: recherche, mode: "insensitive" } } },
+              { niveau: { contains: recherche, mode: "insensitive" } },
+              { salle: { contains: recherche, mode: "insensitive" } },
+            ],
+          },
+          include: { cours: true, anneeScolaire: true },
+          orderBy: { jour: "asc" },
+          take: 20,
+        })
+      : Promise.resolve([]),
+    peutVoirTresorerie
+      ? prisma.mouvementTresorerie.findMany({
+          where: { libelle: { contains: recherche, mode: "insensitive" } },
+          orderBy: { date: "desc" },
+          take: 20,
+        })
+      : Promise.resolve([]),
     peutVoirDocuments
       ? prisma.document.findMany({
           where: { nomFichier: { contains: recherche, mode: "insensitive" } },

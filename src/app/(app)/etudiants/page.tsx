@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { Users } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { Role, hasRole } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import {
   compterHistoriqueAutreAnnee,
   estNouveauParCompteur,
@@ -24,8 +23,6 @@ import { IconChip } from "@/components/ui/icon-chip";
 import { statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { dossierDocumentaireComplet } from "@/lib/documents";
 
-const PEUT_CREER = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
-
 type Population = "adultes" | "jeunes";
 
 export default async function EtudiantsPage({
@@ -40,7 +37,8 @@ export default async function EtudiantsPage({
     population?: string;
   }>;
 }) {
-  const session = await requireSession();
+  const session = await requireModule(Module.ETUDIANTS, "LECTURE");
+  const peutCreer = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
   const { q, sectionId, reinscription, anneeId, supprime, population } = await searchParams;
   const recherche = q?.trim() ?? "";
   const populationSelectionnee: Population = population === "jeunes" ? "jeunes" : "adultes";
@@ -125,7 +123,7 @@ export default async function EtudiantsPage({
             </p>
           </div>
         </div>
-        {hasRole(session.role, PEUT_CREER) && (
+        {peutCreer && (
           <Link href="/etudiants/nouveau" className={buttonVariants({ variant: "primary" })}>
             + Nouvel étudiant
           </Link>

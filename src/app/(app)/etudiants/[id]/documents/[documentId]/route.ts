@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { lireDocument } from "@/lib/documents";
-
-const PEUT_VOIR = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 // Le chemin sur disque n'est jamais pris depuis l'URL : on ne sert que le
 // document dont l'id est en base, avec vérification que etudiantId
@@ -16,7 +13,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> },
 ) {
-  await requireRole(PEUT_VOIR);
+  await requireModule(Module.DOCUMENTS, "LECTURE");
   const { id: etudiantId, documentId } = await params;
   const telecharger = request.nextUrl.searchParams.get("telecharger") === "1";
 

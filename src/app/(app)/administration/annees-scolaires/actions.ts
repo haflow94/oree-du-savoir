@@ -2,11 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
-
-const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -31,7 +28,7 @@ function retour(erreur?: string): never {
 }
 
 export async function creerAnneeScolaireAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 
   const libelle = champTexte(formData, "libelle");
   const dateDebut = champDate(formData, "dateDebut");
@@ -68,7 +65,7 @@ export async function creerAnneeScolaireAction(formData: FormData): Promise<void
 }
 
 export async function modifierAnneeScolaireAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 
   const anneeId = champTexte(formData, "anneeId");
   const libelle = champTexte(formData, "libelle");
@@ -106,7 +103,7 @@ export async function modifierAnneeScolaireAction(formData: FormData): Promise<v
 }
 
 export async function activerAnneeScolaireAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 
   const anneeId = champTexte(formData, "anneeId");
   if (!anneeId) retour("CHAMPS_INVALIDES");

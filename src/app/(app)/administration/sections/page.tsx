@@ -1,6 +1,5 @@
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import {
   creerSectionAction,
   modifierSectionAction,
@@ -28,7 +27,7 @@ export default async function SectionsPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
+  await requireModule(Module.ADMINISTRATION, "ECRITURE");
   const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 

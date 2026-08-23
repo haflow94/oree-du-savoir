@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ClipboardList } from "lucide-react";
-import { requireSession } from "@/lib/auth";
+import { requireModule, Module } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { IconChip } from "@/components/ui/icon-chip";
 
 export default async function InscriptionsPage() {
-  await requireSession();
+  await requireModule(Module.INSCRIPTIONS, "LECTURE");
 
   const preinscrits = await prisma.etudiant.findMany({
     where: { statutInscription: "PREINSCRIT" },

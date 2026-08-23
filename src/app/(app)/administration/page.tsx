@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Settings } from "lucide-react";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, ROLES_STAFF } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 import { buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
@@ -28,7 +28,7 @@ export default async function AdministrationPage({
   // Double vérification : le lien est déjà masqué pour les autres rôles
   // dans la barre latérale, mais l'accès direct à l'URL doit aussi être
   // bloqué ici (défense en profondeur).
-  const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
+  const session = await requireModule(Module.ADMINISTRATION, "LECTURE");
   const estBureau = session.role === Role.BUREAU;
   const { error, ok, utilisateurId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
@@ -86,6 +86,14 @@ export default async function AdministrationPage({
           {estBureau && (
             <Link href="/administration/journal" className={buttonVariants({ variant: "secondary" })}>
               Journal d&apos;audit
+            </Link>
+          )}
+          {estBureau && (
+            <Link
+              href="/administration/permissions"
+              className={buttonVariants({ variant: "secondary" })}
+            >
+              Permissions
             </Link>
           )}
           {estBureau && (

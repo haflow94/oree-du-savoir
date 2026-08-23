@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Wallet } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   MoyenPaiement,
@@ -9,7 +8,7 @@ import {
   TYPE_MOUVEMENT_LABELS,
   formaterMontant,
 } from "@/lib/paiements";
-import { Role, hasRole } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { CategoriesDialog } from "./categories-dialog";
 import { NouveauMouvementDialog } from "./nouveau-mouvement-dialog";
 import { Card } from "@/components/ui/card";
@@ -21,7 +20,6 @@ import { Tabs } from "@/components/ui/tabs";
 import { AutoSubmitSelect, AutoSubmitInput } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 
-const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const MESSAGES: Record<string, string> = {
@@ -47,8 +45,8 @@ export default async function TresoreriePage({
     ok?: string;
   }>;
 }) {
-  const session = await requireSession();
-  const peutGerer = hasRole(session.role, PEUT_GERER);
+  const session = await requireModule(Module.TRESORERIE, "LECTURE");
+  const peutGerer = await peutAccederModule(session.role, Module.TRESORERIE, "ECRITURE");
   const { dateDebut, dateFin, type, categorieId, moyen, q, error, ok } = await searchParams;
   const recherche = q?.trim().toLowerCase() ?? "";
   const message = error ? MESSAGES[error] : undefined;

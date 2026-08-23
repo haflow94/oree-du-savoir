@@ -2,22 +2,21 @@
 
 import { Menu, Search, LogOut } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS } from "@/lib/nav";
-import { ROLE_LABELS, hasRole, type Role } from "@/lib/roles";
+import type { NavItem } from "@/lib/nav";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { logoutAction } from "@/app/(app)/logout-action";
 
 type TopbarProps = {
   nom: string;
   prenom: string;
   role: Role;
+  /** Liens déjà filtrés selon les droits de la session (voir (app)/layout.tsx). */
+  items: NavItem[];
   anneeActive: string | null;
 };
 
-export function Topbar({ nom, prenom, role, anneeActive }: TopbarProps) {
+export function Topbar({ nom, prenom, role, items, anneeActive }: TopbarProps) {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter(
-    (item) => !item.rolesAllowed || hasRole(role, item.rolesAllowed),
-  );
   const current =
     items.find((item) =>
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),

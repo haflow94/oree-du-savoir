@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireSession, requireRole, type SessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import { peutAccederClasse, estAdministratif } from "@/lib/acces-presence";
 import {
   StatutPresence,
@@ -43,6 +44,11 @@ function retourInscription(
  * (Re)génère les séances d'une classe sur son année scolaire, en sautant les
  * périodes de fermeture. Idempotent : les séances déjà présentes ne sont pas
  * recréées, et celles déjà validées ne sont jamais touchées.
+ *
+ * Carve-out littéral volontaire (pas de requireModule) : le module Présences
+ * accorde ECRITURE à Enseignant (validation de sa propre feuille, scopée) et
+ * à Accueil/Trésorier, alors que cette action — comme annulerSeanceAction et
+ * les fermetures ci-dessous — reste strictement Bureau/Administration.
  */
 export async function genererSeancesAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
@@ -75,8 +81,11 @@ export async function genererSeancesAction(formData: FormData): Promise<void> {
   retourClasse(classeId);
 }
 
+// Rattachée au module Étudiants (pas Présences) : c'est un acte de gestion
+// du dossier de l'étudiant, même si elle vit ici pour rester à côté de
+// retirerEtudiantAction (voir aussi classes/[id]/page.tsx et etudiants/[id]/page.tsx).
 export async function inscrireEtudiantAction(formData: FormData): Promise<void> {
-  await requireRole([Role.BUREAU, Role.ADMINISTRATION, Role.ACCUEIL]);
+  await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const origine = champTexte(formData, "origine");
   const classeId = champTexte(formData, "classeId");
@@ -105,7 +114,7 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
 }
 
 export async function retirerEtudiantAction(formData: FormData): Promise<void> {
-  await requireRole([Role.BUREAU, Role.ADMINISTRATION, Role.ACCUEIL]);
+  await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const origine = champTexte(formData, "origine");
   const inscriptionId = champTexte(formData, "inscriptionId");
@@ -137,6 +146,7 @@ function retourSeance(seanceId: string, erreur?: string, session?: SessionUser):
   redirect(erreur ? `${base}?error=${erreur}` : `${base}?ok=1`);
 }
 
+// Carve-out littéral (voir le commentaire de genererSeancesAction ci-dessus).
 export async function annulerSeanceAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
 
@@ -160,6 +170,8 @@ function retourFermetures(erreur?: string): never {
   redirect(erreur ? `/presences/fermetures?error=${erreur}` : "/presences/fermetures?ok=1");
 }
 
+// Fermetures : carve-out littéral (voir le commentaire de
+// genererSeancesAction ci-dessus).
 export async function creerPeriodeFermetureAction(
   formData: FormData,
 ): Promise<void> {

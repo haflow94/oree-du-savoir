@@ -38,6 +38,47 @@ enum Role {
   ACTIVITE
 }
 
+// Modules métier couverts par la grille de permissions (Administration →
+// Permissions, Bureau uniquement — voir lib/permissions.ts). Liste fixe :
+// chaque module correspond à du code réel, pas de module créable depuis
+// l'UI. N'inclut ni Recherche ni Tableau de bord (agrégateurs multi-modules,
+// filtrés inline module par module) ni les écrans réservés au Bureau par
+// nature (comptes/rôles, journal d'audit — voir requireRole littéral).
+enum Module {
+  ETUDIANTS
+  CLASSES
+  PRESENCES
+  ACTIVITES
+  PAIEMENTS
+  TRESORERIE
+  ADMINISTRATION
+  DOCUMENTS
+  INSCRIPTIONS
+  CALENDRIER
+}
+
+enum NiveauAcces {
+  AUCUN
+  LECTURE
+  ECRITURE
+}
+
+// Grille rôle × module éditable depuis Administration → Permissions. BUREAU
+// n'a délibérément pas besoin d'une ligne consultée à l'exécution : le
+// helper (lib/permissions.ts) court-circuite ce rôle en ECRITURE avant toute
+// lecture de cette table, pour éliminer tout risque de lock-out si le Bureau
+// modifie sa propre ligne par erreur. Une ligne BUREAU est seedée quand même
+// (affichage grisé de la grille), mais jamais lue par le helper.
+model PermissionRole {
+  id     String      @id @default(cuid())
+  role   Role
+  module Module
+  niveau NiveauAcces @default(AUCUN)
+
+  @@unique([role, module])
+  @@map("permissions_role")
+}
+
 model Utilisateur {
   id             String    @id @default(cuid())
   email          String    @unique

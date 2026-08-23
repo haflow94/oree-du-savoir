@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Home } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ROLE_LABELS } from "@/lib/roles";
+import { ROLE_LABELS, Role } from "@/lib/roles";
 import { formaterMontant, statutCotisation } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { dossierDocumentaireComplet } from "@/lib/documents";
@@ -20,6 +21,13 @@ const ACCENT_TEXT: Record<Accent, string> = {
 
 export default async function DashboardPage() {
   const session = await requireSession();
+
+  // Enseignant n'a accès qu'à la validation de présence sur ses classes
+  // (voir la matrice de permissions) : le tableau de bord agrège des
+  // modules auxquels il n'a pas accès, donc pas de sens pour ce rôle.
+  if (session.role === Role.ENSEIGNANT) {
+    redirect("/presences");
+  }
 
   const [anneeActive, rappels] = await Promise.all([
     prisma.anneeScolaire.findFirst({ where: { active: true } }),

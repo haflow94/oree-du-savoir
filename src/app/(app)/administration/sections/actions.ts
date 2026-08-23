@@ -2,9 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -45,7 +44,7 @@ function retour(erreur?: string): never {
 }
 
 export async function creerSectionAction(formData: FormData): Promise<void> {
-  const session = await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 
   const nom = champTexte(formData, "nom");
   const fraisFormation = champMontant(formData, "fraisFormation");
@@ -95,7 +94,7 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
 }
 
 export async function modifierSectionAction(formData: FormData): Promise<void> {
-  const session = await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 
   const sectionId = champTexte(formData, "sectionId");
   const nom = champTexte(formData, "nom");
@@ -152,7 +151,7 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
 }
 
 export async function supprimerSectionAction(formData: FormData): Promise<void> {
-  const session = await requireRole([Role.ADMINISTRATION, Role.BUREAU]);
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 
   const sectionId = champTexte(formData, "sectionId");
   if (!sectionId) retour("CHAMPS_INVALIDES");

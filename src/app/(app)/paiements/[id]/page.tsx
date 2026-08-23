@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   MOYEN_LABELS,
@@ -18,7 +17,7 @@ import {
   modifierEcheanceAction,
   supprimerEcheanceAction,
 } from "./actions";
-import { Role, hasRole } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { ChampsMoyenPaiement } from "./champs-moyen-paiement";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -27,8 +26,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 
-const PEUT_SAISIR = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
-const PEUT_GERER_CHEQUE = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 const CONTROL_XS_CLASSES =
   "rounded-md border border-border-strong bg-bg-elevated px-2 py-1 text-xs text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const CONTROL_SM_CLASSES =
@@ -53,9 +50,12 @@ export default async function DossierPaiementPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const session = await requireSession();
-  const peutSaisir = hasRole(session.role, PEUT_SAISIR);
-  const peutGererCheque = hasRole(session.role, PEUT_GERER_CHEQUE);
+  const session = await requireModule(Module.PAIEMENTS, "LECTURE");
+  // Un seul niveau d'écriture sur ce module (voir la grille de permissions) :
+  // saisir un paiement ou corriger une échéance/un chèque/le montant dû sont
+  // la même capacité, plus de distinction fine par rôle comme auparavant.
+  const peutSaisir = await peutAccederModule(session.role, Module.PAIEMENTS, "ECRITURE");
+  const peutGererCheque = peutSaisir;
   const { id } = await params;
   const { error, ok } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;

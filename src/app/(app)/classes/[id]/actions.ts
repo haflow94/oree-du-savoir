@@ -2,12 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { JourSemaine } from "@/generated/prisma/enums";
-
-const PEUT_GERER = [Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -27,7 +24,7 @@ function retour(classeId: string, erreur?: string): never {
 }
 
 export async function modifierClasseAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
 
   const classeId = champTexte(formData, "classeId");
   const jour = champTexte(formData, "jour");
@@ -81,7 +78,7 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
 }
 
 export async function supprimerClasseAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
 
   const classeId = champTexte(formData, "classeId");
   if (!classeId) redirect("/classes");

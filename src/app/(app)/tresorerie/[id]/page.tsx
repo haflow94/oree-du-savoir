@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import {
   MoyenPaiement,
   MOYEN_LABELS,
@@ -15,8 +14,6 @@ import { Champ, ChampSelect } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-
-const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Tous les champs obligatoires doivent être renseignés.",
@@ -33,7 +30,7 @@ export default async function MouvementDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  await requireRole(PEUT_GERER);
+  await requireModule(Module.TRESORERIE, "ECRITURE");
   const { id } = await params;
   const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;

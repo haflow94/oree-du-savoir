@@ -1,10 +1,9 @@
-import { requireRole } from "@/lib/auth";
-import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import { EtudiantForm } from "./etudiant-form";
 import { BackLink } from "@/components/ui/back-link";
 
 export default async function NouvelEtudiantPage() {
-  await requireRole([Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU]);
+  await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   return (
     <div className="max-w-3xl space-y-6">

@@ -1,23 +1,20 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { TYPE_DOCUMENT_LABELS, dossierDocumentaireComplet } from "@/lib/documents";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { IconChip } from "@/components/ui/icon-chip";
 import { buttonVariants } from "@/components/ui/button";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
-
-const PEUT_VOIR = [Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 export default async function DocumentsPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireRole(PEUT_VOIR);
+  await requireModule(Module.DOCUMENTS, "LECTURE");
   const { q } = await searchParams;
   const recherche = q?.trim() ?? "";
 

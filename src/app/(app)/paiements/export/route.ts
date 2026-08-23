@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
 import { anneeScolaireActiveId, filtreParSection } from "@/lib/sections-etudiant";
+import { requireModule, Module } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
-  await requireSession();
+  await requireModule(Module.PAIEMENTS, "LECTURE");
   const anneeScolaireId = request.nextUrl.searchParams.get("anneeScolaireId");
   const sectionId = request.nextUrl.searchParams.get("sectionId");
   const recherche = request.nextUrl.searchParams.get("q")?.trim() || "";

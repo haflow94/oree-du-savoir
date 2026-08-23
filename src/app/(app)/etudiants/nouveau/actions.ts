@@ -1,9 +1,8 @@
 "use server";
 
-import { requireSession, requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
-import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 
 export type Doublon = {
   id: string;
@@ -48,7 +47,7 @@ export async function rechercherDoublonsAction(
   nom: string,
   prenom: string,
 ): Promise<Doublon[]> {
-  await requireSession();
+  await requireModule(Module.ETUDIANTS, "LECTURE");
   const nomNettoye = nom.trim();
   const prenomNettoye = prenom.trim();
   if (!nomNettoye || !prenomNettoye) return [];
@@ -73,7 +72,7 @@ export async function rechercherDoublonsAction(
 export async function creerEtudiantAction(
   formData: FormData,
 ): Promise<{ id: string }> {
-  const session = await requireRole([Role.ACCUEIL, Role.ADMINISTRATION, Role.BUREAU]);
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");

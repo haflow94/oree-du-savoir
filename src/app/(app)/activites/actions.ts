@@ -2,13 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { FrequenceActivite } from "@/generated/prisma/enums";
 import { datesOccurrencesActivite, diffJoursUTC } from "@/lib/activites";
-
-const PEUT_GERER = [Role.BUREAU, Role.ADMINISTRATION, Role.ACTIVITE];
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -47,7 +44,7 @@ function revalider() {
 }
 
 export async function creerActiviteAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ACTIVITES, "ECRITURE");
 
   const titre = champTexte(formData, "titre");
   const date = champDate(formData, "date");
@@ -109,7 +106,7 @@ export async function creerActiviteAction(formData: FormData): Promise<void> {
 }
 
 export async function modifierActiviteAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ACTIVITES, "ECRITURE");
 
   const activiteId = champTexte(formData, "activiteId");
   const titre = champTexte(formData, "titre");
@@ -152,7 +149,7 @@ export async function modifierActiviteAction(formData: FormData): Promise<void> 
 }
 
 export async function supprimerActiviteAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ACTIVITES, "ECRITURE");
 
   const activiteId = champTexte(formData, "activiteId");
   if (!activiteId) retour(undefined, "CHAMPS_MANQUANTS");
@@ -181,7 +178,7 @@ export async function supprimerActiviteAction(formData: FormData): Promise<void>
 // date (« cette occurrence et les suivantes »), en laissant intact
 // l'historique des occurrences passées de la série.
 export async function supprimerSerieActiviteAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.ACTIVITES, "ECRITURE");
 
   const activiteId = champTexte(formData, "activiteId");
   if (!activiteId) retour(undefined, "CHAMPS_MANQUANTS");

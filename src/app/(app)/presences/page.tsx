@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { CheckSquare } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
+import { requireModule, Module } from "@/lib/permissions";
 import { estAdministratif } from "@/lib/acces-presence";
 import { JOUR_LABELS } from "@/lib/planning";
 import { aujourdhuiUTC, STATUT_SEANCE_LABELS } from "@/lib/presences";
@@ -21,7 +21,7 @@ export default async function PresencesPage({
 }: {
   searchParams: Promise<{ date?: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requireModule(Module.PRESENCES, "LECTURE");
   const { date } = await searchParams;
 
   const jourAffiche = date

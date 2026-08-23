@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { CreditCard } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
-import { Role, hasRole } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { filtreParSection, sectionsDInscriptions } from "@/lib/sections-etudiant";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +11,6 @@ import { AutoSubmitSelect } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { IconChip } from "@/components/ui/icon-chip";
 
-const PEUT_CREER = [Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 export default async function PaiementsPage({
@@ -20,7 +18,8 @@ export default async function PaiementsPage({
 }: {
   searchParams: Promise<{ anneeScolaireId?: string; sectionId?: string; q?: string }>;
 }) {
-  const session = await requireSession();
+  const session = await requireModule(Module.PAIEMENTS, "LECTURE");
+  const peutCreer = await peutAccederModule(session.role, Module.PAIEMENTS, "ECRITURE");
   const { anneeScolaireId, sectionId, q } = await searchParams;
   const recherche = q?.trim() ?? "";
 
@@ -96,7 +95,7 @@ export default async function PaiementsPage({
             </p>
           </div>
         </div>
-        {hasRole(session.role, PEUT_CREER) && (
+        {peutCreer && (
           <Link href="/paiements/nouveau" className={buttonVariants({ variant: "primary" })}>
             + Nouveau dossier
           </Link>

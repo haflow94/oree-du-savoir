@@ -2,12 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, TypeMouvement } from "@/generated/prisma/enums";
-import { Role } from "@/lib/roles";
-
-const PEUT_GERER = [Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU];
+import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -21,7 +18,7 @@ function retourListe(erreur?: string): never {
 }
 
 export async function creerCategorieAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_GERER);
+  await requireModule(Module.TRESORERIE, "ECRITURE");
   const nom = champTexte(formData, "nom");
   if (!nom) retourListe("CHAMPS_MANQUANTS");
 
@@ -31,7 +28,7 @@ export async function creerCategorieAction(formData: FormData): Promise<void> {
 }
 
 export async function modifierCategorieAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_GERER);
+  await requireModule(Module.TRESORERIE, "ECRITURE");
   const categorieId = champTexte(formData, "categorieId");
   const nom = champTexte(formData, "nom");
   if (!categorieId || !nom) retourListe("CHAMPS_MANQUANTS");
@@ -42,7 +39,7 @@ export async function modifierCategorieAction(formData: FormData): Promise<void>
 }
 
 export async function changerActivationCategorieAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_GERER);
+  await requireModule(Module.TRESORERIE, "ECRITURE");
   const categorieId = champTexte(formData, "categorieId");
   const actif = formData.get("actif") === "1";
   if (!categorieId) retourListe("CHAMPS_MANQUANTS");
@@ -53,7 +50,7 @@ export async function changerActivationCategorieAction(formData: FormData): Prom
 }
 
 export async function creerMouvementAction(formData: FormData): Promise<void> {
-  await requireRole(PEUT_GERER);
+  await requireModule(Module.TRESORERIE, "ECRITURE");
 
   const date = champTexte(formData, "date");
   const libelle = champTexte(formData, "libelle");
@@ -98,7 +95,7 @@ function retourMouvement(mouvementId: string, erreur?: string): never {
 }
 
 export async function modifierMouvementAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.TRESORERIE, "ECRITURE");
 
   const mouvementId = champTexte(formData, "mouvementId");
   const date = champTexte(formData, "date");
@@ -148,7 +145,7 @@ export async function modifierMouvementAction(formData: FormData): Promise<void>
 }
 
 export async function supprimerMouvementAction(formData: FormData): Promise<void> {
-  const session = await requireRole(PEUT_GERER);
+  const session = await requireModule(Module.TRESORERIE, "ECRITURE");
 
   const mouvementId = champTexte(formData, "mouvementId");
   if (!mouvementId) redirect("/tresorerie");

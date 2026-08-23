@@ -32,6 +32,8 @@ export default async function FermeturesPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
+  // Carve-out littéral (voir le commentaire de genererSeancesAction dans
+  // presences/actions.ts) : jamais piloté par le module Présences.
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
   const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/auth";
+import { requireModule, Module } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { versCsv, reponseCsv } from "@/lib/csv";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/sections-etudiant";
 
 export async function GET(request: NextRequest) {
-  await requireSession();
+  await requireModule(Module.ETUDIANTS, "LECTURE");
   const q = request.nextUrl.searchParams.get("q")?.trim();
   const sectionId = request.nextUrl.searchParams.get("sectionId")?.trim();
   const reinscription = request.nextUrl.searchParams.get("reinscription")?.trim();

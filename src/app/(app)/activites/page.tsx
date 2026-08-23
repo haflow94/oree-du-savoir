@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { PartyPopper } from "lucide-react";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasRole, Role } from "@/lib/roles";
+import { Role } from "@/lib/roles";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { activiteDansFenetreDeRappel, RAPPEL_JOURS } from "@/lib/activites";
 import { aujourdhuiUTC } from "@/lib/calendrier";
 import { Alert } from "@/components/ui/alert";
@@ -12,8 +12,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { NouvelleActiviteDialog } from "./activite-dialog";
 import { ActiviteRow } from "./activite-row";
-
-const PEUT_GERER = [Role.BUREAU, Role.ADMINISTRATION, Role.ACTIVITE];
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Le titre et la date sont obligatoires.",
@@ -27,8 +25,8 @@ export default async function ActivitesPage({
 }: {
   searchParams: Promise<{ error?: string; ok?: string; activiteId?: string; q?: string }>;
 }) {
-  const session = await requireSession();
-  const peutGerer = hasRole(session.role, PEUT_GERER);
+  const session = await requireModule(Module.ACTIVITES, "LECTURE");
+  const peutGerer = await peutAccederModule(session.role, Module.ACTIVITES, "ECRITURE");
   const { error, ok, activiteId, q } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   const recherche = q?.trim() ?? "";

@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role } from "@/lib/roles";
 import { formaterMontant } from "@/lib/paiements";
+import { requireModule, Module } from "@/lib/permissions";
 import { montantSuggereDossier } from "@/lib/sections-etudiant";
 import { creerDossierAction } from "./actions";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
@@ -25,7 +24,7 @@ export default async function NouveauDossierPage({
     q?: string;
   }>;
 }) {
-  await requireRole([Role.ACCUEIL, Role.TRESORIER, Role.ADMINISTRATION, Role.BUREAU]);
+  await requireModule(Module.PAIEMENTS, "ECRITURE");
   const { error, etudiantId, anneeScolaireId, q } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
   const recherche = q?.trim() ?? "";

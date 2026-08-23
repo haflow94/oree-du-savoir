@@ -12,36 +12,41 @@ import {
   FileText,
   Settings,
 } from "lucide-react";
-import { Role } from "@/lib/roles";
+import { Module } from "@/generated/prisma/enums";
 
 export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Rôles autorisés à voir ce lien. Absent = visible par tous les rôles connectés. */
-  rolesAllowed?: Role[];
+  /**
+   * Module gouvernant la visibilité de ce lien (grille de permissions, voir
+   * lib/permissions.ts). Absent = visible par tout rôle connecté (cas du
+   * tableau de bord, qui agrège plusieurs modules).
+   */
+  module?: Module;
 };
 
-// Reprend l'arborescence de la maquette (05_Maquette_interactive.html).
-// Administration est ouverte à Bureau et Administration (référentiels :
-// sections, année scolaire) ; la gestion des comptes/rôles utilisateurs,
-// à l'intérieur de cette page, reste filtrée au seul Bureau (voir
-// administration/page.tsx).
+// Reprend l'arborescence de la maquette (05_Maquette_interactive.html). Le
+// filtrage par module se fait côté serveur dans (app)/layout.tsx (les
+// niveaux d'accès viennent de la base, pas d'une liste de rôles en dur ici).
+// La gestion des comptes/rôles utilisateurs, à l'intérieur de la page
+// Administration, reste filtrée au seul Bureau indépendamment de ce menu
+// (voir administration/page.tsx).
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Tableau de bord", icon: Home },
-  { href: "/etudiants", label: "Étudiants", icon: Users },
-  { href: "/inscriptions", label: "Inscriptions", icon: ClipboardList },
-  { href: "/classes", label: "Classes", icon: GraduationCap },
-  { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
-  { href: "/activites", label: "Activités", icon: PartyPopper },
-  { href: "/presences", label: "Présences", icon: CheckSquare },
-  { href: "/paiements", label: "Paiements", icon: CreditCard },
-  { href: "/tresorerie", label: "Trésorerie", icon: Wallet },
-  { href: "/documents", label: "Documents", icon: FileText },
+  { href: "/etudiants", label: "Étudiants", icon: Users, module: Module.ETUDIANTS },
+  { href: "/inscriptions", label: "Inscriptions", icon: ClipboardList, module: Module.INSCRIPTIONS },
+  { href: "/classes", label: "Classes", icon: GraduationCap, module: Module.CLASSES },
+  { href: "/calendrier", label: "Calendrier", icon: CalendarDays, module: Module.CALENDRIER },
+  { href: "/activites", label: "Activités", icon: PartyPopper, module: Module.ACTIVITES },
+  { href: "/presences", label: "Présences", icon: CheckSquare, module: Module.PRESENCES },
+  { href: "/paiements", label: "Paiements", icon: CreditCard, module: Module.PAIEMENTS },
+  { href: "/tresorerie", label: "Trésorerie", icon: Wallet, module: Module.TRESORERIE },
+  { href: "/documents", label: "Documents", icon: FileText, module: Module.DOCUMENTS },
   {
     href: "/administration",
     label: "Administration",
     icon: Settings,
-    rolesAllowed: [Role.BUREAU, Role.ADMINISTRATION],
+    module: Module.ADMINISTRATION,
   },
 ];

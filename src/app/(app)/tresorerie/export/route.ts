@@ -1,11 +1,11 @@
 import { NextRequest } from "next/server";
-import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
 import { MOYEN_LABELS } from "@/lib/paiements";
+import { requireModule, Module } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
-  await requireSession();
+  await requireModule(Module.TRESORERIE, "LECTURE");
   const params = request.nextUrl.searchParams;
   const dateDebut = params.get("dateDebut");
   const dateFin = params.get("dateFin");
