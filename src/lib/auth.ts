@@ -1,5 +1,5 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -78,10 +78,22 @@ export async function login(
     }),
   ]);
 
+  // Un cookie « Secure » n'est accepté par le navigateur que sur une
+  // connexion HTTPS — or ce déploiement (Docker Compose, serveur headless
+  // sans reverse proxy TLS, voir DEPLOIEMENT.md) est servi en HTTP simple,
+  // y compris en production. Le lier à NODE_ENV plutôt qu'au protocole réel
+  // de la requête faisait que le navigateur rejetait silencieusement le
+  // cookie pour toute personne connectée via l'IP du serveur (le cas du
+  // téléphone qui scanne le QR en salle) : la connexion semblait aboutir
+  // (la réponse de la redirection passe), mais aucune session ne persistait
+  // ensuite. `x-forwarded-proto` est déjà la même détection utilisée pour
+  // l'URL encodée dans le QR (voir (app)/classes/[id]/page.tsx).
+  const protocole = (await headers()).get("x-forwarded-proto") ?? "http";
+
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: protocole === "https",
     sameSite: "lax",
     path: "/",
     expires: expireLe,
