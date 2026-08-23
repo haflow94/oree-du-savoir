@@ -76,3 +76,59 @@ export function activiteDansFenetreDeRappel(date: Date, aujourdhui: Date = aujou
   const fin = ajouterJoursUTC(aujourdhui, RAPPEL_JOURS);
   return date >= aujourdhui && date <= fin;
 }
+
+export type NumeroTrimestre = 1 | 2 | 3;
+
+const LIBELLES_TRIMESTRE: Record<NumeroTrimestre, string> = {
+  1: "1er trimestre (sept.–déc.)",
+  2: "2e trimestre (janv.–mars)",
+  3: "3e trimestre (avril–août)",
+};
+
+// Calé sur l'année scolaire (sept.–août), pas l'année civile. Activite
+// n'étant pas rattachée à une AnneeScolaire en base (une sortie peut être
+// créée avant même que l'année scolaire suivante existe), le trimestre se
+// déduit uniquement du mois de la date.
+export function numeroTrimestre(date: Date): NumeroTrimestre {
+  const mois = date.getUTCMonth() + 1;
+  if (mois >= 9) return 1;
+  if (mois <= 3) return 2;
+  return 3;
+}
+
+// "2026/2027" pour toute date du 1er septembre 2026 au 31 août 2027.
+export function libelleAnneeScolaireDe(date: Date): string {
+  const annee = date.getUTCFullYear();
+  const debut = date.getUTCMonth() + 1 >= 9 ? annee : annee - 1;
+  return `${debut}/${debut + 1}`;
+}
+
+// Sert aussi de clé de tri chronologique (comparaison de chaînes) : le
+// préfixe année scolaire croît avec le temps, et "T1" < "T2" < "T3" au sein
+// d'une même année scolaire.
+export function cleTrimestre(date: Date): string {
+  return `${libelleAnneeScolaireDe(date)}-T${numeroTrimestre(date)}`;
+}
+
+export function libelleTrimestre(date: Date): string {
+  return `${LIBELLES_TRIMESTRE[numeroTrimestre(date)]} · ${libelleAnneeScolaireDe(date)}`;
+}
+
+export type GroupeTrimestre<T> = { cle: string; libelle: string; activites: T[] };
+
+// Regroupe une liste déjà triée par date croissante en conservant cet ordre
+// entre groupes (l'ordre d'insertion d'une Map suit le premier élément
+// rencontré pour chaque trimestre).
+export function grouperParTrimestre<T extends { date: Date }>(
+  activites: T[],
+): GroupeTrimestre<T>[] {
+  const groupes = new Map<string, GroupeTrimestre<T>>();
+  for (const activite of activites) {
+    const cle = cleTrimestre(activite.date);
+    if (!groupes.has(cle)) {
+      groupes.set(cle, { cle, libelle: libelleTrimestre(activite.date), activites: [] });
+    }
+    groupes.get(cle)!.activites.push(activite);
+  }
+  return [...groupes.values()];
+}

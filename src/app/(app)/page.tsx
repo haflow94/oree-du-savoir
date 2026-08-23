@@ -8,6 +8,7 @@ import { formaterMontant, statutCotisation } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { dossierDocumentaireComplet } from "@/lib/documents";
 import { activitesARappeler } from "@/lib/activites";
+import { aujourdhuiUTC, ajouterJoursUTC } from "@/lib/calendrier";
 import { Card } from "@/components/ui/card";
 import { IconChip, type Accent } from "@/components/ui/icon-chip";
 
@@ -18,6 +19,12 @@ const ACCENT_TEXT: Record<Accent, string> = {
   sky: "text-sky",
   rust: "text-rust",
 };
+
+// Fenêtre de recherche des séances passées sans feuille validée : au-delà,
+// une séance ancienne non validée est probablement du passif normal (classe
+// arrêtée, rattrapage papier jamais ressaisi) plutôt qu'un oubli récent à
+// relancer — pas la peine d'alourdir l'indicateur avec tout l'historique.
+const FENETRE_SEANCES_NON_VALIDEES_JOURS = 14;
 
 export default async function DashboardPage() {
   const session = await requireSession();
@@ -33,6 +40,7 @@ export default async function DashboardPage() {
     prisma.anneeScolaire.findFirst({ where: { active: true } }),
     activitesARappeler(),
   ]);
+  const aujourdhui = aujourdhuiUTC();
 
   const [
     nbEtudiants,
@@ -41,6 +49,8 @@ export default async function DashboardPage() {
     nbPreinscrits,
     nbNonReinscrits,
     etudiantsValides,
+    nbChequesEnAttente,
+    nbSeancesNonValidees,
   ] = await Promise.all([
     prisma.etudiant.count({ where: { statutInscription: "VALIDE" } }),
     anneeActive
@@ -71,6 +81,19 @@ export default async function DashboardPage() {
     prisma.etudiant.findMany({
       where: { statutInscription: "VALIDE" },
       select: { documents: { select: { type: true } } },
+    }),
+    // En attente de dépôt ou d'encaissement : un chèque qui traîne dans ces
+    // deux statuts est le seul risque réel du cycle (perte, oubli), REJETE
+    // n'en fait pas partie une fois traité.
+    prisma.cheque.count({ where: { statut: { in: ["RECU", "DEPOSE"] } } }),
+    // Une séance déjà passée mais toujours PREVUE = l'appel n'a jamais été
+    // fait, ni via le QR ni via la feuille papier de secours — à distinguer
+    // d'ANNULEE (fermeture/imprévu, rien à valider).
+    prisma.seance.count({
+      where: {
+        statut: "PREVUE",
+        date: { gte: ajouterJoursUTC(aujourdhui, -FENETRE_SEANCES_NON_VALIDEES_JOURS), lt: aujourdhui },
+      },
     }),
   ]);
 
@@ -134,6 +157,20 @@ export default async function DashboardPage() {
       valeur: nbNonReinscrits,
       href: "/etudiants?reinscription=non",
       accent: "rust",
+    },
+    {
+      label: "Chèques en attente",
+      icon: "🏦",
+      valeur: nbChequesEnAttente,
+      href: "/paiements",
+      accent: "rust",
+    },
+    {
+      label: "Séances non validées",
+      icon: "📋",
+      valeur: nbSeancesNonValidees,
+      href: "/presences",
+      accent: "ochre",
     },
   ];
 

@@ -269,6 +269,23 @@ model Etudiant {
   // classe (voir inscrireEtudiantAction, qui l'efface alors).
   sectionSouhaiteeId String?
   sectionSouhaitee   Section?          @relation(fields: [sectionSouhaiteeId], references: [id], onDelete: SetNull)
+  // Renseigné quand le Bureau anonymise manuellement un dossier inactif
+  // depuis longtemps (RGPD — voir src/lib/rgpd.ts). Volontairement pas de
+  // purge/tâche automatique : le CA n'a pas encore validé de politique de
+  // rétention formelle, donc l'anonymisation reste un geste manuel par
+  // dossier, déclenché depuis Administration > RGPD.
+  anonymiseLe        DateTime?
+  // Doublon potentiel détecté automatiquement à la préinscription publique
+  // (clé nom + prénom + date de naissance, ou nom + prénom + téléphone/email
+  // d'un responsable — voir preinscription/actions.ts#trouverDoublonEtudiant)
+  // : pointe vers la fiche existante correspondante tant que le staff n'a
+  // pas tranché — mise à jour de la fiche existante (fusion, voir
+  // etudiants/[id]/actions.ts#fusionnerDoublonAction) ou confirmation qu'il
+  // s'agit d'un homonyme distinct (#confirmerHomonymeAction), qui efface
+  // simplement ce champ.
+  doublonPotentielId String?
+  doublonPotentiel   Etudiant?         @relation("DoublonPotentiel", fields: [doublonPotentielId], references: [id], onDelete: SetNull)
+  doublonsDetectes   Etudiant[]        @relation("DoublonPotentiel")
   creeLe             DateTime          @default(now())
   misAJourLe         DateTime          @updatedAt
 
@@ -279,6 +296,7 @@ model Etudiant {
   documents       Document[]
 
   @@index([nom, prenom])
+  @@index([doublonPotentielId])
   @@map("etudiants")
 }
 

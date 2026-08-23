@@ -19,6 +19,8 @@ import {
   televerserDocumentAction,
   supprimerDocumentAction,
   supprimerEtudiantAction,
+  fusionnerDoublonAction,
+  confirmerHomonymeAction,
 } from "./actions";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
@@ -36,6 +38,9 @@ const MESSAGES: Record<string, string> = {
   ETUDIANT_UTILISE:
     "Impossible de supprimer : un dossier annuel, une inscription ou des présences existent déjà pour cet étudiant.",
   INSCRIPTION_INVALIDE: "Sélectionnez une classe à inscrire.",
+  DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
+  DOUBLON_NON_FUSIONNABLE:
+    "Fusion impossible : cette fiche porte déjà des documents, un dossier ou des présences. Transférez-les manuellement avant de la supprimer.",
 };
 
 function versChampDate(date: Date | null): string {
@@ -76,6 +81,7 @@ export default async function EtudiantDetailPage({
       include: {
         responsables: true,
         sectionSouhaitee: true,
+        doublonPotentiel: { select: { id: true, nom: true, prenom: true } },
         inscriptions: {
           include: {
             classe: { include: { cours: { include: { section: true } }, anneeScolaire: true } },
@@ -105,6 +111,23 @@ export default async function EtudiantDetailPage({
   }
 
   const dejaInscritClasseIds = new Set(etudiant.inscriptions.map((i) => i.classe.id));
+  // Tarif : une ligne par Section distincte suivie sur l'année active (une
+  // même section peut regrouper plusieurs classes/cours), frais de
+  // formation + frais de dossier de chaque Section (référentiel
+  // Administration → Sections — voir aussi `montantSuggereDossier`, qui
+  // fait la même somme pour préremplir le dossier annuel). Affiché à titre
+  // indicatif : le montant dû réel reste saisi à la main sur le dossier.
+  const sectionsParId = new Map<string, (typeof etudiant.inscriptions)[number]["classe"]["cours"]["section"]>();
+  for (const i of etudiant.inscriptions) {
+    if (i.classe.anneeScolaireId === anneeActive?.id) {
+      sectionsParId.set(i.classe.cours.section.id, i.classe.cours.section);
+    }
+  }
+  const sectionsAvecTarif = [...sectionsParId.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  const totalTarifSections = sectionsAvecTarif.reduce(
+    (total, s) => total + Number(s.fraisFormation) + Number(s.fraisDossier),
+    0,
+  );
   // Section demandée à la préinscription : présélectionne le filtre tant que
   // le staff n'a pas explicitement changé/vidé le filtre (voir
   // Etudiant.sectionSouhaiteeId et inscrireEtudiantAction).
@@ -217,6 +240,34 @@ export default async function EtudiantDetailPage({
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
+
+      {peutModifier && etudiant.doublonPotentiel && (
+        <Alert variant="warning">
+          <p>
+            Doublon potentiel : cette préinscription ressemble à la fiche
+            existante de{" "}
+            <Link href={`/etudiants/${etudiant.doublonPotentiel.id}`} className="underline">
+              {etudiant.doublonPotentiel.prenom} {etudiant.doublonPotentiel.nom}
+            </Link>{" "}
+            (même nom, prénom et date de naissance, ou mêmes coordonnées de
+            responsable).
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <form action={fusionnerDoublonAction}>
+              <input type="hidden" name="etudiantId" value={etudiant.id} />
+              <Button type="submit" variant="secondary" size="sm">
+                Mettre à jour la fiche existante
+              </Button>
+            </form>
+            <form action={confirmerHomonymeAction}>
+              <input type="hidden" name="etudiantId" value={etudiant.id} />
+              <Button type="submit" variant="secondary" size="sm">
+                Ce n&apos;est pas un doublon (homonymie)
+              </Button>
+            </form>
+          </div>
+        </Alert>
+      )}
 
       {banniereFinance && (
         <Alert variant="warning">
@@ -541,6 +592,26 @@ export default async function EtudiantDetailPage({
               </li>
             ))}
           </ul>
+        )}
+
+        {sectionsAvecTarif.length > 0 && (
+          <div className="mt-4 border-t border-border pt-4">
+            <p className={ZONE_TITLE_CLASSES}>Tarif {anneeActive?.libelle}</p>
+            <ul className="mt-2 divide-y divide-border">
+              {sectionsAvecTarif.map((s) => (
+                <li key={s.id} className="flex items-center justify-between py-1.5 text-sm">
+                  <span className="text-ink">{s.nom}</span>
+                  <span className="text-ink-muted">
+                    {formaterMontant(Number(s.fraisFormation) + Number(s.fraisDossier))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-sm font-semibold text-ink">
+              <span>Total à payer</span>
+              <span>{formaterMontant(totalTarifSections)}</span>
+            </div>
+          </div>
         )}
 
         {peutInscrire && (

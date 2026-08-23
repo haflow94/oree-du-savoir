@@ -30,6 +30,8 @@ const MESSAGES: Record<string, string> = {
     "Impossible de supprimer : des séances ou des inscriptions existent déjà pour cette classe.",
   CLASSE_INTROUVABLE: "Cette classe n'existe plus.",
   INSCRIPTION_INVALIDE: "Sélectionnez un étudiant à inscrire.",
+  CLASSE_DEJA_EXISTANTE:
+    "Une classe identique (même cours, niveau et session) existe déjà pour cette année scolaire.",
 };
 
 export default async function ClasseDetailPage({

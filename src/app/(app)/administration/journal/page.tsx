@@ -47,6 +47,7 @@ const ACTION_LABELS: Record<string, string> = {
   televersement_document: "Téléversement d'un document",
   suppression_document: "Suppression d'un document",
   suppression_etudiant: "Suppression d'une fiche étudiant",
+  anonymisation_etudiant: "Anonymisation d'une fiche étudiant (RGPD)",
   modification_echeance: "Modification d'une échéance",
   suppression_echeance: "Suppression d'une échéance",
 };

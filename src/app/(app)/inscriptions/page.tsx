@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { IconChip } from "@/components/ui/icon-chip";
+import { Badge } from "@/components/ui/badge";
 
 export default async function InscriptionsPage() {
   await requireModule(Module.INSCRIPTIONS, "LECTURE");
@@ -49,6 +50,11 @@ export default async function InscriptionsPage() {
                 <Link href={`/etudiants/${e.id}`} className="hover:underline">
                   {e.prenom} {e.nom}
                 </Link>
+                {e.doublonPotentielId && (
+                  <span className="ml-2">
+                    <Badge variant="warning">Doublon possible</Badge>
+                  </span>
+                )}
               </td>
               <td className="px-4 py-3 text-ink-muted">
                 {new Date(e.creeLe).toLocaleDateString("fr-FR")}

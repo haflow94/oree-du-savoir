@@ -35,6 +35,26 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
     retour(classeId, "CHAMPS_MANQUANTS");
   }
 
+  const niveau = champTexte(formData, "niveau");
+  const semestre = champTexte(formData, "semestre");
+
+  const classeActuelle = await prisma.classe.findUnique({ where: { id: classeId } });
+  if (!classeActuelle) redirect("/classes");
+
+  // Même garde-fou qu'à la création (voir classes/nouveau/actions.ts) :
+  // modifier le niveau/la session d'une classe ne doit pas non plus aboutir
+  // à deux classes strictement identiques sur la même période.
+  const doublon = await prisma.classe.findFirst({
+    where: {
+      id: { not: classeId },
+      coursId: classeActuelle.coursId,
+      anneeScolaireId: classeActuelle.anneeScolaireId,
+      niveau,
+      semestre,
+    },
+  });
+  if (doublon) retour(classeId, "CLASSE_DEJA_EXISTANTE");
+
   const capaciteBrute = champTexte(formData, "capacite");
   const capacite = capaciteBrute ? Number.parseInt(capaciteBrute, 10) : null;
   const enseignantIds = formData.getAll("enseignants").filter(
@@ -48,8 +68,8 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
         jour,
         heureDebut,
         heureFin,
-        niveau: champTexte(formData, "niveau"),
-        semestre: champTexte(formData, "semestre"),
+        niveau,
+        semestre,
         salle: champTexte(formData, "salle"),
         capacite: capacite && !Number.isNaN(capacite) ? capacite : null,
       },

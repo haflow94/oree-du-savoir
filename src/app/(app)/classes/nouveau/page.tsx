@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 const ERROR_MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Cours, année, jour et horaires sont obligatoires.",
+  CLASSE_DEJA_EXISTANTE:
+    "Une classe identique (même cours, niveau et session) existe déjà pour cette année scolaire.",
 };
 
 export default async function NouvelleClassePage({

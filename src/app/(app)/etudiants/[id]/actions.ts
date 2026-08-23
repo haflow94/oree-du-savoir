@@ -101,6 +101,128 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
   retour(etudiantId);
 }
 
+// Tranche un doublon potentiel détecté à la préinscription (voir
+// Etudiant.doublonPotentielId, preinscription/actions.ts) en fusionnant
+// cette fiche (la préinscription en double) dans la fiche existante :
+// coordonnées reprises quand la préinscription en apporte une valeur (sans
+// écraser un champ déjà renseigné par du vide), inscriptions/responsables
+// rattachés à la fiche existante (sans dupliquer ceux déjà présents), puis
+// la préinscription en double est supprimée. Refusé si elle porte déjà des
+// documents/paiements/présences réels : la fusion automatique deviendrait
+// destructrice, mieux vaut laisser le staff trancher à la main.
+export async function fusionnerDoublonAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
+
+  const etudiantId = champTexte(formData, "etudiantId");
+  if (!etudiantId) redirect("/etudiants");
+
+  const doublon = await prisma.etudiant.findUnique({
+    where: { id: etudiantId },
+    include: {
+      responsables: true,
+      inscriptions: true,
+      _count: { select: { documents: true, dossiersAnnuels: true, presences: true } },
+    },
+  });
+  if (!doublon || !doublon.doublonPotentielId) retour(etudiantId, "DOUBLON_INTROUVABLE");
+  if (
+    doublon._count.documents > 0 ||
+    doublon._count.dossiersAnnuels > 0 ||
+    doublon._count.presences > 0
+  ) {
+    retour(etudiantId, "DOUBLON_NON_FUSIONNABLE");
+  }
+
+  const existantId = doublon.doublonPotentielId;
+  const existant = await prisma.etudiant.findUnique({
+    where: { id: existantId },
+    include: { responsables: true, inscriptions: true },
+  });
+  if (!existant) retour(etudiantId, "DOUBLON_INTROUVABLE");
+
+  const inscriptionsAReparenter = doublon.inscriptions.filter(
+    (i) => !existant.inscriptions.some((e) => e.classeId === i.classeId),
+  );
+  const responsablesAReparenter = doublon.responsables.filter(
+    (r) =>
+      !existant.responsables.some(
+        (e) =>
+          e.nom.toLowerCase() === r.nom.toLowerCase() &&
+          e.prenom.toLowerCase() === r.prenom.toLowerCase(),
+      ),
+  );
+
+  await prisma.$transaction([
+    prisma.etudiant.update({
+      where: { id: existantId },
+      data: {
+        civilite: doublon.civilite ?? existant.civilite,
+        nom: doublon.nom,
+        prenom: doublon.prenom,
+        dateNaissance: doublon.dateNaissance ?? existant.dateNaissance,
+        villeNaissance: doublon.villeNaissance ?? existant.villeNaissance,
+        telephoneMobile: doublon.telephoneMobile ?? existant.telephoneMobile,
+        email: doublon.email ?? existant.email,
+        adresse: doublon.adresse ?? existant.adresse,
+        profession: doublon.profession ?? existant.profession,
+        niveauEtudes: doublon.niveauEtudes ?? existant.niveauEtudes,
+        dernierDiplome: doublon.dernierDiplome ?? existant.dernierDiplome,
+        sectionSouhaiteeId: existant.sectionSouhaiteeId ?? doublon.sectionSouhaiteeId,
+      },
+    }),
+    ...inscriptionsAReparenter.map((i) =>
+      prisma.inscriptionClasse.update({ where: { id: i.id }, data: { etudiantId: existantId } }),
+    ),
+    ...responsablesAReparenter.map((r) =>
+      prisma.responsableLegal.update({ where: { id: r.id }, data: { etudiantId: existantId } }),
+    ),
+    prisma.etudiant.delete({ where: { id: etudiantId } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "fusion_doublon_etudiant",
+        entite: "Etudiant",
+        entiteId: existantId,
+        details: { etudiantSupprimeId: etudiantId, nom: doublon.nom, prenom: doublon.prenom },
+      },
+    }),
+  ]);
+
+  revalidatePath(`/etudiants/${existantId}`);
+  revalidatePath("/etudiants");
+  revalidatePath("/inscriptions");
+  redirect(`/etudiants/${existantId}?ok=1`);
+}
+
+// Le staff a vérifié qu'il s'agit bien de deux personnes distinctes
+// (homonymie) : on efface juste le signalement, les deux fiches restent
+// indépendantes.
+export async function confirmerHomonymeAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
+
+  const etudiantId = champTexte(formData, "etudiantId");
+  if (!etudiantId) redirect("/etudiants");
+
+  await prisma.$transaction([
+    prisma.etudiant.update({
+      where: { id: etudiantId },
+      data: { doublonPotentielId: null },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "confirmation_homonyme",
+        entite: "Etudiant",
+        entiteId: etudiantId,
+      },
+    }),
+  ]);
+
+  revalidatePath(`/etudiants/${etudiantId}`);
+  revalidatePath("/inscriptions");
+  retour(etudiantId);
+}
+
 function estTypeDocument(valeur: string | null): valeur is TypeDocument {
   return !!valeur && valeur in TypeDocument;
 }

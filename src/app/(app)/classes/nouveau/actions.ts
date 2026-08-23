@@ -29,6 +29,20 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
     redirect("/classes/nouveau?error=CHAMPS_MANQUANTS");
   }
 
+  const niveau = champTexte(formData, "niveau");
+  const semestre = champTexte(formData, "semestre");
+
+  // Clé d'unicité métier : cours + niveau (le nom de la classe tel
+  // qu'affiché, voir /classes) + année scolaire + session. Empêche de créer
+  // deux fois la « même » classe sur la même période — un créneau différent
+  // pour ce même cours/niveau/session reste, lui, une classe légitime.
+  const classeExistante = await prisma.classe.findFirst({
+    where: { coursId, anneeScolaireId, niveau, semestre },
+  });
+  if (classeExistante) {
+    redirect("/classes/nouveau?error=CLASSE_DEJA_EXISTANTE");
+  }
+
   const capaciteBrute = champTexte(formData, "capacite");
   const capacite = capaciteBrute ? Number.parseInt(capaciteBrute, 10) : null;
 
@@ -43,8 +57,8 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
       jour,
       heureDebut,
       heureFin,
-      niveau: champTexte(formData, "niveau"),
-      semestre: champTexte(formData, "semestre"),
+      niveau,
+      semestre,
       salle: champTexte(formData, "salle"),
       capacite: capacite && !Number.isNaN(capacite) ? capacite : null,
       enseignants: {

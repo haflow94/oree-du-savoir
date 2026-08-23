@@ -20,6 +20,8 @@ export async function GET(request: NextRequest) {
   const reinscription = request.nextUrl.searchParams.get("reinscription")?.trim();
   const anneeIdDemandee = request.nextUrl.searchParams.get("anneeId")?.trim();
   const population = request.nextUrl.searchParams.get("population")?.trim();
+  const statutParam = request.nextUrl.searchParams.get("statut")?.trim();
+  const statutFiltre = statutParam === "preinscrit" || statutParam === "tous" ? statutParam : "valide";
   const anneeDemandee = anneeIdDemandee
     ? await prisma.anneeScolaire.findUnique({ where: { id: anneeIdDemandee } })
     : null;
@@ -58,6 +60,11 @@ export async function GET(request: NextRequest) {
   }
   if ((reinscription === "oui" || reinscription === "non") && anneeSelectionneeId) {
     conditions.push(filtreParReinscription(anneeSelectionneeId, reinscription === "oui"));
+  }
+  if (statutFiltre !== "tous") {
+    conditions.push({
+      statutInscription: statutFiltre === "preinscrit" ? "PREINSCRIT" : "VALIDE",
+    });
   }
 
   const etudiants = await prisma.etudiant.findMany({

@@ -3,9 +3,10 @@ import { PartyPopper } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
-import { activiteDansFenetreDeRappel, RAPPEL_JOURS } from "@/lib/activites";
+import { activiteDansFenetreDeRappel, cleTrimestre, grouperParTrimestre, RAPPEL_JOURS } from "@/lib/activites";
 import { aujourdhuiUTC } from "@/lib/calendrier";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconChip } from "@/components/ui/icon-chip";
 import { buttonVariants } from "@/components/ui/button";
@@ -68,8 +69,11 @@ export default async function ActivitesPage({
     }),
   ]);
   const aujourdhui = aujourdhuiUTC();
-  const aVenir = activites.filter((a) => a.date >= aujourdhui);
-  const passees = activites.filter((a) => a.date < aujourdhui);
+  const cleTrimestreCourant = cleTrimestre(aujourdhui);
+  const groupes = grouperParTrimestre(activites);
+  const groupesPasses = groupes.filter((g) => g.cle < cleTrimestreCourant);
+  const groupesEnCoursOuAVenir = groupes.filter((g) => g.cle >= cleTrimestreCourant);
+  const nbActivitesPassees = groupesPasses.reduce((n, g) => n + g.activites.length, 0);
 
   return (
     <div className="space-y-6">
@@ -127,40 +131,55 @@ export default async function ActivitesPage({
         />
       ) : (
         <>
-          <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-card">
-            {aVenir.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-ink-faint">
-                Aucune activité à venir.
-              </p>
-            ) : (
-              aVenir.map((a) => (
-                <ActiviteRow
-                  key={a.id}
-                  activite={a}
-                  dansFenetreDeRappel={activiteDansFenetreDeRappel(a.date, aujourdhui)}
-                  ouvrirAuChargement={!!error && activiteId === a.id}
-                  peutGerer={peutGerer}
-                  responsablesDisponibles={responsablesDisponibles}
-                />
-              ))
-            )}
-          </div>
+          {groupesEnCoursOuAVenir.length === 0 ? (
+            <p className="text-sm text-ink-faint">Aucune activité à venir ce trimestre.</p>
+          ) : (
+            <div className="space-y-6">
+              {groupesEnCoursOuAVenir.map((g) => (
+                <section key={g.cle}>
+                  <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-ink">
+                    {g.libelle}
+                    {g.cle === cleTrimestreCourant && <Badge variant="info">En cours</Badge>}
+                  </h2>
+                  <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-card">
+                    {g.activites.map((a) => (
+                      <ActiviteRow
+                        key={a.id}
+                        activite={a}
+                        dansFenetreDeRappel={activiteDansFenetreDeRappel(a.date, aujourdhui)}
+                        ouvrirAuChargement={!!error && activiteId === a.id}
+                        peutGerer={peutGerer}
+                        responsablesDisponibles={responsablesDisponibles}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
 
-          {passees.length > 0 && (
+          {groupesPasses.length > 0 && (
             <details>
               <summary className="cursor-pointer text-sm font-medium text-ink-muted">
-                Activités passées ({passees.length})
+                Trimestres précédents ({nbActivitesPassees})
               </summary>
-              <div className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg-elevated opacity-75 shadow-card">
-                {passees.map((a) => (
-                  <ActiviteRow
-                    key={a.id}
-                    activite={a}
-                    dansFenetreDeRappel={false}
-                    ouvrirAuChargement={!!error && activiteId === a.id}
-                    peutGerer={peutGerer}
-                    responsablesDisponibles={responsablesDisponibles}
-                  />
+              <div className="mt-3 space-y-6 opacity-75">
+                {groupesPasses.map((g) => (
+                  <section key={g.cle}>
+                    <h2 className="mb-2 text-sm font-semibold text-ink-muted">{g.libelle}</h2>
+                    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-card">
+                      {g.activites.map((a) => (
+                        <ActiviteRow
+                          key={a.id}
+                          activite={a}
+                          dansFenetreDeRappel={false}
+                          ouvrirAuChargement={!!error && activiteId === a.id}
+                          peutGerer={peutGerer}
+                          responsablesDisponibles={responsablesDisponibles}
+                        />
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
             </details>

@@ -35,13 +35,20 @@ export default async function EtudiantsPage({
     anneeId?: string;
     supprime?: string;
     population?: string;
+    statut?: string;
   }>;
 }) {
   const session = await requireModule(Module.ETUDIANTS, "LECTURE");
   const peutCreer = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
-  const { q, sectionId, reinscription, anneeId, supprime, population } = await searchParams;
+  const { q, sectionId, reinscription, anneeId, supprime, population, statut } = await searchParams;
   const recherche = q?.trim() ?? "";
   const populationSelectionnee: Population = population === "jeunes" ? "jeunes" : "adultes";
+  // Une préinscription (Etudiant.statutInscription = PREINSCRIT, voir
+  // preinscription/actions.ts) n'est pas encore un dossier confirmé par le
+  // staff : elle reste hors de cette liste générale par défaut (déjà
+  // visible sur /inscriptions, dédiée à leur contrôle) et n'y apparaît que
+  // si ce filtre le demande explicitement.
+  const statutFiltre = statut === "preinscrit" || statut === "tous" ? statut : "valide";
 
   const [anneeScolaires, sections] = await Promise.all([
     prisma.anneeScolaire.findMany({ orderBy: { dateDebut: "desc" } }),
@@ -87,6 +94,11 @@ export default async function EtudiantsPage({
   }
   if ((reinscription === "oui" || reinscription === "non") && anneeSelectionneeId) {
     conditions.push(filtreParReinscription(anneeSelectionneeId, reinscription === "oui"));
+  }
+  if (statutFiltre !== "tous") {
+    conditions.push({
+      statutInscription: statutFiltre === "preinscrit" ? "PREINSCRIT" : "VALIDE",
+    });
   }
 
   const etudiants = await prisma.etudiant.findMany({
@@ -140,6 +152,7 @@ export default async function EtudiantsPage({
               ...(sectionId ? { sectionId } : {}),
               ...(reinscription ? { reinscription } : {}),
               ...(anneeSelectionneeId ? { anneeId: anneeSelectionneeId } : {}),
+              ...(statutFiltre !== "valide" ? { statut: statutFiltre } : {}),
               population: p,
             });
             const actif = populationSelectionnee === p;
@@ -229,6 +242,21 @@ export default async function EtudiantsPage({
             <option value="non">Non inscrits</option>
           </AutoSubmitSelect>
         </div>
+        <div>
+          <label htmlFor="statut" className="sr-only">
+            Dossier
+          </label>
+          <AutoSubmitSelect
+            id="statut"
+            name="statut"
+            defaultValue={statutFiltre}
+            className={CONTROL_SM_CLASSES}
+          >
+            <option value="valide">Dossiers validés</option>
+            <option value="preinscrit">Préinscriptions seulement</option>
+            <option value="tous">Tous (validés + préinscriptions)</option>
+          </AutoSubmitSelect>
+        </div>
         <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           Rechercher
         </button>
@@ -238,6 +266,7 @@ export default async function EtudiantsPage({
             ...(sectionId ? { sectionId } : {}),
             ...(reinscription ? { reinscription } : {}),
             ...(anneeSelectionneeId ? { anneeId: anneeSelectionneeId } : {}),
+            ...(statutFiltre !== "valide" ? { statut: statutFiltre } : {}),
             ...(sectionJeunes ? { population: populationSelectionnee } : {}),
           }).toString()}`}
           className={buttonVariants({ variant: "secondary", size: "sm", className: "ml-auto" })}
