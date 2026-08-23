@@ -53,6 +53,7 @@ export const TYPE_DOCUMENT_LABELS: Record<string, string> = {
   DOSSIER_GENERE: "Dossier d'inscription généré",
   DOSSIER_SIGNE: "Dossier signé",
   JUSTIFICATIF_PAIEMENT: "Justificatif de paiement",
+  ATTESTATION_SCOLARITE: "Attestation de scolarité",
   AUTRE: "Autre",
 };
 

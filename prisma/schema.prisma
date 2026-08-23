@@ -135,6 +135,13 @@ model AnneeScolaire {
   dateDebut DateTime
   dateFin   DateTime
   active    Boolean  @default(false)
+  // Archivage de fin d'année : masque par défaut ses classes, séances et
+  // dossiers annuels des vues actives (Classes, Présences, Paiements), sans
+  // rien supprimer — un flag ici archive implicitement tout ce qui s'y
+  // rattache (Classe, Seance via Classe, DossierAnnuel/Paiement via
+  // Echeance), pas besoin de flag dupliqué sur chacun. Voir
+  // Administration > Années scolaires.
+  archivee  Boolean  @default(false)
 
   classes           Classe[]
   dossiersAnnuels   DossierAnnuel[]
@@ -326,6 +333,7 @@ enum TypeDocument {
   DOSSIER_GENERE
   DOSSIER_SIGNE
   JUSTIFICATIF_PAIEMENT
+  ATTESTATION_SCOLARITE
   AUTRE
 }
 

@@ -10,7 +10,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
-import { AutoSubmitSelect } from "@/components/ui/auto-submit";
+import { AutoSubmitSelect, AutoSubmitInput } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconChip } from "@/components/ui/icon-chip";
@@ -40,13 +40,15 @@ export default async function ClassesPage({
     salle?: string;
     anneeScolaireId?: string;
     q?: string;
+    archives?: string;
   }>;
 }) {
   const session = await requireModule(Module.CLASSES, "LECTURE");
   const peutGerer = await peutAccederModule(session.role, Module.CLASSES, "ECRITURE");
-  const { error, ok, sectionId, jour, salle, anneeScolaireId, q } = await searchParams;
+  const { error, ok, sectionId, jour, salle, anneeScolaireId, q, archives } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   const recherche = q?.trim() ?? "";
+  const voirArchives = archives === "1";
 
   const [cours, sections, sallesDistinctes, annees, anneeActive] = await Promise.all([
     prisma.cours.findMany({
@@ -76,6 +78,10 @@ export default async function ClassesPage({
       ...(jour ? { jour: jour as (typeof JOURS_ORDONNES)[number] } : {}),
       ...(salle ? { salle } : {}),
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
+      // Une année précisément choisie reste visible quel que soit son statut
+      // (choix explicite) : le filtre "voir les archives" ne joue qu'en mode
+      // "Toutes années".
+      ...(!voirArchives && !anneeFiltre ? { anneeScolaire: { archivee: false } } : {}),
       ...(recherche
         ? {
             OR: [
@@ -176,6 +182,7 @@ export default async function ClassesPage({
             <option key={a.id} value={a.id}>
               {a.libelle}
               {a.active ? " (active)" : ""}
+              {a.archivee ? " (archivée)" : ""}
             </option>
           ))}
         </AutoSubmitSelect>
@@ -206,6 +213,10 @@ export default async function ClassesPage({
               ),
           )}
         </AutoSubmitSelect>
+        <label className="flex items-center gap-2 text-sm text-ink-muted">
+          <AutoSubmitInput type="checkbox" name="archives" value="1" defaultChecked={voirArchives} />
+          Voir les archives
+        </label>
         <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           Rechercher
         </button>
@@ -251,6 +262,11 @@ export default async function ClassesPage({
                 <Badge variant={c.anneeScolaireId === anneeActive?.id ? "success" : "neutral"}>
                   {c.anneeScolaire.libelle}
                 </Badge>
+                {c.anneeScolaire.archivee && (
+                  <span className="ml-1">
+                    <Badge variant="neutral">Archivée</Badge>
+                  </span>
+                )}
               </td>
               {peutGerer && (
                 <td className="px-4 py-3">

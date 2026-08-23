@@ -7,7 +7,7 @@ import { filtreParSection, sectionsDInscriptions } from "@/lib/sections-etudiant
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableWrap, TableHead } from "@/components/ui/table";
-import { AutoSubmitSelect } from "@/components/ui/auto-submit";
+import { AutoSubmitSelect, AutoSubmitInput } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { IconChip } from "@/components/ui/icon-chip";
 
@@ -16,12 +16,18 @@ const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 export default async function PaiementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ anneeScolaireId?: string; sectionId?: string; q?: string }>;
+  searchParams: Promise<{
+    anneeScolaireId?: string;
+    sectionId?: string;
+    q?: string;
+    archives?: string;
+  }>;
 }) {
   const session = await requireModule(Module.PAIEMENTS, "LECTURE");
   const peutCreer = await peutAccederModule(session.role, Module.PAIEMENTS, "ECRITURE");
-  const { anneeScolaireId, sectionId, q } = await searchParams;
+  const { anneeScolaireId, sectionId, q, archives } = await searchParams;
   const recherche = q?.trim() ?? "";
+  const voirArchives = archives === "1";
 
   const [annees, sections, anneeActive] = await Promise.all([
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
@@ -49,6 +55,7 @@ export default async function PaiementsPage({
   const dossiers = await prisma.dossierAnnuel.findMany({
     where: {
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
+      ...(!voirArchives && !anneeFiltre ? { anneeScolaire: { archivee: false } } : {}),
       ...(Object.keys(filtreEtudiant).length > 0 ? { etudiant: filtreEtudiant } : {}),
     },
     orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
@@ -128,9 +135,16 @@ export default async function PaiementsPage({
               <option key={a.id} value={a.id}>
                 {a.libelle}
                 {a.active ? " (active)" : ""}
+                {a.archivee ? " (archivée)" : ""}
               </option>
             ))}
           </AutoSubmitSelect>
+        </div>
+        <div className="flex items-end pb-2">
+          <label className="flex items-center gap-2 text-sm text-ink-muted">
+            <AutoSubmitInput type="checkbox" name="archives" value="1" defaultChecked={voirArchives} />
+            Voir les archives
+          </label>
         </div>
         <div>
           <label className={LABEL_XS_CLASSES}>Section</label>
@@ -195,6 +209,11 @@ export default async function PaiementsPage({
                   <Badge variant={d.anneeScolaireId === anneeActive?.id ? "success" : "neutral"}>
                     {d.anneeScolaire.libelle}
                   </Badge>
+                  {d.anneeScolaire.archivee && (
+                    <span className="ml-1">
+                      <Badge variant="neutral">Archivée</Badge>
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {sectionsEtudiant.length > 0 ? (

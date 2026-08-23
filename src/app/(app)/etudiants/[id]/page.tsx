@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Plus, Trash2, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
+import { Role } from "@/lib/roles";
 import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { TYPE_DOCUMENT_LABELS } from "@/lib/documents";
@@ -74,6 +75,10 @@ export default async function EtudiantDetailPage({
   const { id } = await params;
   const { error, ok, classeSectionId: classeSectionIdParam } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
+  // Réservé Bureau/Administration à la demande explicite de l'association,
+  // en dur (pas via Module.DOCUMENTS) — voir le commentaire des routes
+  // recu/ et attestation/.
+  const peutGenererPdf = session.role === Role.BUREAU || session.role === Role.ADMINISTRATION;
 
   const [etudiant, sections, anneeActive] = await Promise.all([
     prisma.etudiant.findUnique({
@@ -713,6 +718,26 @@ export default async function EtudiantDetailPage({
                     <span>Dû {formaterMontant(du)}</span>
                     <span>Reste {formaterMontant(reste)}</span>
                     <Badge variant={statutVariant}>{statut}</Badge>
+                    {peutGenererPdf && (
+                      <>
+                        <a
+                          href={`/etudiants/${etudiant.id}/recu/${d.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-medium text-pine hover:underline"
+                        >
+                          Reçu (PDF)
+                        </a>
+                        <a
+                          href={`/etudiants/${etudiant.id}/attestation/${d.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-medium text-pine hover:underline"
+                        >
+                          Attestation (PDF)
+                        </a>
+                      </>
+                    )}
                   </div>
                 </li>
               );

@@ -28,6 +28,8 @@ const ACTION_LABELS: Record<string, string> = {
   creation_annee_scolaire: "Création d'année scolaire",
   modification_annee_scolaire: "Modification d'année scolaire",
   activation_annee_scolaire: "Activation d'année scolaire",
+  archivage_annee_scolaire: "Archivage d'année scolaire",
+  desarchivage_annee_scolaire: "Désarchivage d'année scolaire",
   modification_etudiant: "Modification de fiche étudiant",
   ajout_responsable: "Ajout d'un responsable légal",
   modification_responsable: "Modification d'un responsable légal",

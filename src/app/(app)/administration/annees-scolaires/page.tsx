@@ -4,6 +4,8 @@ import {
   creerAnneeScolaireAction,
   modifierAnneeScolaireAction,
   activerAnneeScolaireAction,
+  archiverAnneeScolaireAction,
+  desarchiverAnneeScolaireAction,
 } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -18,6 +20,7 @@ const MESSAGES: Record<string, string> = {
   DATES_INVALIDES: "La date de fin doit être postérieure à la date de début.",
   LIBELLE_DEJA_UTILISE: "Une année scolaire porte déjà ce libellé.",
   INTROUVABLE: "Cette année scolaire n'existe plus.",
+  ANNEE_ACTIVE: "Désactivez d'abord cette année (en activant une autre) avant de l'archiver.",
 };
 
 function versChampDate(date: Date): string {
@@ -90,18 +93,36 @@ export default async function AnneesScolairesPage({
                     <Badge variant="success">Active</Badge>
                   </span>
                 )}
+                {a.archivee && (
+                  <span className="ml-2">
+                    <Badge variant="neutral">Archivée</Badge>
+                  </span>
+                )}
               </div>
-              {!a.active && (
-                <form action={activerAnneeScolaireAction}>
-                  <input type="hidden" name="anneeId" value={a.id} />
-                  <button
-                    type="submit"
-                    className="rounded-md border border-sage-border px-3 py-1.5 text-xs font-semibold text-sage hover:bg-sage-bg"
-                  >
-                    Activer
-                  </button>
-                </form>
-              )}
+              <div className="flex gap-2">
+                {!a.active && (
+                  <form action={activerAnneeScolaireAction}>
+                    <input type="hidden" name="anneeId" value={a.id} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-sage-border px-3 py-1.5 text-xs font-semibold text-sage hover:bg-sage-bg"
+                    >
+                      Activer
+                    </button>
+                  </form>
+                )}
+                {!a.active && (
+                  <form action={a.archivee ? desarchiverAnneeScolaireAction : archiverAnneeScolaireAction}>
+                    <input type="hidden" name="anneeId" value={a.id} />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink-muted hover:bg-bg-sunken"
+                    >
+                      {a.archivee ? "Désarchiver" : "Archiver"}
+                    </button>
+                  </form>
+                )}
+              </div>
             </div>
 
             <form action={modifierAnneeScolaireAction} className="grid gap-3 sm:grid-cols-3">

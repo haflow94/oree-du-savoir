@@ -102,6 +102,74 @@ export async function modifierAnneeScolaireAction(formData: FormData): Promise<v
   retour();
 }
 
+// Archive une année terminée : masque par défaut ses classes, séances et
+// dossiers annuels des vues actives (Classes, Présences, Paiements) sans
+// rien supprimer — voir AnneeScolaire.archivee dans schema.prisma.
+export async function archiverAnneeScolaireAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
+
+  const anneeId = champTexte(formData, "anneeId");
+  if (!anneeId) retour("CHAMPS_INVALIDES");
+
+  const cible = await prisma.anneeScolaire.findUnique({ where: { id: anneeId } });
+  if (!cible) retour("INTROUVABLE");
+  // Archiver l'année en cours d'utilisation la ferait disparaître des vues
+  // actives par surprise ; il faut d'abord en activer une autre.
+  if (cible.active) retour("ANNEE_ACTIVE");
+  if (cible.archivee) retour();
+
+  await prisma.$transaction([
+    prisma.anneeScolaire.update({ where: { id: anneeId }, data: { archivee: true } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "archivage_annee_scolaire",
+        entite: "AnneeScolaire",
+        entiteId: anneeId,
+        details: { libelle: cible.libelle },
+      },
+    }),
+  ]);
+
+  revalidatePath("/administration/annees-scolaires");
+  revalidatePath("/classes");
+  revalidatePath("/presences");
+  revalidatePath("/paiements");
+  retour();
+}
+
+// Réversible : aucune donnée n'est perdue en archivant, désarchiver suffit à
+// tout faire réapparaître.
+export async function desarchiverAnneeScolaireAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
+
+  const anneeId = champTexte(formData, "anneeId");
+  if (!anneeId) retour("CHAMPS_INVALIDES");
+
+  const cible = await prisma.anneeScolaire.findUnique({ where: { id: anneeId } });
+  if (!cible) retour("INTROUVABLE");
+  if (!cible.archivee) retour();
+
+  await prisma.$transaction([
+    prisma.anneeScolaire.update({ where: { id: anneeId }, data: { archivee: false } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "desarchivage_annee_scolaire",
+        entite: "AnneeScolaire",
+        entiteId: anneeId,
+        details: { libelle: cible.libelle },
+      },
+    }),
+  ]);
+
+  revalidatePath("/administration/annees-scolaires");
+  revalidatePath("/classes");
+  revalidatePath("/presences");
+  revalidatePath("/paiements");
+  retour();
+}
+
 export async function activerAnneeScolaireAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
 

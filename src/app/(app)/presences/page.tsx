@@ -19,10 +19,11 @@ const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 export default async function PresencesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>;
+  searchParams: Promise<{ date?: string; archives?: string }>;
 }) {
   const session = await requireModule(Module.PRESENCES, "LECTURE");
-  const { date } = await searchParams;
+  const { date, archives } = await searchParams;
+  const voirArchives = archives === "1";
 
   const jourAffiche = date
     ? new Date(`${date}T00:00:00.000Z`)
@@ -35,9 +36,10 @@ export default async function PresencesPage({
   const seances = await prisma.seance.findMany({
     where: {
       date: jourAffiche,
-      ...(estEnseignant
-        ? { classe: { enseignants: { some: { utilisateurId: session.id } } } }
-        : {}),
+      classe: {
+        ...(estEnseignant ? { enseignants: { some: { utilisateurId: session.id } } } : {}),
+        ...(voirArchives ? {} : { anneeScolaire: { archivee: false } }),
+      },
     },
     orderBy: { classe: { heureDebut: "asc" } },
     include: {
@@ -85,6 +87,10 @@ export default async function PresencesPage({
             className={CONTROL_CLASSES}
           />
         </div>
+        <label className="flex items-center gap-2 pb-2 text-sm text-ink-muted">
+          <AutoSubmitInput type="checkbox" name="archives" value="1" defaultChecked={voirArchives} />
+          Voir les archives
+        </label>
       </form>
 
       <div className="space-y-3">
