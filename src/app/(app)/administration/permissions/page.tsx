@@ -51,6 +51,39 @@ export default async function PermissionsPage({
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       <Card>
+        <CardTitle>Ce qui n&apos;est pas géré par cette grille</CardTitle>
+        <p className="mt-1 text-sm text-ink-muted">
+          Quelques règles fixes existent en dehors de ce tableau — elles ne
+          peuvent pas être modifiées ici, quels que soient les réglages
+          ci-dessous.
+        </p>
+        <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm text-ink-muted">
+          <li>
+            Gestion des comptes (créer/modifier/désactiver un compte,
+            réinitialiser un mot de passe), y compris les onglets{" "}
+            <strong>Enseignants</strong> et <strong>Responsables activités</strong> :
+            réservée au Bureau.
+          </li>
+          <li>
+            <strong>Journal d&apos;audit</strong> et cette page{" "}
+            <strong>Permissions</strong> elle-même : réservées au Bureau.
+          </li>
+          <li>
+            <strong>RGPD</strong> (anonymisation des dossiers étudiants) :
+            réservée au Bureau.
+          </li>
+          <li>
+            <strong>Enseignant</strong> : la case Présences ci-dessous ne lui
+            donne accès qu&apos;à la validation de présence sur les classes qui
+            lui sont explicitement assignées (jamais toutes les classes,
+            même en écriture). L&apos;annulation d&apos;une séance et la gestion des
+            vacances/fermetures restent réservées à Bureau et Administration,
+            quel que soit le niveau réglé ici pour un autre rôle.
+          </li>
+        </ul>
+      </Card>
+
+      <Card>
         <CardTitle>Grille des droits</CardTitle>
         <form action={enregistrerPermissionsAction} className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[880px] border-separate border-spacing-0 text-sm">
