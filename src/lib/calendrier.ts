@@ -105,6 +105,28 @@ export function decalerDate(date: Date, vue: VueCalendrier, sens: 1 | -1): Date 
   }
 }
 
+// Range une activité sur chaque jour de son éventuelle plage [date, dateFin]
+// plutôt que sur sa seule date de début : un camp de 3 jours doit apparaître
+// les 3 jours sur le calendrier. Partagé entre /calendrier et la vue
+// calendrier de /activites.
+export function activitesParJourAvecPlage<T extends { date: Date; dateFin: Date | null }>(
+  activites: T[],
+): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const a of activites) {
+    let curseur = normaliserDateUTC(a.date);
+    const fin = a.dateFin ? normaliserDateUTC(a.dateFin) : curseur;
+    while (curseur <= fin) {
+      const cle = versParamDate(curseur);
+      const liste = map.get(cle) ?? [];
+      liste.push(a);
+      map.set(cle, liste);
+      curseur = ajouterJoursUTC(curseur, 1);
+    }
+  }
+  return map;
+}
+
 export const MOIS_LABELS = [
   "Janvier",
   "Février",

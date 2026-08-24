@@ -3,10 +3,10 @@ import {
   datesOccurrencesActivite,
   diffJoursUTC,
   MAX_OCCURRENCES_SERIE,
-  numeroTrimestre,
+  numeroSemestre,
   libelleAnneeScolaireDe,
-  cleTrimestre,
-  grouperParTrimestre,
+  cleSemestre,
+  grouperParSemestre,
 } from "./activites-recurrence";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -59,20 +59,15 @@ describe("diffJoursUTC", () => {
   });
 });
 
-describe("numeroTrimestre", () => {
-  it("place septembre à décembre dans le 1er trimestre", () => {
-    expect(numeroTrimestre(d("2026-09-01"))).toBe(1);
-    expect(numeroTrimestre(d("2026-12-31"))).toBe(1);
+describe("numeroSemestre", () => {
+  it("place septembre à janvier dans le 1er semestre", () => {
+    expect(numeroSemestre(d("2026-09-01"))).toBe(1);
+    expect(numeroSemestre(d("2027-01-31"))).toBe(1);
   });
 
-  it("place janvier à mars dans le 2e trimestre", () => {
-    expect(numeroTrimestre(d("2027-01-01"))).toBe(2);
-    expect(numeroTrimestre(d("2027-03-31"))).toBe(2);
-  });
-
-  it("place avril à août dans le 3e trimestre", () => {
-    expect(numeroTrimestre(d("2027-04-01"))).toBe(3);
-    expect(numeroTrimestre(d("2027-08-31"))).toBe(3);
+  it("place février à août dans le 2e semestre", () => {
+    expect(numeroSemestre(d("2027-02-01"))).toBe(2);
+    expect(numeroSemestre(d("2027-08-31"))).toBe(2);
   });
 });
 
@@ -88,24 +83,24 @@ describe("libelleAnneeScolaireDe", () => {
   });
 });
 
-describe("cleTrimestre", () => {
+describe("cleSemestre", () => {
   it("trie chronologiquement par simple comparaison de chaînes", () => {
     const cles = [
-      cleTrimestre(d("2027-04-01")), // T3 2026/2027
-      cleTrimestre(d("2026-09-01")), // T1 2026/2027
-      cleTrimestre(d("2027-09-01")), // T1 2027/2028
-      cleTrimestre(d("2027-01-01")), // T2 2026/2027
+      cleSemestre(d("2027-05-01")), // S2 2026/2027
+      cleSemestre(d("2026-09-01")), // S1 2026/2027
+      cleSemestre(d("2027-09-01")), // S1 2027/2028
+      cleSemestre(d("2027-01-01")), // S1 2026/2027
     ];
     expect([...cles].sort()).toEqual([
-      cleTrimestre(d("2026-09-01")),
-      cleTrimestre(d("2027-01-01")),
-      cleTrimestre(d("2027-04-01")),
-      cleTrimestre(d("2027-09-01")),
+      cleSemestre(d("2026-09-01")),
+      cleSemestre(d("2027-01-01")),
+      cleSemestre(d("2027-05-01")),
+      cleSemestre(d("2027-09-01")),
     ]);
   });
 });
 
-describe("grouperParTrimestre", () => {
+describe("grouperParSemestre", () => {
   it("regroupe des activités triées par date en conservant l'ordre chronologique des groupes", () => {
     const activites = [
       { id: "a", date: d("2026-09-05") },
@@ -113,20 +108,18 @@ describe("grouperParTrimestre", () => {
       { id: "c", date: d("2027-02-10") },
       { id: "d", date: d("2027-05-01") },
     ];
-    const groupes = grouperParTrimestre(activites);
+    const groupes = grouperParSemestre(activites);
     expect(groupes.map((g) => g.activites.map((a) => a.id))).toEqual([
       ["a", "b"],
-      ["c"],
-      ["d"],
+      ["c", "d"],
     ]);
     expect(groupes.map((g) => g.libelle)).toEqual([
-      "1er trimestre (sept.–déc.) · 2026/2027",
-      "2e trimestre (janv.–mars) · 2026/2027",
-      "3e trimestre (avril–août) · 2026/2027",
+      "1er semestre (sept.–janv.) · 2026/2027",
+      "2e semestre (févr.–août) · 2026/2027",
     ]);
   });
 
   it("renvoie un tableau vide pour une liste vide", () => {
-    expect(grouperParTrimestre([])).toEqual([]);
+    expect(grouperParSemestre([])).toEqual([]);
   });
 });

@@ -114,8 +114,8 @@ export default async function DossierPaiementPage({
       {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
       {ok && !errorMessage && <Alert variant="success">Modification enregistrée.</Alert>}
 
-      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-        <aside className="space-y-4 lg:order-first">
+      <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
+        <aside className="space-y-4 lg:order-last">
           <Card>
             <CardTitle>Incidents</CardTitle>
             {incidents.length === 0 ? (
