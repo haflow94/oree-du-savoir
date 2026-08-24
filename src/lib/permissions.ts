@@ -20,6 +20,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   DOCUMENTS: "Documents",
   INSCRIPTIONS: "Inscriptions",
   CALENDRIER: "Calendrier",
+  GOUVERNANCE: "Gouvernance (CA/AG)",
 };
 
 // Une seule lecture de toute la table par requête (mémoïsation `cache()` de

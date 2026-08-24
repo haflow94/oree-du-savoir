@@ -6,7 +6,7 @@ import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { Role } from "@/lib/roles";
 import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
-import { MIME_DOCX, TYPE_DOCUMENT_LABELS } from "@/lib/documents";
+import { MIME_DOCX, TYPE_DOCUMENT_LABELS, TYPES_DOCUMENTS_GENERES } from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
 import { estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { BackLink } from "@/components/ui/back-link";
@@ -46,6 +46,64 @@ const MESSAGES: Record<string, string> = {
 
 function versChampDate(date: Date | null): string {
   return date ? date.toISOString().slice(0, 10) : "";
+}
+
+type DocumentEtudiant = {
+  id: string;
+  type: TypeDocument;
+  nomFichier: string;
+  mimeType: string;
+  creeLe: Date;
+};
+
+function ListeDocuments({
+  documents,
+  etudiantId,
+}: {
+  documents: DocumentEtudiant[];
+  etudiantId: string;
+}) {
+  return (
+    <ul className="divide-y divide-border">
+      {documents.map((d) => (
+        <li key={d.id} className="flex items-center justify-between py-2.5">
+          <div>
+            <p className="text-sm font-medium text-ink">{d.nomFichier}</p>
+            <p className="text-xs text-ink-faint">
+              {TYPE_DOCUMENT_LABELS[d.type]} · {new Date(d.creeLe).toLocaleDateString("fr-FR")}
+            </p>
+            <div className="mt-1 flex gap-3">
+              <a
+                href={`/etudiants/${etudiantId}/documents/${d.id}${d.mimeType === MIME_DOCX ? "/apercu" : ""}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-medium text-pine hover:underline"
+              >
+                Voir
+              </a>
+              <a
+                href={`/etudiants/${etudiantId}/documents/${d.id}?telecharger=1`}
+                className="text-xs font-medium text-pine hover:underline"
+              >
+                Télécharger
+              </a>
+            </div>
+          </div>
+          <form id={`supprimer-document-${d.id}`} action={supprimerDocumentAction}>
+            <input type="hidden" name="etudiantId" value={etudiantId} />
+            <input type="hidden" name="documentId" value={d.id} />
+          </form>
+          <ConfirmDialog
+            formId={`supprimer-document-${d.id}`}
+            triggerLabel="Supprimer"
+            title="Supprimer ce document ?"
+            description={`« ${d.nomFichier} » sera définitivement supprimé.`}
+            confirmLabel="Supprimer"
+          />
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
@@ -166,6 +224,10 @@ export default async function EtudiantDetailPage({
     etudiant.dossiersAnnuels.length === 0 &&
     etudiant.inscriptions.length === 0 &&
     etudiant._count.presences === 0;
+
+  const typesGeneres: readonly string[] = TYPES_DOCUMENTS_GENERES;
+  const documentsGeneres = etudiant.documents.filter((d) => typesGeneres.includes(d.type));
+  const documentsFournis = etudiant.documents.filter((d) => !typesGeneres.includes(d.type));
 
   // Bandeau d'état : ce que la fiche cachait jusqu'ici (dossier financier de
   // l'année active manquant, ou pas encore soldé) devient visible en tête,
@@ -787,46 +849,22 @@ export default async function EtudiantDetailPage({
               <EmptyState message="Aucun document pour l'instant." />
             </div>
           ) : (
-            <ul className="mb-4 mt-4 divide-y divide-border">
-              {etudiant.documents.map((d) => (
-                <li key={d.id} className="flex items-center justify-between py-2.5">
-                  <div>
-                    <p className="text-sm font-medium text-ink">{d.nomFichier}</p>
-                    <p className="text-xs text-ink-faint">
-                      {TYPE_DOCUMENT_LABELS[d.type]} ·{" "}
-                      {new Date(d.creeLe).toLocaleDateString("fr-FR")}
-                    </p>
-                    <div className="mt-1 flex gap-3">
-                      <a
-                        href={`/etudiants/${etudiant.id}/documents/${d.id}${d.mimeType === MIME_DOCX ? "/apercu" : ""}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs font-medium text-pine hover:underline"
-                      >
-                        Voir
-                      </a>
-                      <a
-                        href={`/etudiants/${etudiant.id}/documents/${d.id}?telecharger=1`}
-                        className="text-xs font-medium text-pine hover:underline"
-                      >
-                        Télécharger
-                      </a>
-                    </div>
-                  </div>
-                  <form id={`supprimer-document-${d.id}`} action={supprimerDocumentAction}>
-                    <input type="hidden" name="etudiantId" value={etudiant.id} />
-                    <input type="hidden" name="documentId" value={d.id} />
-                  </form>
-                  <ConfirmDialog
-                    formId={`supprimer-document-${d.id}`}
-                    triggerLabel="Supprimer"
-                    title="Supprimer ce document ?"
-                    description={`« ${d.nomFichier} » sera définitivement supprimé.`}
-                    confirmLabel="Supprimer"
-                  />
-                </li>
-              ))}
-            </ul>
+            <div className="mb-4 mt-4 space-y-5">
+              <div>
+                <p className={ZONE_TITLE_CLASSES}>Documents fournis</p>
+                {documentsFournis.length === 0 ? (
+                  <p className="text-sm text-ink-faint">Aucun document fourni pour l&apos;instant.</p>
+                ) : (
+                  <ListeDocuments documents={documentsFournis} etudiantId={etudiant.id} />
+                )}
+              </div>
+              {documentsGeneres.length > 0 && (
+                <div>
+                  <p className={ZONE_TITLE_CLASSES}>Documents générés (dossier, reçus, attestations)</p>
+                  <ListeDocuments documents={documentsGeneres} etudiantId={etudiant.id} />
+                </div>
+              )}
+            </div>
           )}
           <form
             action={televerserDocumentAction}

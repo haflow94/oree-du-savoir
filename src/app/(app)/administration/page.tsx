@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Settings } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Role, ROLES_STAFF } from "@/lib/roles";
-import { requireModule, Module } from "@/lib/permissions";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 import { etudiantsEligiblesAnonymisation } from "@/lib/rgpd-eligibles";
 import { buttonVariants } from "@/components/ui/button";
@@ -32,6 +32,7 @@ export default async function AdministrationPage({
   // bloqué ici (défense en profondeur).
   const session = await requireModule(Module.ADMINISTRATION, "LECTURE");
   const estBureau = session.role === Role.BUREAU;
+  const peutAccederGouvernance = await peutAccederModule(session.role, Module.GOUVERNANCE, "LECTURE");
   const { error, ok, utilisateurId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
@@ -91,6 +92,11 @@ export default async function AdministrationPage({
           {estBureau && (
             <Link href="/administration/journal" className={buttonVariants({ variant: "secondary" })}>
               Journal d&apos;audit
+            </Link>
+          )}
+          {peutAccederGouvernance && (
+            <Link href="/administration/gouvernance" className={buttonVariants({ variant: "secondary" })}>
+              Gouvernance (CA/AG)
             </Link>
           )}
           {estBureau && (

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { peutAccederModule, Module } from "@/lib/permissions";
-import { MIME_DOCX } from "@/lib/documents";
 import { JOUR_LABELS } from "@/lib/planning";
 import { Card, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -161,14 +160,12 @@ export default async function RecherchePage({
           <ul className="mt-3 divide-y divide-border">
             {documents.map((d) => (
               <li key={d.id} className="py-2">
-                <a
-                  href={`/etudiants/${d.etudiantId}/documents/${d.id}${d.mimeType === MIME_DOCX ? "/apercu" : ""}`}
-                  target="_blank"
-                  rel="noreferrer"
+                <Link
+                  href={`/etudiants/${d.etudiantId}#zone-documents`}
                   className="text-sm font-medium text-ink hover:underline"
                 >
                   {d.nomFichier}
-                </a>
+                </Link>
                 <span className="ml-2 text-xs text-ink-muted">
                   {d.etudiant.prenom} {d.etudiant.nom}
                 </span>

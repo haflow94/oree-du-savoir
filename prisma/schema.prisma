@@ -55,6 +55,7 @@ enum Module {
   DOCUMENTS
   INSCRIPTIONS
   CALENDRIER
+  GOUVERNANCE
 }
 
 enum NiveauAcces {
@@ -97,6 +98,7 @@ model Utilisateur {
   documentsAjoutes     Document[]
   activitesCreees      Activite[]
   activitesResponsable ActiviteResponsable[]
+  documentsAssociationAjoutes DocumentAssociation[]
   // Spécialités déclarées d'un enseignant (Section dans laquelle il peut
   // intervenir), affectées à la création/modification du compte — sert à
   // filtrer les enseignants proposés lors de la création d'une classe (voir
@@ -706,4 +708,71 @@ model JournalAudit {
   @@index([utilisateurId])
   @@index([entite, entiteId])
   @@map("journal_audit")
+}
+
+// Phase 6 : gouvernance associative (CA/AG), réservée de fait au Bureau —
+// module GOUVERNANCE dans la grille de permissions (aucune ligne par défaut
+// => AUCUN pour tous les autres rôles, BUREAU court-circuité comme partout
+// ailleurs). Les membres du CA n'ont pas de compte applicatif : ce module
+// n'est utilisé que par le Bureau, qui gère PV/convocations en dehors de
+// l'app pour les autres membres.
+model MembreCA {
+  id         String    @id @default(cuid())
+  nom        String
+  prenom     String
+  fonction   String? // ex. "Président", "Secrétaire", "Trésorier", "Membre" — texte libre
+  email      String?
+  dateEntree DateTime
+  dateSortie DateTime?
+  creeLe     DateTime  @default(now())
+
+  @@map("membres_ca")
+}
+
+enum TypeReunionGouvernance {
+  CA
+  AG
+}
+
+model ReunionGouvernance {
+  id          String                 @id @default(cuid())
+  type        TypeReunionGouvernance
+  date        DateTime
+  ordreDuJour String?
+  creeLe      DateTime               @default(now())
+
+  documents DocumentAssociation[]
+
+  @@index([date])
+  @@map("reunions_gouvernance")
+}
+
+enum TypeDocumentAssociation {
+  PV
+  REGLEMENT_INTERIEUR
+  STATUTS
+  AUTRE
+}
+
+// Fichiers séparés de la base, comme Document (voir plus haut) : seules les
+// métadonnées et le chemin relatif à DOCUMENTS_DIR sont stockés ici. Table
+// distincte de Document (qui est spécifique aux étudiants, etudiantId non
+// nul) plutôt que de la rendre générique — évite de complexifier le modèle
+// existant pour un besoin différent (documents associatifs, pas de dossier
+// étudiant).
+model DocumentAssociation {
+  id            String                  @id @default(cuid())
+  type          TypeDocumentAssociation
+  nomFichier    String
+  cheminRelatif String
+  mimeType      String
+  tailleOctets  Int
+  reunionId     String?
+  reunion       ReunionGouvernance?     @relation(fields: [reunionId], references: [id], onDelete: SetNull)
+  creeLe        DateTime                @default(now())
+  creeParId     String?
+  creePar       Utilisateur?            @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+
+  @@index([reunionId])
+  @@map("documents_association")
 }
