@@ -6,7 +6,7 @@ import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { Role } from "@/lib/roles";
 import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
-import { TYPE_DOCUMENT_LABELS } from "@/lib/documents";
+import { MIME_DOCX, TYPE_DOCUMENT_LABELS } from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
 import { estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { BackLink } from "@/components/ui/back-link";
@@ -798,7 +798,7 @@ export default async function EtudiantDetailPage({
                     </p>
                     <div className="mt-1 flex gap-3">
                       <a
-                        href={`/etudiants/${etudiant.id}/documents/${d.id}`}
+                        href={`/etudiants/${etudiant.id}/documents/${d.id}${d.mimeType === MIME_DOCX ? "/apercu" : ""}`}
                         target="_blank"
                         rel="noreferrer"
                         className="text-xs font-medium text-pine hover:underline"

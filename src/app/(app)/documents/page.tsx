@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { TYPE_DOCUMENT_LABELS, dossierDocumentaireComplet } from "@/lib/documents";
+import { MIME_DOCX, TYPE_DOCUMENT_LABELS, dossierDocumentaireComplet } from "@/lib/documents";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { IconChip } from "@/components/ui/icon-chip";
@@ -100,7 +100,7 @@ export default async function DocumentsPage({
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-ink">{d.nomFichier}</span>
                     <a
-                      href={`/etudiants/${d.etudiantId}/documents/${d.id}`}
+                      href={`/etudiants/${d.etudiantId}/documents/${d.id}${d.mimeType === MIME_DOCX ? "/apercu" : ""}`}
                       target="_blank"
                       rel="noreferrer"
                       className="text-xs font-medium text-pine hover:underline"

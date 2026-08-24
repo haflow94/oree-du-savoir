@@ -47,6 +47,12 @@ export async function supprimerFichierDocument(cheminRelatif: string): Promise<v
   await unlink(cheminAbsolu(cheminRelatif)).catch(() => {});
 }
 
+// Type MIME d'un dossier généré (.docx) — un navigateur ne le prévisualise
+// jamais nativement, contrairement à un PDF/image : voir la page d'aperçu
+// côté client sous documents/[documentId]/apercu.
+export const MIME_DOCX =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 export const TYPE_DOCUMENT_LABELS: Record<string, string> = {
   PIECE_IDENTITE: "Pièce d'identité",
   PHOTO: "Photo",

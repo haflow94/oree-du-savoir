@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { peutAccederModule, Module } from "@/lib/permissions";
+import { MIME_DOCX } from "@/lib/documents";
 import { JOUR_LABELS } from "@/lib/planning";
 import { Card, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -161,7 +162,7 @@ export default async function RecherchePage({
             {documents.map((d) => (
               <li key={d.id} className="py-2">
                 <a
-                  href={`/etudiants/${d.etudiantId}/documents/${d.id}`}
+                  href={`/etudiants/${d.etudiantId}/documents/${d.id}${d.mimeType === MIME_DOCX ? "/apercu" : ""}`}
                   target="_blank"
                   rel="noreferrer"
                   className="text-sm font-medium text-ink hover:underline"

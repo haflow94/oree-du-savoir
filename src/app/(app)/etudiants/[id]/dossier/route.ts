@@ -2,18 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { JOUR_LABELS } from "@/lib/planning";
 import { genererDossierOfficielDocx } from "@/lib/dossier-officiel";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, MIME_DOCX } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
-
-const MIME_DOCX =
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 // Génère le dossier officiel en .docx pour une section donnée (remplissage
 // direct du gabarit Word d'origine de l'association, voir
 // src/lib/dossier-officiel.ts), l'enregistre comme Document (type
 // DOSSIER_GENERE) pour qu'il reste accessible plus tard sans le regénérer,
-// puis le renvoie en téléchargement (un navigateur ne prévisualise pas un
-// .docx : il faut l'ouvrir dans Word/LibreOffice pour l'imprimer/signer).
+// puis le renvoie en téléchargement direct depuis ce endpoint de génération
+// (la prévisualisation en lecture se fait ensuite via la page d'aperçu
+// documents/[documentId]/apercu, qui rend le .docx côté client).
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
