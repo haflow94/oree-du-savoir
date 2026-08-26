@@ -54,7 +54,7 @@ export function DupliquerClassesDialog({
             </button>
           </div>
           <p className="mt-2 text-xs text-ink-faint">
-            Copie cours, niveau, créneau, salle, capacité et enseignants
+            Copie cours, niveau, créneau, salle et enseignants
             d&apos;une année vers {anneeActive.libelle} en un clic. Les
             classes déjà présentes sur {anneeActive.libelle} (même cours,
             niveau, jour et heure) ne sont pas dupliquées deux fois.

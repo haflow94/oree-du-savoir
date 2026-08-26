@@ -12,7 +12,6 @@ import {
   datesDesSeances,
   enseignantPeutCorriger,
 } from "@/lib/presences";
-import { statutPourNouvelleInscription, promouvoirProchainEnAttente } from "@/lib/inscriptions";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -93,10 +92,9 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
   if (!classeId) redirect("/classes");
   if (!etudiantId) retourInscription(origine, classeId, etudiantId, "INSCRIPTION_INVALIDE");
 
-  const statut = await statutPourNouvelleInscription(classeId);
   await prisma.$transaction([
     prisma.inscriptionClasse.createMany({
-      data: [{ classeId, etudiantId, statut }],
+      data: [{ classeId, etudiantId }],
       skipDuplicates: true,
     }),
     // Le souhait de section exprimé à la préinscription (voir
@@ -124,10 +122,6 @@ export async function retirerEtudiantAction(formData: FormData): Promise<void> {
   if (!inscriptionId) retourInscription(origine, classeId, etudiantId, "INSCRIPTION_INVALIDE");
 
   await prisma.inscriptionClasse.delete({ where: { id: inscriptionId } });
-  // La place libérée (si elle était confirmée) revient à la plus ancienne
-  // inscription en liste d'attente : sans effet si celle-ci était déjà en
-  // liste d'attente, ou si aucune classe n'attend une place.
-  await promouvoirProchainEnAttente(classeId);
 
   revalidatePath(`/classes/${classeId}`);
   if (etudiantId) revalidatePath(`/etudiants/${etudiantId}`);
@@ -274,11 +268,10 @@ export async function validerPresencesAction(formData: FormData): Promise<void> 
     include: {
       classe: {
         include: {
-          // Seuls les étudiants avec une place confirmée et un dossier validé
-          // font l'appel : une préinscription ou une liste d'attente
-          // n'apparaît jamais en présences (voir src/lib/inscriptions.ts).
+          // Seuls les étudiants au dossier validé font l'appel : une
+          // préinscription n'apparaît jamais en présences.
           inscriptions: {
-            where: { statut: "CONFIRMEE", etudiant: { statutInscription: "VALIDE" } },
+            where: { etudiant: { statutInscription: "VALIDE" } },
           },
         },
       },

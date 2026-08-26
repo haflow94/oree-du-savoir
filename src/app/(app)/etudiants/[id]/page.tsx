@@ -688,9 +688,6 @@ export default async function EtudiantDetailPage({
                       {i.classe.cours.section.nom} · {i.classe.cours.nom}
                       {i.classe.niveau && ` — ${i.classe.niveau}`}
                     </Link>
-                    {i.statut === "LISTE_ATTENTE" && (
-                      <Badge variant="danger">Liste d&apos;attente</Badge>
-                    )}
                   </div>
                   <p className="text-xs text-ink-faint">
                     {JOUR_LABELS[i.classe.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}
@@ -920,7 +917,6 @@ export default async function EtudiantDetailPage({
           )}
           <form
             action={televerserDocumentAction}
-            encType="multipart/form-data"
             className="flex flex-wrap items-end gap-2 border-t border-border pt-4"
           >
             <input type="hidden" name="etudiantId" value={etudiant.id} />

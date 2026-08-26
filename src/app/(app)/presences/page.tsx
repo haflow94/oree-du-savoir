@@ -25,9 +25,8 @@ export default async function PresencesPage({
   const { date, archives } = await searchParams;
   const voirArchives = archives === "1";
 
-  const jourAffiche = date
-    ? new Date(`${date}T00:00:00.000Z`)
-    : aujourdhuiUTC();
+  const dateSaisie = date ? new Date(`${date}T00:00:00.000Z`) : null;
+  const jourAffiche = dateSaisie && !Number.isNaN(dateSaisie.getTime()) ? dateSaisie : aujourdhuiUTC();
   const jourISO = jourAffiche.toISOString().slice(0, 10);
 
   const administratif = estAdministratif(session.role);

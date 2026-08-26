@@ -201,7 +201,6 @@ export default async function GouvernancePage({
 
               <form
                 action={televerserDocumentAssociationAction}
-                encType="multipart/form-data"
                 className="mt-2 flex flex-wrap items-center gap-2"
               >
                 <input type="hidden" name="reunionId" value={r.id} />
@@ -221,7 +220,6 @@ export default async function GouvernancePage({
         <CardTitle>Règlement intérieur, statuts et autres documents de référence</CardTitle>
         <form
           action={televerserDocumentAssociationAction}
-          encType="multipart/form-data"
           className="mt-3 flex flex-wrap items-end gap-3"
         >
           <ChampSelect label="Type" name="type" id="type-doc-reference" required>

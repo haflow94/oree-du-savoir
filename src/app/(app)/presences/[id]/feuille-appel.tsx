@@ -46,10 +46,15 @@ export function FeuilleAppel({
   dejaValidee: boolean;
 }) {
   // « Tous présents » est le point de départ : l'enseignant ne saisit que les
-  // exceptions. Rien n'est écrit en base tant qu'il n'a pas validé.
-  const [statuts, setStatuts] = useState<Record<string, StatutPresence>>(() =>
+  // exceptions. Rien n'est écrit en base tant qu'il n'a pas validé. Ce
+  // défaut ne s'applique qu'au tout premier appel : pour une séance déjà
+  // validée (consultation ou correction), un étudiant sans Presence — par
+  // exemple inscrit après coup — doit rester sans statut plutôt que
+  // d'afficher un « Présent » jamais réellement enregistré (voir règle
+  // « jamais deviner » dans CLAUDE.md).
+  const [statuts, setStatuts] = useState<Record<string, StatutPresence | null>>(() =>
     Object.fromEntries(
-      lignes.map((l) => [l.etudiantId, l.statutInitial ?? "PRESENT"]),
+      lignes.map((l) => [l.etudiantId, l.statutInitial ?? (dejaValidee ? null : "PRESENT")]),
     ),
   );
 
@@ -98,7 +103,7 @@ export function FeuilleAppel({
               <input
                 type="hidden"
                 name={`statut_${l.etudiantId}`}
-                value={statuts[l.etudiantId]}
+                value={statuts[l.etudiantId] ?? ""}
               />
               <div className="flex flex-wrap gap-1.5">
                 {ORDRE.map((s) => {

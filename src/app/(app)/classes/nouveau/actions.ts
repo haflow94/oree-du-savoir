@@ -43,9 +43,6 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
     redirect("/classes/nouveau?error=CLASSE_DEJA_EXISTANTE");
   }
 
-  const capaciteBrute = champTexte(formData, "capacite");
-  const capacite = capaciteBrute ? Number.parseInt(capaciteBrute, 10) : null;
-
   const enseignantIds = formData.getAll("enseignants").filter(
     (v): v is string => typeof v === "string" && v.length > 0,
   );
@@ -60,7 +57,6 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
       niveau,
       semestre,
       salle: champTexte(formData, "salle"),
-      capacite: capacite && !Number.isNaN(capacite) ? capacite : null,
       enseignants: {
         create: enseignantIds.map((utilisateurId) => ({ utilisateurId })),
       },

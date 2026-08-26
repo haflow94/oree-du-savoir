@@ -7,6 +7,7 @@ import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { estAdministratif } from "@/lib/acces-presence";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import { enseignantsActifsAvecSections } from "@/lib/enseignants";
+import { filtreParSection } from "@/lib/sections-etudiant";
 import {
   genererSeancesAction,
   inscrireEtudiantAction,
@@ -60,10 +61,7 @@ export default async function ClasseDetailPage({
       enseignants: { include: { utilisateur: true } },
       inscriptions: {
         include: { etudiant: true },
-        // Confirmées d'abord, puis liste d'attente (ordre alphabétique déjà
-        // exact ici : "CONFIRMEE" < "LISTE_ATTENTE") ; par ancienneté à
-        // l'intérieur de chaque groupe pour refléter l'ordre d'arrivée.
-        orderBy: [{ statut: "asc" }, { creeLe: "asc" }],
+        orderBy: { creeLe: "asc" },
       },
       _count: { select: { seances: true, inscriptions: true } },
     },
@@ -72,6 +70,18 @@ export default async function ClasseDetailPage({
   if (!classe) {
     notFound();
   }
+
+  // Salles déjà utilisées par d'autres classes, proposées via un <datalist> :
+  // pas de référentiel Salle séparé (l'appli n'en a pas besoin ailleurs), mais
+  // un typo dans ce champ casse le rapprochement du QR de salle (voir
+  // src/lib/qr.ts) — ce datalist réduit ce risque tout en laissant la saisie
+  // libre pour une salle réellement nouvelle.
+  const sallesDistinctes = await prisma.classe.findMany({
+    where: { salle: { not: null } },
+    distinct: ["salle"],
+    select: { salle: true },
+    orderBy: { salle: "asc" },
+  });
 
   const administratif = estAdministratif(session.role);
   const peutInscrire = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
@@ -91,21 +101,35 @@ export default async function ClasseDetailPage({
       )
     : [];
   const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
-  const inscriptionsConfirmees = classe.inscriptions.filter((i) => i.statut === "CONFIRMEE");
-  const inscriptionsEnAttente = classe.inscriptions.filter((i) => i.statut === "LISTE_ATTENTE");
 
   const dejaInscrits = new Set(classe.inscriptions.map((i) => i.etudiantId));
+  // Ne proposer que les étudiants de la section de cette classe (déjà inscrits
+  // à une autre classe de la section cette année, ou en attente d'affectation
+  // avec cette section comme souhait de préinscription) : sans ce filtre, le
+  // menu déroulant mélangeait tous les étudiants de l'appli, toutes sections
+  // confondues (voir filtreParSection dans lib/sections-etudiant.ts).
+  const filtreSection = {
+    OR: [
+      filtreParSection(classe.anneeScolaireId, classe.cours.sectionId),
+      { sectionSouhaiteeId: classe.cours.sectionId },
+    ],
+  };
   const etudiantsDisponibles = peutInscrire
     ? (
         await prisma.etudiant.findMany({
-          where: etudRecherche
-            ? {
-                OR: [
-                  { nom: { contains: etudRecherche, mode: "insensitive" } },
-                  { prenom: { contains: etudRecherche, mode: "insensitive" } },
-                ],
-              }
-            : undefined,
+          where: {
+            AND: [
+              filtreSection,
+              etudRecherche
+                ? {
+                    OR: [
+                      { nom: { contains: etudRecherche, mode: "insensitive" } },
+                      { prenom: { contains: etudRecherche, mode: "insensitive" } },
+                    ],
+                  }
+                : {},
+            ],
+          },
           orderBy: [{ nom: "asc" }, { prenom: "asc" }],
         })
       ).filter((e) => !dejaInscrits.has(e.id))
@@ -123,7 +147,15 @@ export default async function ClasseDetailPage({
   const enTetes = await headers();
   const hote = process.env.PUBLIC_HOST || enTetes.get("host") || "localhost:3000";
   const protocole = enTetes.get("x-forwarded-proto") ?? "http";
-  const cheminQr = `/qr/${classe.qrToken}`;
+  // Une salle accueille en général plusieurs classes différentes au fil
+  // d'une même journée, et l'association ne peut afficher/imprimer qu'un
+  // seul QR fixe par salle (jamais échangé entre les cours) : le QR pointe
+  // donc sur la salle plutôt que sur cette classe précise dès qu'une salle
+  // est renseignée (résolution du bon cours à l'heure du scan, voir
+  // src/lib/qr.ts) ; le QR par classe ne reste utile que sans salle définie.
+  const cheminQr = classe.salle
+    ? `/qr-salle/${encodeURIComponent(classe.salle)}`
+    : `/qr/${classe.qrToken}`;
   const urlQr = `${protocole}://${hote}${cheminQr}`;
   const qrSvg = await QRCode.toString(urlQr, {
     type: "svg",
@@ -133,6 +165,11 @@ export default async function ClasseDetailPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <datalist id="salles-existantes">
+        {sallesDistinctes.map(
+          (s) => s.salle && <option key={s.salle} value={s.salle} />,
+        )}
+      </datalist>
       <div>
         <BackLink href="/classes" label="Classes" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
@@ -192,7 +229,12 @@ export default async function ClasseDetailPage({
                 <option value="1">Semestre 1</option>
                 <option value="2">Semestre 2</option>
               </ChampSelect>
-              <Champ label="Salle" name="salle" defaultValue={classe.salle ?? ""} />
+              <Champ
+                label="Salle"
+                name="salle"
+                list="salles-existantes"
+                defaultValue={classe.salle ?? ""}
+              />
               <ChampSelect label="Jour" name="jour" required defaultValue={classe.jour}>
                 {JOURS_ORDONNES.map((j) => (
                   <option key={j} value={j}>
@@ -213,13 +255,6 @@ export default async function ClasseDetailPage({
                 name="heureFin"
                 required
                 defaultValue={classe.heureFin}
-              />
-              <Champ
-                label="Capacité"
-                type="number"
-                min={0}
-                name="capacite"
-                defaultValue={classe.capacite ?? ""}
               />
             </div>
 
@@ -258,10 +293,13 @@ export default async function ClasseDetailPage({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
-          <CardTitle>QR d&apos;accès à la séance du jour</CardTitle>
+          <CardTitle>
+            {classe.salle ? `QR de la salle ${classe.salle}` : "QR d'accès à la séance du jour"}
+          </CardTitle>
           <p className="mt-1 text-xs text-ink-faint">
-            À afficher en salle. Le QR ne connecte personne : l&apos;enseignant
-            doit être authentifié.
+            {classe.salle
+              ? "Ce même QR sert pour tous les cours de cette salle : il peut rester affiché en permanence, le bon cours est retrouvé automatiquement à l'heure du scan (ou proposé au choix si plusieurs cours s'y suivent). Le QR ne connecte personne : l'enseignant doit être authentifié."
+              : "À afficher en salle. Le QR ne connecte personne : l'enseignant doit être authentifié."}
           </p>
           <div
             className="mt-3 inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
@@ -291,54 +329,10 @@ export default async function ClasseDetailPage({
       </div>
 
       <Card>
-        <CardTitle>
-          Étudiants inscrits ({inscriptionsConfirmees.length}
-          {classe.capacite ? ` / ${classe.capacite}` : ""})
-          {inscriptionsEnAttente.length > 0 && (
-            <span className="ml-2 font-normal text-ink-faint">
-              · {inscriptionsEnAttente.length} en liste d&apos;attente
-            </span>
-          )}
-        </CardTitle>
-
-        {classe.inscriptions.length === 0 ? (
-          <div className="mt-3">
-            <EmptyState message="Aucun étudiant inscrit." />
-          </div>
-        ) : (
-          <ul className="mt-3 divide-y divide-border">
-            {classe.inscriptions.map((i) => (
-              <li key={i.id} className="flex items-center justify-between py-2.5">
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/etudiants/${i.etudiantId}`}
-                    className="text-sm font-medium text-ink hover:underline"
-                  >
-                    {i.etudiant.prenom} {i.etudiant.nom}
-                  </Link>
-                  {i.statut === "LISTE_ATTENTE" && <Badge variant="danger">Liste d&apos;attente</Badge>}
-                  {i.etudiant.statutInscription === "PREINSCRIT" && (
-                    <Badge variant="info">Préinscrit</Badge>
-                  )}
-                </div>
-                {peutInscrire && (
-                  <form action={retirerEtudiantAction}>
-                    <input type="hidden" name="origine" value="classe" />
-                    <input type="hidden" name="inscriptionId" value={i.id} />
-                    <input type="hidden" name="classeId" value={classe.id} />
-                    <input type="hidden" name="etudiantId" value={i.etudiantId} />
-                    <button type="submit" className="text-xs font-medium text-rust hover:underline">
-                      Retirer
-                    </button>
-                  </form>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <CardTitle>Étudiants inscrits ({classe.inscriptions.length})</CardTitle>
 
         {peutInscrire && (
-          <div className="mt-4 space-y-3 border-t border-border pt-4">
+          <div className="mt-3 space-y-3 border-b border-border pb-4">
             <form className="flex flex-wrap gap-2" action={`/classes/${classe.id}`} method="GET">
               <input
                 type="search"
@@ -371,10 +365,45 @@ export default async function ClasseDetailPage({
               <p className="text-sm text-ink-faint">
                 {etudRecherche
                   ? "Aucun étudiant ne correspond à ce filtre."
-                  : "Aucun étudiant disponible."}
+                  : "Aucun étudiant de cette section disponible."}
               </p>
             )}
           </div>
+        )}
+
+        {classe.inscriptions.length === 0 ? (
+          <div className="mt-3">
+            <EmptyState message="Aucun étudiant inscrit." />
+          </div>
+        ) : (
+          <ul className="mt-3 divide-y divide-border">
+            {classe.inscriptions.map((i) => (
+              <li key={i.id} className="flex items-center justify-between py-2.5">
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/etudiants/${i.etudiantId}`}
+                    className="text-sm font-medium text-ink hover:underline"
+                  >
+                    {i.etudiant.prenom} {i.etudiant.nom}
+                  </Link>
+                  {i.etudiant.statutInscription === "PREINSCRIT" && (
+                    <Badge variant="info">Préinscrit</Badge>
+                  )}
+                </div>
+                {peutInscrire && (
+                  <form action={retirerEtudiantAction}>
+                    <input type="hidden" name="origine" value="classe" />
+                    <input type="hidden" name="inscriptionId" value={i.id} />
+                    <input type="hidden" name="classeId" value={classe.id} />
+                    <input type="hidden" name="etudiantId" value={i.etudiantId} />
+                    <button type="submit" className="text-xs font-medium text-rust hover:underline">
+                      Retirer
+                    </button>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </Card>
     </div>

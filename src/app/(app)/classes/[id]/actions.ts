@@ -55,8 +55,6 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
   });
   if (doublon) retour(classeId, "CLASSE_DEJA_EXISTANTE");
 
-  const capaciteBrute = champTexte(formData, "capacite");
-  const capacite = capaciteBrute ? Number.parseInt(capaciteBrute, 10) : null;
   const enseignantIds = formData.getAll("enseignants").filter(
     (v): v is string => typeof v === "string" && v.length > 0,
   );
@@ -71,7 +69,6 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
         niveau,
         semestre,
         salle: champTexte(formData, "salle"),
-        capacite: capacite && !Number.isNaN(capacite) ? capacite : null,
       },
     }),
     prisma.classeEnseignant.deleteMany({ where: { classeId } }),

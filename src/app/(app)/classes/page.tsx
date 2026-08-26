@@ -53,9 +53,9 @@ export default async function ClassesPage({
   const [cours, sections, sallesDistinctes, annees, anneeActive] = await Promise.all([
     prisma.cours.findMany({
       orderBy: { nom: "asc" },
-      include: { section: true, _count: { select: { classes: true } } },
+      include: { section: { select: { id: true, nom: true } }, _count: { select: { classes: true } } },
     }),
-    prisma.section.findMany({ orderBy: { nom: "asc" } }),
+    prisma.section.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
     prisma.classe.findMany({
       where: { salle: { not: null } },
       distinct: ["salle"],
@@ -128,7 +128,7 @@ export default async function ClassesPage({
               )}
             </div>
             <p className="text-sm text-ink-muted">
-              Cours, classes, créneaux, enseignants, capacité.
+              Cours, classes, créneaux, enseignants.
             </p>
           </div>
         </div>
@@ -228,7 +228,6 @@ export default async function ClassesPage({
           <th className="px-4 py-3">Niveau</th>
           <th className="px-4 py-3">Créneau</th>
           <th className="px-4 py-3">Salle</th>
-          <th className="px-4 py-3">Capacité</th>
           <th className="px-4 py-3">Enseignant(s)</th>
           <th className="px-4 py-3">Année</th>
           {peutGerer && <th className="px-4 py-3" />}
@@ -250,7 +249,6 @@ export default async function ClassesPage({
                 {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
               </td>
               <td className="px-4 py-3 text-ink-muted">{c.salle ?? "—"}</td>
-              <td className="px-4 py-3 text-ink-muted">{c.capacite ?? "—"}</td>
               <td className="px-4 py-3 text-ink-muted">
                 {c.enseignants.length > 0
                   ? c.enseignants

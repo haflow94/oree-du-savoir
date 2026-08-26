@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
-import { statutPourNouvelleInscription } from "@/lib/inscriptions";
 import { trouverDoublonEtudiant } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 
@@ -154,12 +153,7 @@ export async function preinscrireAction(
     emailResponsable: champTexte(formData, "responsableEmail"),
   });
 
-  const inscriptionsACreer = await Promise.all(
-    [...classeIdsValides].map(async (classeId) => ({
-      classeId,
-      statut: await statutPourNouvelleInscription(classeId),
-    })),
-  );
+  const inscriptionsACreer = [...classeIdsValides].map((classeId) => ({ classeId }));
 
   const remarqueSectionsSupplementaires =
     sectionsSansCreneau.length > 1

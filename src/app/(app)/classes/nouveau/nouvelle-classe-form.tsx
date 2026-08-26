@@ -23,7 +23,6 @@ type Source = {
   heureDebut: string;
   heureFin: string;
   salle: string | null;
-  capacite: number | null;
 } | null;
 
 // Client component : le choix du cours détermine sa section, qui filtre la
@@ -37,12 +36,14 @@ export function NouvelleClasseForm({
   enseignants,
   source,
   anneeParDefaut,
+  salles,
 }: {
   cours: Cours[];
   annees: Annee[];
   enseignants: EnseignantAvecSections[];
   source: Source;
   anneeParDefaut: string | undefined;
+  salles: string[];
 }) {
   const [coursId, setCoursId] = useState(source?.coursId ?? cours[0]?.id ?? "");
   const sectionId = cours.find((c) => c.id === coursId)?.sectionId;
@@ -50,6 +51,11 @@ export function NouvelleClasseForm({
 
   return (
     <form action={creerClasseAction} className="space-y-6">
+      <datalist id="salles-existantes">
+        {salles.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Cours et niveau</legend>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -121,15 +127,13 @@ export function NouvelleClasseForm({
       </fieldset>
 
       <fieldset className={FIELDSET_CLASSES}>
-        <legend className={LEGEND_CLASSES}>Salle et capacité</legend>
+        <legend className={LEGEND_CLASSES}>Salle</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Champ label="Salle" name="salle" defaultValue={source?.salle ?? ""} />
           <Champ
-            label="Capacité"
-            name="capacite"
-            type="number"
-            min={0}
-            defaultValue={source?.capacite ?? ""}
+            label="Salle"
+            name="salle"
+            list="salles-existantes"
+            defaultValue={source?.salle ?? ""}
           />
         </div>
       </fieldset>

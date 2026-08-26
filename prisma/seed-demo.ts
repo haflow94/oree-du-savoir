@@ -176,18 +176,18 @@ async function main() {
   // --- Cours et classes ---------------------------------------------------
   const definitions = [
     { cours: "Arabe", section: "Langue Arabe", classes: [
-      { niveau: "Débutant", jour: "SAMEDI", debut: "09:00", fin: "10:15", salle: "A1", capacite: 15 },
-      { niveau: "Intermédiaire", jour: "SAMEDI", debut: "10:30", fin: "11:45", salle: "A1", capacite: 15 },
-      { niveau: "Avancé", jour: "DIMANCHE", debut: "09:00", fin: "10:15", salle: "A2", capacite: 12 },
+      { niveau: "Débutant", jour: "SAMEDI", debut: "09:00", fin: "10:15", salle: "A1" },
+      { niveau: "Intermédiaire", jour: "SAMEDI", debut: "10:30", fin: "11:45", salle: "A1" },
+      { niveau: "Avancé", jour: "DIMANCHE", debut: "09:00", fin: "10:15", salle: "A2" },
     ]},
     { cours: "Coran", section: "Études Coraniques", classes: [
-      { niveau: "Niveau 1", jour: "SAMEDI", debut: "12:00", fin: "13:15", salle: "B1", capacite: 20 },
-      { niveau: "Niveau 2", jour: "DIMANCHE", debut: "10:30", fin: "11:45", salle: "B1", capacite: 20 },
+      { niveau: "Niveau 1", jour: "SAMEDI", debut: "12:00", fin: "13:15", salle: "B1" },
+      { niveau: "Niveau 2", jour: "DIMANCHE", debut: "10:30", fin: "11:45", salle: "B1" },
     ]},
     { cours: "Soutien scolaire", section: "Jeunes", classes: [
       // Une classe en semaine : garantit une séance les jours ouvrés.
-      { niveau: "Collège", jour: "LUNDI", debut: "17:30", fin: "19:00", salle: "C3", capacite: 10 },
-      { niveau: "Primaire", jour: "MERCREDI", debut: "14:00", fin: "15:30", salle: "C3", capacite: 12 },
+      { niveau: "Collège", jour: "LUNDI", debut: "17:30", fin: "19:00", salle: "C3" },
+      { niveau: "Primaire", jour: "MERCREDI", debut: "14:00", fin: "15:30", salle: "C3" },
     ]},
   ] as const;
 
@@ -214,7 +214,6 @@ async function main() {
           heureDebut: c.debut,
           heureFin: c.fin,
           salle: c.salle,
-          capacite: c.capacite,
           enseignants: { create: [{ utilisateurId: titulaire.id }] },
         },
       });

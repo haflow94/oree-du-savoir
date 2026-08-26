@@ -55,7 +55,7 @@ export async function modifierCoursAction(formData: FormData): Promise<void> {
 }
 
 // Copie en une fois toutes les classes d'une année source vers l'année
-// active (cours, niveau, créneau, salle, capacité, enseignants) : évite de
+// active (cours, niveau, créneau, salle, enseignants) : évite de
 // tout resaisir à la main à chaque rentrée pour des matières qui reviennent
 // à l'identique. Idempotent par (cours, niveau, jour, heure de début) : ne
 // duplique jamais une classe déjà présente sur l'année active.
@@ -101,7 +101,6 @@ export async function dupliquerClassesAction(formData: FormData): Promise<void> 
           heureDebut: c.heureDebut,
           heureFin: c.heureFin,
           salle: c.salle,
-          capacite: c.capacite,
           enseignants: {
             create: c.enseignants.map((e) => ({ utilisateurId: e.utilisateurId })),
           },
