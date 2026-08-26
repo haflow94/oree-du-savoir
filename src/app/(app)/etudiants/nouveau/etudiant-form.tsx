@@ -11,6 +11,7 @@ import {
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
 
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
@@ -30,7 +31,14 @@ function BlocResponsable({ index }: { index: 1 | 2 }) {
         <Champ label="Lien (père, mère, tuteur…)" name={`responsable${index}Lien`} />
         <Champ label="Nom" name={`responsable${index}Nom`} />
         <Champ label="Prénom" name={`responsable${index}Prenom`} />
-        <Champ label="Téléphone" name={`responsable${index}Telephone`} />
+        <Champ
+          label="Téléphone"
+          name={`responsable${index}Telephone`}
+          inputMode="tel"
+          pattern={PATTERN_TELEPHONE}
+          title="Numéro français, ex. 06 12 34 56 78"
+          placeholder="06 12 34 56 78"
+        />
         <Champ label="Email" name={`responsable${index}Email`} type="email" />
         <Champ
           label="Adresse"
@@ -122,7 +130,7 @@ export function EtudiantForm() {
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Identité</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <ChampSelect label="Civilité" name="civilite" defaultValue="">
+          <ChampSelect label="Civilité" name="civilite" required defaultValue="">
             <option value="">—</option>
             <option value="M">M.</option>
             <option value="MME">Mme</option>
@@ -130,21 +138,50 @@ export function EtudiantForm() {
           <div />
           <Champ label="Nom" name="nom" required />
           <Champ label="Prénom" name="prenom" required />
-          <Champ label="Date de naissance" name="dateNaissance" type="date" />
-          <Champ label="Ville de naissance" name="villeNaissance" />
+          <Champ label="Date de naissance" name="dateNaissance" type="date" required />
+          <Champ label="Ville de naissance" name="villeNaissance" required />
         </div>
       </fieldset>
 
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Coordonnées</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Champ label="Téléphone mobile" name="telephoneMobile" />
-          <Champ label="Téléphone fixe" name="telephoneFixe" />
-          <Champ label="Email" name="email" type="email" />
-          <Champ label="Contact d'urgence" name="contactUrgence" />
-          <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
+          <Champ
+            label="Téléphone mobile"
+            name="telephoneMobile"
+            required
+            inputMode="tel"
+            pattern={PATTERN_TELEPHONE}
+            title="Numéro français, ex. 06 12 34 56 78"
+            placeholder="06 12 34 56 78"
+          />
+          <Champ
+            label="Téléphone fixe"
+            name="telephoneFixe"
+            inputMode="tel"
+            pattern={PATTERN_TELEPHONE}
+            title="Numéro français, ex. 04 91 23 45 67"
+            placeholder="04 91 23 45 67"
+          />
+          <Champ label="Email" name="email" type="email" required />
+          <Champ
+            label="Contact d'urgence"
+            name="contactUrgence"
+            placeholder="Nom Prénom Numéro de mobile"
+          />
+          <Champ label="Adresse" name="adresse" className="sm:col-span-2" required />
           <Champ label="Complément d'adresse" name="complementAdresse" />
-          <Champ label="Code postal" name="codePostal" />
+          <Champ
+            label="Code postal"
+            name="codePostal"
+            required
+            inputMode="numeric"
+            pattern={PATTERN_CODE_POSTAL}
+            maxLength={5}
+            title="5 chiffres"
+            placeholder="69000"
+          />
+          <Champ label="Ville" name="ville" required />
         </div>
       </fieldset>
 
@@ -152,7 +189,7 @@ export function EtudiantForm() {
         <legend className={LEGEND_CLASSES}>Situation</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <Champ label="Profession" name="profession" />
-          <Champ label="Niveau d'études" name="niveauEtudes" />
+          <Champ label="Niveau d'études" name="niveauEtudes" required />
           <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
           <div />
           <ChampTextarea label="Remarque" name="remarque" rows={3} className="sm:col-span-2" />

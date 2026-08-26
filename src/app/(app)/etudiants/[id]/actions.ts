@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Civilite, TypeDocument } from "@/generated/prisma/enums";
 import { enregistrerDocumentEtudiant, supprimerFichierDocument } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
+import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -31,31 +32,61 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
   const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
   const etudiantId = champTexte(formData, "etudiantId");
+  if (!etudiantId) redirect("/etudiants");
+
+  const civilite = champCivilite(formData, "civilite");
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");
-  if (!etudiantId) redirect("/etudiants");
-  if (!nom || !prenom) retour(etudiantId, "CHAMPS_MANQUANTS");
-
   const dateNaissanceBrute = champTexte(formData, "dateNaissance");
+  const villeNaissance = champTexte(formData, "villeNaissance");
+  const telephoneMobile = champTexte(formData, "telephoneMobile");
+  const email = champTexte(formData, "email");
+  const adresse = champTexte(formData, "adresse");
+  const codePostal = champTexte(formData, "codePostal");
+  const ville = champTexte(formData, "ville");
+  const niveauEtudes = champTexte(formData, "niveauEtudes");
+
+  if (
+    !civilite ||
+    !nom ||
+    !prenom ||
+    !dateNaissanceBrute ||
+    !villeNaissance ||
+    !telephoneMobile ||
+    !email ||
+    !adresse ||
+    !codePostal ||
+    !ville ||
+    !niveauEtudes
+  ) {
+    retour(etudiantId, "PROFIL_CHAMPS_MANQUANTS");
+  }
+  if (!estTelephoneValide(telephoneMobile)) retour(etudiantId, "TELEPHONE_INVALIDE");
+  if (!estEmailValide(email)) retour(etudiantId, "EMAIL_INVALIDE");
+  if (!estCodePostalValide(codePostal)) retour(etudiantId, "CODE_POSTAL_INVALIDE");
+
+  const telephoneFixe = champTexte(formData, "telephoneFixe");
+  if (telephoneFixe && !estTelephoneValide(telephoneFixe)) retour(etudiantId, "TELEPHONE_INVALIDE");
 
   await prisma.$transaction([
     prisma.etudiant.update({
       where: { id: etudiantId },
       data: {
-        civilite: champCivilite(formData, "civilite"),
+        civilite,
         nom,
         prenom,
-        dateNaissance: dateNaissanceBrute ? new Date(dateNaissanceBrute) : null,
-        villeNaissance: champTexte(formData, "villeNaissance"),
-        telephoneMobile: champTexte(formData, "telephoneMobile"),
-        telephoneFixe: champTexte(formData, "telephoneFixe"),
-        email: champTexte(formData, "email"),
-        adresse: champTexte(formData, "adresse"),
+        dateNaissance: new Date(dateNaissanceBrute),
+        villeNaissance,
+        telephoneMobile,
+        telephoneFixe,
+        email,
+        adresse,
         complementAdresse: champTexte(formData, "complementAdresse"),
-        codePostal: champTexte(formData, "codePostal"),
+        codePostal,
+        ville,
         contactUrgence: champTexte(formData, "contactUrgence"),
         profession: champTexte(formData, "profession"),
-        niveauEtudes: champTexte(formData, "niveauEtudes"),
+        niveauEtudes,
         dernierDiplome: champTexte(formData, "dernierDiplome"),
         remarque: champTexte(formData, "remarque"),
       },
@@ -355,6 +386,11 @@ export async function ajouterResponsableAction(formData: FormData): Promise<void
   if (!etudiantId) redirect("/etudiants");
   if (!nom || !prenom) retour(etudiantId, "CHAMPS_MANQUANTS");
 
+  const telephone = champTexte(formData, "telephone");
+  if (telephone && !estTelephoneValide(telephone)) retour(etudiantId, "TELEPHONE_INVALIDE");
+  const email = champTexte(formData, "email");
+  if (email && !estEmailValide(email)) retour(etudiantId, "EMAIL_INVALIDE");
+
   const cree = await prisma.responsableLegal.create({
     data: {
       etudiantId,
@@ -362,8 +398,8 @@ export async function ajouterResponsableAction(formData: FormData): Promise<void
       nom,
       prenom,
       lien: champTexte(formData, "lien") ?? "Non précisé",
-      telephone: champTexte(formData, "telephone"),
-      email: champTexte(formData, "email"),
+      telephone,
+      email,
       adresse: champTexte(formData, "adresse"),
     },
   });
@@ -392,6 +428,11 @@ export async function modifierResponsableAction(formData: FormData): Promise<voi
   if (!etudiantId) redirect("/etudiants");
   if (!responsableId || !nom || !prenom) retour(etudiantId, "CHAMPS_MANQUANTS");
 
+  const telephone = champTexte(formData, "telephone");
+  if (telephone && !estTelephoneValide(telephone)) retour(etudiantId, "TELEPHONE_INVALIDE");
+  const email = champTexte(formData, "email");
+  if (email && !estEmailValide(email)) retour(etudiantId, "EMAIL_INVALIDE");
+
   await prisma.$transaction([
     prisma.responsableLegal.update({
       where: { id: responsableId },
@@ -400,8 +441,8 @@ export async function modifierResponsableAction(formData: FormData): Promise<voi
         nom,
         prenom,
         lien: champTexte(formData, "lien") ?? "Non précisé",
-        telephone: champTexte(formData, "telephone"),
-        email: champTexte(formData, "email"),
+        telephone,
+        email,
         adresse: champTexte(formData, "adresse"),
       },
     }),

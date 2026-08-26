@@ -23,6 +23,7 @@ const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Les champs obligatoires doivent être renseignés.",
   FICHIER_MANQUANT: "Choisissez un fichier avant de l'ajouter.",
   INTROUVABLE: "Cet élément n'existe plus.",
+  EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
 };
 
 const TYPE_REUNION_LABELS: Record<string, string> = { CA: "Conseil d'administration", AG: "Assemblée générale" };

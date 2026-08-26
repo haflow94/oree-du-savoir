@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Champ, ChampSelect } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
+import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
 
 type Section = { id: string; nom: string };
 type Creneau = { id: string; sectionId: string; label: string };
@@ -165,7 +166,7 @@ export function PreinscriptionForm({
           {estJeunes ? "Informations de l'enfant" : "Vos informations"}
         </legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <ChampSelect label="Civilité" name="civilite" defaultValue="">
+          <ChampSelect label="Civilité" name="civilite" required defaultValue="">
             <option value="">—</option>
             <option value="M">M.</option>
             <option value="MME">Mme</option>
@@ -173,15 +174,33 @@ export function PreinscriptionForm({
           <div />
           <Champ label="Nom" name="nom" required />
           <Champ label="Prénom" name="prenom" required />
-          <Champ label="Date de naissance" name="dateNaissance" type="date" />
-          <Champ label="Ville de naissance" name="villeNaissance" />
+          <Champ label="Date de naissance" name="dateNaissance" type="date" required />
+          <Champ label="Ville de naissance" name="villeNaissance" required />
           {!estJeunes && (
             <>
-              <Champ label="Téléphone mobile" name="telephoneMobile" />
-              <Champ label="Email" name="email" type="email" />
-              <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
+              <Champ
+                label="Téléphone mobile"
+                name="telephoneMobile"
+                required
+                inputMode="tel"
+                pattern={PATTERN_TELEPHONE}
+                title="Numéro français, ex. 06 12 34 56 78"
+                placeholder="06 12 34 56 78"
+              />
+              <Champ label="Email" name="email" type="email" required />
+              <Champ label="Adresse" name="adresse" className="sm:col-span-2" required />
+              <Champ
+                label="Code postal"
+                name="codePostal"
+                required
+                inputMode="numeric"
+                pattern={PATTERN_CODE_POSTAL}
+                maxLength={5}
+                title="5 chiffres"
+                placeholder="69000"
+              />
               <Champ label="Profession" name="profession" />
-              <Champ label="Niveau d'études" name="niveauEtudes" />
+              <Champ label="Niveau d'études" name="niveauEtudes" required />
               <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
             </>
           )}

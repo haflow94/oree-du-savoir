@@ -60,6 +60,7 @@ export async function anonymiserEtudiantAction(formData: FormData): Promise<void
         adresse: null,
         complementAdresse: null,
         codePostal: null,
+        ville: null,
         contactUrgence: null,
         profession: null,
         niveauEtudes: null,

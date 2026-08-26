@@ -6,6 +6,7 @@ import { requireRole, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/lib/roles";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
+import { estEmailValide } from "@/lib/champs-formulaire";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -67,6 +68,9 @@ export async function creerUtilisateurAction(formData: FormData): Promise<void> 
 
   if (!email || !nom || !prenom || !estRole(role)) {
     retour(formData, "CHAMPS_MANQUANTS");
+  }
+  if (!estEmailValide(email)) {
+    retour(formData, "EMAIL_INVALIDE");
   }
   if (typeof motDePasse !== "string" || motDePasse.length < LONGUEUR_MIN_MOT_DE_PASSE) {
     retour(formData, "MOT_DE_PASSE_TROP_COURT");

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
+import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 
 export type Doublon = {
   id: string;
@@ -74,37 +75,83 @@ export async function creerEtudiantAction(
 ): Promise<{ id: string }> {
   const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
+  const civilite = champCivilite(formData, "civilite");
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");
-  if (!nom || !prenom) {
-    throw new Error("Le nom et le prénom sont obligatoires.");
+  const dateNaissanceBrute = champTexte(formData, "dateNaissance");
+  const villeNaissance = champTexte(formData, "villeNaissance");
+  const telephoneMobile = champTexte(formData, "telephoneMobile");
+  const email = champTexte(formData, "email");
+  const adresse = champTexte(formData, "adresse");
+  const codePostal = champTexte(formData, "codePostal");
+  const ville = champTexte(formData, "ville");
+  const niveauEtudes = champTexte(formData, "niveauEtudes");
+
+  if (
+    !civilite ||
+    !nom ||
+    !prenom ||
+    !dateNaissanceBrute ||
+    !villeNaissance ||
+    !telephoneMobile ||
+    !email ||
+    !adresse ||
+    !codePostal ||
+    !ville ||
+    !niveauEtudes
+  ) {
+    throw new Error(
+      "La civilité, le nom, le prénom, la date de naissance, la ville de naissance, le téléphone mobile, l'email, l'adresse, le code postal, la ville et le niveau d'études sont obligatoires.",
+    );
+  }
+  if (!estTelephoneValide(telephoneMobile)) {
+    throw new Error("Le téléphone mobile n'a pas un format valide (ex. 06 12 34 56 78).");
+  }
+  if (!estEmailValide(email)) {
+    throw new Error("L'email n'a pas un format valide.");
+  }
+  if (!estCodePostalValide(codePostal)) {
+    throw new Error("Le code postal doit comporter 5 chiffres.");
   }
 
-  const dateNaissanceBrute = champTexte(formData, "dateNaissance");
-  const dateNaissance = dateNaissanceBrute ? new Date(dateNaissanceBrute) : null;
+  const telephoneFixe = champTexte(formData, "telephoneFixe");
+  if (telephoneFixe && !estTelephoneValide(telephoneFixe)) {
+    throw new Error("Le téléphone fixe n'a pas un format valide (ex. 04 91 23 45 67).");
+  }
+
+  const dateNaissance = new Date(dateNaissanceBrute);
 
   const responsables = [
     responsableDepuisFormulaire(formData, 1),
     responsableDepuisFormulaire(formData, 2),
   ].filter((r): r is NonNullable<typeof r> => r !== null);
+  for (const r of responsables) {
+    if (r.telephone && !estTelephoneValide(r.telephone)) {
+      throw new Error("Le téléphone d'un responsable légal n'a pas un format valide (ex. 06 12 34 56 78).");
+    }
+    if (r.email && !estEmailValide(r.email)) {
+      throw new Error("L'email d'un responsable légal n'a pas un format valide.");
+    }
+  }
 
   const etudiant = await prisma.$transaction(async (tx) => {
     const cree = await tx.etudiant.create({
       data: {
-        civilite: champCivilite(formData, "civilite"),
+        civilite,
         nom,
         prenom,
         dateNaissance,
-        villeNaissance: champTexte(formData, "villeNaissance"),
-        telephoneMobile: champTexte(formData, "telephoneMobile"),
-        telephoneFixe: champTexte(formData, "telephoneFixe"),
-        email: champTexte(formData, "email"),
-        adresse: champTexte(formData, "adresse"),
+        villeNaissance,
+        telephoneMobile,
+        telephoneFixe,
+        email,
+        adresse,
         complementAdresse: champTexte(formData, "complementAdresse"),
-        codePostal: champTexte(formData, "codePostal"),
+        codePostal,
+        ville,
         contactUrgence: champTexte(formData, "contactUrgence"),
         profession: champTexte(formData, "profession"),
-        niveauEtudes: champTexte(formData, "niveauEtudes"),
+        niveauEtudes,
         dernierDiplome: champTexte(formData, "dernierDiplome"),
         remarque: champTexte(formData, "remarque"),
         responsables: { create: responsables },

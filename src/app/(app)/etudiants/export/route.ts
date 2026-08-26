@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
     e.email ?? "",
     e.adresse ?? "",
     e.codePostal ?? "",
+    e.ville ?? "",
     e.contactUrgence ?? "",
     e.statutInscription,
     estNouveauParCompteur(e)
@@ -121,6 +122,7 @@ export async function GET(request: NextRequest) {
       "Email",
       "Adresse",
       "Code postal",
+      "Ville",
       "Contact d'urgence",
       "Statut",
       "Inscription",

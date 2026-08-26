@@ -6,6 +6,7 @@ import type {
 } from "react";
 
 const LABEL_CLASSES = "mb-1 block text-sm font-medium text-ink";
+const REQUIRED_MARK = <span className="text-rust" aria-hidden="true"> *</span>;
 // Source unique : réutilisée par tout input/select/textarea de l'appli,
 // géré par ce fichier ou construit à la main ailleurs (voir auto-submit.tsx
 // et les formulaires de filtre qui l'importent directement).
@@ -39,6 +40,7 @@ export function Champ({
     <div className={className}>
       <label htmlFor={inputId} className={LABEL_CLASSES}>
         {label}
+        {props.required && REQUIRED_MARK}
       </label>
       <input id={inputId} name={name} className={CONTROL_CLASSES} {...props} />
       {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
@@ -64,6 +66,7 @@ export function ChampSelect({
     <div className={className}>
       <label htmlFor={selectId} className={LABEL_CLASSES}>
         {label}
+        {props.required && REQUIRED_MARK}
       </label>
       <select id={selectId} name={name} className={CONTROL_CLASSES} {...props}>
         {children}

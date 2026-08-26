@@ -31,9 +31,15 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChampSelectAuto } from "@/components/ui/auto-submit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Le nom et le prénom sont obligatoires.",
+  PROFIL_CHAMPS_MANQUANTS:
+    "La civilité, le nom, le prénom, la date de naissance, la ville de naissance, le téléphone mobile, l'email, l'adresse, le code postal, la ville et le niveau d'études sont obligatoires.",
+  TELEPHONE_INVALIDE: "Ce numéro de téléphone n'a pas un format valide (ex. 06 12 34 56 78).",
+  EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
+  CODE_POSTAL_INVALIDE: "Le code postal doit comporter 5 chiffres.",
   FICHIER_MANQUANT: "Choisissez un fichier et un type de document.",
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
@@ -374,7 +380,12 @@ export default async function EtudiantDetailPage({
           <fieldset className={FIELDSET_CLASSES}>
             <legend className={LEGEND_CLASSES}>Identité</legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              <ChampSelect label="Civilité" name="civilite" defaultValue={etudiant.civilite ?? ""}>
+              <ChampSelect
+                label="Civilité"
+                name="civilite"
+                required
+                defaultValue={etudiant.civilite ?? ""}
+              >
                 <option value="">—</option>
                 <option value="M">M.</option>
                 <option value="MME">Mme</option>
@@ -387,11 +398,13 @@ export default async function EtudiantDetailPage({
                 name="dateNaissance"
                 type="date"
                 defaultValue={versChampDate(etudiant.dateNaissance)}
+                required
               />
               <Champ
                 label="Ville de naissance"
                 name="villeNaissance"
                 defaultValue={etudiant.villeNaissance ?? ""}
+                required
               />
             </div>
           </fieldset>
@@ -403,23 +416,40 @@ export default async function EtudiantDetailPage({
                 label="Téléphone mobile"
                 name="telephoneMobile"
                 defaultValue={etudiant.telephoneMobile ?? ""}
+                required
+                inputMode="tel"
+                pattern={PATTERN_TELEPHONE}
+                title="Numéro français, ex. 06 12 34 56 78"
+                placeholder="06 12 34 56 78"
               />
               <Champ
                 label="Téléphone fixe"
                 name="telephoneFixe"
                 defaultValue={etudiant.telephoneFixe ?? ""}
+                inputMode="tel"
+                pattern={PATTERN_TELEPHONE}
+                title="Numéro français, ex. 04 91 23 45 67"
+                placeholder="04 91 23 45 67"
               />
-              <Champ label="Email" name="email" type="email" defaultValue={etudiant.email ?? ""} />
+              <Champ
+                label="Email"
+                name="email"
+                type="email"
+                defaultValue={etudiant.email ?? ""}
+                required
+              />
               <Champ
                 label="Contact d'urgence"
                 name="contactUrgence"
                 defaultValue={etudiant.contactUrgence ?? ""}
+                placeholder="Nom Prénom Numéro de mobile"
               />
               <Champ
                 label="Adresse"
                 name="adresse"
                 defaultValue={etudiant.adresse ?? ""}
                 className="sm:col-span-2"
+                required
               />
               <Champ
                 label="Complément d'adresse"
@@ -430,7 +460,14 @@ export default async function EtudiantDetailPage({
                 label="Code postal"
                 name="codePostal"
                 defaultValue={etudiant.codePostal ?? ""}
+                required
+                inputMode="numeric"
+                pattern={PATTERN_CODE_POSTAL}
+                maxLength={5}
+                title="5 chiffres"
+                placeholder="69000"
               />
+              <Champ label="Ville" name="ville" defaultValue={etudiant.ville ?? ""} required />
             </div>
           </fieldset>
 
@@ -442,6 +479,7 @@ export default async function EtudiantDetailPage({
                 label="Niveau d'études"
                 name="niveauEtudes"
                 defaultValue={etudiant.niveauEtudes ?? ""}
+                required
               />
               <Champ
                 label="Dernier diplôme obtenu"
@@ -504,6 +542,7 @@ export default async function EtudiantDetailPage({
                 <dd className={DD_CLASSES}>
                   {etudiant.adresse || "—"}
                   {etudiant.codePostal ? ` — ${etudiant.codePostal}` : ""}
+                  {etudiant.ville ? ` ${etudiant.ville}` : ""}
                 </dd>
               </div>
             </dl>
@@ -534,7 +573,14 @@ export default async function EtudiantDetailPage({
                       <Champ label="Lien" name="lien" defaultValue={r.lien} />
                       <Champ label="Nom" name="nom" required defaultValue={r.nom} />
                       <Champ label="Prénom" name="prenom" required defaultValue={r.prenom} />
-                      <Champ label="Téléphone" name="telephone" defaultValue={r.telephone ?? ""} />
+                      <Champ
+                        label="Téléphone"
+                        name="telephone"
+                        defaultValue={r.telephone ?? ""}
+                        inputMode="tel"
+                        pattern={PATTERN_TELEPHONE}
+                        title="Numéro français, ex. 06 12 34 56 78"
+                      />
                       <Champ label="Email" name="email" type="email" defaultValue={r.email ?? ""} />
                       <Champ
                         label="Adresse"
@@ -593,7 +639,13 @@ export default async function EtudiantDetailPage({
               <Champ label="Lien" name="lien" placeholder="Père, mère, tuteur…" />
               <Champ label="Nom" name="nom" required />
               <Champ label="Prénom" name="prenom" required />
-              <Champ label="Téléphone" name="telephone" />
+              <Champ
+                label="Téléphone"
+                name="telephone"
+                inputMode="tel"
+                pattern={PATTERN_TELEPHONE}
+                title="Numéro français, ex. 06 12 34 56 78"
+              />
               <Champ label="Email" name="email" type="email" />
               <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
               <div className="flex justify-end sm:col-span-2">

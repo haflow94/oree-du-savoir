@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { TypeDocumentAssociation, TypeReunionGouvernance } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
 import { enregistrerDocumentAssociation, supprimerFichierDocument } from "@/lib/documents";
+import { estEmailValide } from "@/lib/champs-formulaire";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -44,6 +45,7 @@ export async function creerMembreCAAction(formData: FormData): Promise<void> {
   const email = champTexte(formData, "email");
   const dateEntree = champDate(formData, "dateEntree");
   if (!nom || !prenom || !dateEntree) retour("CHAMPS_MANQUANTS");
+  if (email && !estEmailValide(email)) retour("EMAIL_INVALIDE");
 
   const cree = await prisma.membreCA.create({
     data: { nom, prenom, fonction, email, dateEntree },

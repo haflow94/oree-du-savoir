@@ -14,6 +14,7 @@ const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Tous les champs obligatoires doivent être renseignés.",
   MOT_DE_PASSE_TROP_COURT: `Le mot de passe doit faire au moins ${LONGUEUR_MIN_MOT_DE_PASSE} caractères.`,
   EMAIL_DEJA_UTILISE: "Un compte utilise déjà cette adresse email.",
+  EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
   INTROUVABLE: "Ce compte n'existe plus.",
 };
 

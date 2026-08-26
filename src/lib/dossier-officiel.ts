@@ -23,6 +23,7 @@ export type DonneesEtudiantDossier = {
   villeNaissance: string | null;
   adresse: string | null;
   codePostal: string | null;
+  ville: string | null;
   telephoneMobile: string | null;
   telephoneFixe: string | null;
   email: string | null;
@@ -89,9 +90,7 @@ export async function genererDossierOfficielDocx(donnees: {
           villeNaissance: v(e.villeNaissance),
           adresse: v(e.adresse),
           codePostal: v(e.codePostal),
-          // Pas de champ "ville" dédié dans le modèle Etudiant (une seule
-          // adresse en texte libre) : laissé vide, à compléter à la main.
-          ville: "",
+          ville: v(e.ville),
           telephoneFixe: v(e.telephoneFixe),
           telephoneMobile: v(e.telephoneMobile),
           email: v(e.email),

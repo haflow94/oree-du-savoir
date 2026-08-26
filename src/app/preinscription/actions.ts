@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
 import { statutPourNouvelleInscription } from "@/lib/inscriptions";
 import { trouverDoublonEtudiant } from "@/lib/doublons-etudiant";
+import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -55,6 +56,9 @@ export async function preinscrireAction(
 ): Promise<{ erreur: string } | { ok: true }> {
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");
+  const civilite = champCivilite(formData, "civilite");
+  const dateNaissanceBrute = champTexte(formData, "dateNaissance");
+  const villeNaissance = champTexte(formData, "villeNaissance");
 
   const ligneIds = formData.getAll("ligneId").map(String);
   const lignes = ligneIds
@@ -64,8 +68,11 @@ export async function preinscrireAction(
     }))
     .filter((l): l is { sectionId: string; classeId: string | null } => !!l.sectionId);
 
-  if (!nom || !prenom || lignes.length === 0) {
-    return { erreur: "Le nom, le prénom et au moins une section sont obligatoires." };
+  if (!civilite || !nom || !prenom || !dateNaissanceBrute || !villeNaissance || lignes.length === 0) {
+    return {
+      erreur:
+        "La civilité, le nom, le prénom, la date de naissance, la ville de naissance et au moins une section sont obligatoires.",
+    };
   }
   if (formData.get("rgpd") !== "on") {
     return {
@@ -81,6 +88,34 @@ export async function preinscrireAction(
     return { erreur: "Section invalide." };
   }
   const sectionParId = new Map(sectionsChoisies.map((s) => [s.id, s]));
+
+  // Mêmes règles d'affichage que côté client (voir preinscription-form.tsx) :
+  // pour une inscription "Jeunes", ce sont les coordonnées du responsable
+  // légal qui sont saisies, pas celles de l'enfant — ces champs ne sont donc
+  // pas rendus dans le formulaire et ne peuvent pas être exigés ici.
+  const estJeunes = sectionsChoisies.some((s) => s.nom === "Jeunes");
+  if (!estJeunes) {
+    const telephoneMobile = champTexte(formData, "telephoneMobile");
+    const email = champTexte(formData, "email");
+    const adresse = champTexte(formData, "adresse");
+    const codePostal = champTexte(formData, "codePostal");
+    const niveauEtudes = champTexte(formData, "niveauEtudes");
+    if (!telephoneMobile || !email || !adresse || !codePostal || !niveauEtudes) {
+      return {
+        erreur:
+          "Le téléphone mobile, l'email, l'adresse, le code postal et le niveau d'études sont obligatoires.",
+      };
+    }
+    if (!estTelephoneValide(telephoneMobile)) {
+      return { erreur: "Le téléphone mobile n'a pas un format valide (ex. 06 12 34 56 78)." };
+    }
+    if (!estEmailValide(email)) {
+      return { erreur: "L'email n'a pas un format valide." };
+    }
+    if (!estCodePostalValide(codePostal)) {
+      return { erreur: "Le code postal doit comporter 5 chiffres." };
+    }
+  }
 
   const classeIdsCandidats = [...new Set(lignes.map((l) => l.classeId).filter((id): id is string => !!id))];
   const classesCandidates =
@@ -107,8 +142,7 @@ export async function preinscrireAction(
     }
   }
 
-  const dateNaissanceBrute = champTexte(formData, "dateNaissance");
-  const dateNaissance = dateNaissanceBrute ? new Date(dateNaissanceBrute) : null;
+  const dateNaissance = new Date(dateNaissanceBrute);
   const estResponsable =
     champTexte(formData, "responsableNom") && champTexte(formData, "responsablePrenom");
 
@@ -137,14 +171,15 @@ export async function preinscrireAction(
 
   await prisma.etudiant.create({
     data: {
-      civilite: champCivilite(formData, "civilite"),
+      civilite,
       nom,
       prenom,
       dateNaissance,
-      villeNaissance: champTexte(formData, "villeNaissance"),
+      villeNaissance,
       telephoneMobile: champTexte(formData, "telephoneMobile"),
       email: champTexte(formData, "email"),
       adresse: champTexte(formData, "adresse"),
+      codePostal: champTexte(formData, "codePostal"),
       profession: champTexte(formData, "profession"),
       niveauEtudes: champTexte(formData, "niveauEtudes"),
       dernierDiplome: champTexte(formData, "dernierDiplome"),
