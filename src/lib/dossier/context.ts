@@ -4,7 +4,8 @@ import { getOrganisation, versDataUri } from "@/lib/organisation";
 import { formaterMontant } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { relationAutre } from "./relation-legale";
-import type { ModeleDossier } from "@/generated/prisma/enums";
+import { estCreneauChoisi } from "./creneau-correspondance";
+import type { ModeleDossier, JourSemaine } from "@/generated/prisma/enums";
 
 function v(valeur: string | null | undefined): string {
   return valeur ?? "";
@@ -65,13 +66,20 @@ function contexteSection(section: SectionAvecCreneaux) {
   };
 }
 
+type ClasseSuivie = { jour: JourSemaine; heureDebut: string; heureFin: string };
+
 // "Cours"/"Classe"/"Horaires retenus" : dérivés des inscriptions réelles de
 // l'étudiant sur la section demandée pour l'année active, pas d'un choix
 // saisi séparément — même logique que l'ancien horaireChoisi de
-// src/app/(app)/etudiants/[id]/dossier/route.ts.
-async function contexteInscription(etudiantId: string, sectionId: string) {
+// src/app/(app)/etudiants/[id]/dossier/route.ts. `classes` (jour/heures
+// bruts) sert ensuite à cocher automatiquement la bonne carte de créneau
+// (voir estCreneauChoisi) — jamais utilisé pour le dossier vierge.
+async function contexteInscription(
+  etudiantId: string,
+  sectionId: string,
+): Promise<{ cours: string; classe: string; horaires: string; classes: ClasseSuivie[] }> {
   const anneeActive = await prisma.anneeScolaire.findFirst({ where: { active: true } });
-  if (!anneeActive) return { cours: "", classe: "", horaires: "" };
+  if (!anneeActive) return { cours: "", classe: "", horaires: "", classes: [] };
 
   const inscriptions = await prisma.inscriptionClasse.findMany({
     where: { etudiantId, classe: { anneeScolaireId: anneeActive.id, cours: { sectionId } } },
@@ -84,6 +92,11 @@ async function contexteInscription(etudiantId: string, sectionId: string) {
     horaires: inscriptions
       .map((i) => `${JOUR_LABELS[i.classe.jour]} ${i.classe.heureDebut}-${i.classe.heureFin}`)
       .join(" ; "),
+    classes: inscriptions.map((i) => ({
+      jour: i.classe.jour,
+      heureDebut: i.classe.heureDebut,
+      heureFin: i.classe.heureFin,
+    })),
   };
 }
 
@@ -126,7 +139,7 @@ export async function construireContexteDossierEtudiant({
       })
     : null;
 
-  const inscription = await contexteInscription(etudiantId, sectionId);
+  const { classes: classesSuivies, ...inscription } = await contexteInscription(etudiantId, sectionId);
   const responsablePrincipal = responsables[0] ?? null;
   const mere = responsables.find((r) => r.lien.trim().toLowerCase() === "mère");
   const pere = responsables.find((r) => r.lien.trim().toLowerCase() === "père");
@@ -134,10 +147,21 @@ export async function construireContexteDossierEtudiant({
   const referenceSource = dossierAnnuel?.id ?? etudiant.id;
   const dateDepot = dossierAnnuel?.creeLe ?? etudiant.creeLe;
 
+  // Carte de créneau cochée automatiquement quand elle correspond à une
+  // classe réellement suivie par l'étudiant sur cette section (jamais sur
+  // le dossier vierge, qui reste entièrement manuscrit — voir
+  // construireContexteDossierVierge, non touché ici).
+  const sectionCtx = contexteSection(section);
+  const creneauxAvecCoche = sectionCtx.creneaux.map((c) => ({
+    ...c,
+    coche: classesSuivies.some((classe) => estCreneauChoisi(c, classe)),
+  }));
+
   const contexte: Record<string, unknown> = {
     organisation,
     annee_scolaire: anneeActive?.libelle ?? "",
-    ...contexteSection(section),
+    ...sectionCtx,
+    creneaux: creneauxAvecCoche,
     reference: referenceSource.slice(-8).toUpperCase(),
     date_depot: formaterDate(dateDepot),
     date: formaterDate(new Date()),
@@ -165,6 +189,8 @@ export async function construireContexteDossierEtudiant({
     dernier_diplome: v(etudiant.dernierDiplome),
     contact_urgence: v(etudiant.contactUrgence),
     sexe: etudiant.sexe,
+    sexeF: etudiant.sexe === "F",
+    sexeM: etudiant.sexe === "M",
     niveau_scolaire: v(etudiant.niveauScolaire),
 
     niveau_admission: v(dossierAnnuel?.niveauAdmission),
@@ -174,14 +200,21 @@ export async function construireContexteDossierEtudiant({
 
   if (section.modeleDossier === "JEUNES") {
     contexte.creneau = section.creneaux[0]
-      ? { jour: section.creneaux[0].jour, horaire: section.creneaux[0].horaire }
-      : { jour: "", horaire: "" };
+      ? {
+          jour: section.creneaux[0].jour,
+          horaire: section.creneaux[0].horaire,
+          coche: classesSuivies.some((classe) => estCreneauChoisi(section.creneaux[0], classe)),
+        }
+      : { jour: "", horaire: "", coche: false };
+    const lienPrincipal = responsablePrincipal?.lien.trim().toLowerCase();
     contexte.rl_nom = v(responsablePrincipal?.nom);
     contexte.rl_prenom = v(responsablePrincipal?.prenom);
     contexte.rl_nom_prenom = responsablePrincipal
       ? `${responsablePrincipal.prenom} ${responsablePrincipal.nom}`
       : "";
     contexte.rl_relation_autre = responsablePrincipal ? relationAutre(responsablePrincipal.lien) : "";
+    contexte.rl_est_pere = lienPrincipal === "père";
+    contexte.rl_est_mere = lienPrincipal === "mère";
     contexte.rl_adresse = v(responsablePrincipal?.adresse);
     contexte.rl_code_postal = v(responsablePrincipal?.codePostal);
     contexte.rl_ville = v(responsablePrincipal?.ville);

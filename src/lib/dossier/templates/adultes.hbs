@@ -161,7 +161,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
     <div style="margin-top:5mm;display:grid;grid-template-columns:repeat({{creneaux.length}},1fr);gap:4mm">
       {{#each creneaux}}
       <div style="border:0.3mm solid #C9C3B6;border-top:0.8mm solid #1F3D2B;padding:3.5mm;display:flex;gap:3mm;align-items:flex-start">
-        <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;margin-top:0.5mm"></span>
+        <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;margin-top:0.5mm;display:flex;align-items:center;justify-content:center;font-size:3.6mm;line-height:1;color:#1F3D2B">{{#if coche}}✓{{/if}}</span>
         <div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5pt;font-weight:500;color:#1F3D2B">{{code}}</div>
           <div style="margin-top:1.2mm;font-size:7.5pt;line-height:1.45;color:#3A362F">{{jour}}<br />{{horaire}}</div>

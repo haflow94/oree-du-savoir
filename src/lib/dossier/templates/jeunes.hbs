@@ -67,8 +67,8 @@ html, body { margin: 0; padding: 0; background: #fff; }
         <div style="grid-column:span 4;display:flex;flex-direction:column;gap:1.5mm">
           <span style="font-size:6.3pt;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#7A7568">Sexe</span>
           <div style="display:flex;gap:6mm;align-items:center;height:6.5mm">
-            <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D"></span>F</span>
-            <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D"></span>M</span>
+            <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D;display:flex;align-items:center;justify-content:center;font-size:3.2mm;line-height:1;color:#1F3D2B">{{#if sexeF}}✓{{/if}}</span>F</span>
+            <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D;display:flex;align-items:center;justify-content:center;font-size:3.2mm;line-height:1;color:#1F3D2B">{{#if sexeM}}✓{{/if}}</span>M</span>
           </div>
         </div>
         <label style="grid-column:span 8;display:flex;flex-direction:column;gap:1mm">
@@ -105,7 +105,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
     </div>
     <div style="margin-top:4.5mm;display:flex;gap:4mm;align-items:stretch">
       <div style="flex:1;max-width:62mm;border:0.3mm solid #C9C3B6;border-top:0.8mm solid #1F3D2B;padding:3.5mm;display:flex;gap:3mm;align-items:flex-start">
-        <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;margin-top:0.3mm"></span>
+        <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;margin-top:0.3mm;display:flex;align-items:center;justify-content:center;font-size:3.6mm;line-height:1;color:#1F3D2B">{{#if creneau.coche}}✓{{/if}}</span>
         <div style="font-size:8pt;line-height:1.45;color:#3A362F">{{creneau.jour}}<br /><span style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#1C1A17">{{creneau.horaire}}</span></div>
       </div>
       <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:4.5mm 5mm;align-content:end">
@@ -138,9 +138,9 @@ html, body { margin: 0; padding: 0; background: #fff; }
       <div style="grid-column:span 12;display:flex;flex-direction:column;gap:1.5mm">
         <span style="font-size:6.3pt;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#7A7568">Relation</span>
         <div style="display:flex;gap:7mm;align-items:center;height:6mm">
-          <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D"></span>Père</span>
-          <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D"></span>Mère</span>
-          <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt;flex:1"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D;flex:none"></span>Autre : <span style="flex:1;border-bottom:0.3mm solid #B5AF9F;font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#1C1A17">{{rl_relation_autre}}</span></span>
+          <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D;display:flex;align-items:center;justify-content:center;font-size:3.2mm;line-height:1;color:#1F3D2B">{{#if rl_est_pere}}✓{{/if}}</span>Père</span>
+          <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D;display:flex;align-items:center;justify-content:center;font-size:3.2mm;line-height:1;color:#1F3D2B">{{#if rl_est_mere}}✓{{/if}}</span>Mère</span>
+          <span style="display:flex;gap:2mm;align-items:center;font-size:8.5pt;flex:1"><span style="width:4mm;height:4mm;border:0.4mm solid #4A453D;flex:none;display:flex;align-items:center;justify-content:center;font-size:3.2mm;line-height:1;color:#1F3D2B">{{#if rl_relation_autre}}✓{{/if}}</span>Autre : <span style="flex:1;border-bottom:0.3mm solid #B5AF9F;font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#1C1A17">{{rl_relation_autre}}</span></span>
         </div>
       </div>
       <label style="grid-column:span 12;display:flex;flex-direction:column;gap:1mm">
