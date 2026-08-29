@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { Civilite, TypePieceIdentite } from "@/generated/prisma/enums";
+import { Civilite, Sexe, TypePieceIdentite } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
@@ -18,8 +18,41 @@ function champCivilite(formData: FormData, nom: string): Civilite | null {
   return valeur === "M" || valeur === "MME" ? valeur : null;
 }
 
+// Optionnel (dossier Jeunes uniquement, voir Etudiant.sexe) : null si non
+// renseigné, jamais bloquant — même règle que côté staff (etudiants/[id]/actions.ts).
+function champSexe(formData: FormData, nom: string): Sexe | null {
+  const valeur = champTexte(formData, nom);
+  return valeur === "F" || valeur === "M" ? valeur : null;
+}
+
 function estTypePieceIdentite(valeur: string | null): valeur is TypePieceIdentite {
   return !!valeur && valeur in TypePieceIdentite;
+}
+
+// Même jeu de champs que ResponsableLegal (voir prisma/schema.prisma) et que
+// le bloc "Ajouter un responsable" côté staff (etudiants/[id]/actions.ts) —
+// nécessaire pour que le dossier généré (src/lib/dossier/context.ts, modèle
+// Jeunes) affiche déjà adresse/téléphone professionnel/etc. sans ressaisie.
+// Responsable 2 (père ou mère) est facultatif : un seul suffit pour valider
+// le formulaire, voir preinscription-form.tsx#BlocResponsable.
+function responsableDepuisFormulaire(formData: FormData, index: 1 | 2) {
+  const nom = champTexte(formData, `responsable${index}Nom`);
+  const prenom = champTexte(formData, `responsable${index}Prenom`);
+  if (!nom || !prenom) return null;
+
+  return {
+    civilite: champCivilite(formData, `responsable${index}Civilite`),
+    nom,
+    prenom,
+    lien: champTexte(formData, `responsable${index}Lien`) ?? "Non précisé",
+    telephone: champTexte(formData, `responsable${index}Telephone`),
+    telephoneProfessionnel: champTexte(formData, `responsable${index}TelephoneProfessionnel`),
+    email: champTexte(formData, `responsable${index}Email`),
+    profession: champTexte(formData, `responsable${index}Profession`),
+    adresse: champTexte(formData, `responsable${index}Adresse`),
+    codePostal: champTexte(formData, `responsable${index}CodePostal`),
+    ville: champTexte(formData, `responsable${index}Ville`),
+  };
 }
 
 // Point d'entrée public, sans authentification : toute donnée saisie ici
@@ -136,6 +169,36 @@ export async function preinscrireAction(
     if (!estCodePostalValide(codePostal)) {
       return { erreur: "Le code postal doit comporter 5 chiffres." };
     }
+    const telephoneFixe = champTexte(formData, "telephoneFixe");
+    if (telephoneFixe && !estTelephoneValide(telephoneFixe)) {
+      return { erreur: "Le téléphone fixe n'a pas un format valide (ex. 04 91 23 45 67)." };
+    }
+  }
+
+  // Un mineur a toujours un responsable légal au dossier (voir
+  // preinscription-form.tsx#BlocResponsable, index 1 obligatoire) — le
+  // second est facultatif (ex. père et mère tous deux au dossier).
+  const responsable1 = responsableDepuisFormulaire(formData, 1);
+  const responsable2 = responsableDepuisFormulaire(formData, 2);
+  if (estJeunes && (!responsable1 || !responsable1.telephone || !responsable1.email)) {
+    return {
+      erreur: "Le nom, le prénom, le téléphone et l'email du responsable légal sont obligatoires.",
+    };
+  }
+  for (const responsable of [responsable1, responsable2]) {
+    if (!responsable) continue;
+    if (responsable.telephone && !estTelephoneValide(responsable.telephone)) {
+      return { erreur: "Le téléphone d'un responsable légal n'a pas un format valide (ex. 06 12 34 56 78)." };
+    }
+    if (responsable.telephoneProfessionnel && !estTelephoneValide(responsable.telephoneProfessionnel)) {
+      return { erreur: "Le téléphone professionnel d'un responsable légal n'a pas un format valide." };
+    }
+    if (responsable.email && !estEmailValide(responsable.email)) {
+      return { erreur: "L'email d'un responsable légal n'a pas un format valide." };
+    }
+    if (responsable.codePostal && !estCodePostalValide(responsable.codePostal)) {
+      return { erreur: "Le code postal d'un responsable légal doit comporter 5 chiffres." };
+    }
   }
 
   const classeIdsCandidats = [...new Set(lignes.map((l) => l.classeId).filter((id): id is string => !!id))];
@@ -164,15 +227,16 @@ export async function preinscrireAction(
   }
 
   const dateNaissance = new Date(dateNaissanceBrute);
-  const estResponsable =
-    champTexte(formData, "responsableNom") && champTexte(formData, "responsablePrenom");
+  const responsablesACreer = [responsable1, responsable2].filter(
+    (r): r is NonNullable<typeof r> => r !== null,
+  );
 
   const doublon = await trouverDoublonEtudiant({
     nom,
     prenom,
     dateNaissance,
-    telephoneResponsable: champTexte(formData, "responsableTelephone"),
-    emailResponsable: champTexte(formData, "responsableEmail"),
+    telephoneResponsable: responsable1?.telephone,
+    emailResponsable: responsable1?.email,
   });
 
   const inscriptionsACreer = [...classeIdsValides].map((classeId) => ({ classeId }));
@@ -192,9 +256,14 @@ export async function preinscrireAction(
       prenom,
       dateNaissance,
       villeNaissance,
+      sexe: champSexe(formData, "sexe"),
+      niveauScolaire: champTexte(formData, "niveauScolaire"),
       telephoneMobile: champTexte(formData, "telephoneMobile"),
+      telephoneFixe: champTexte(formData, "telephoneFixe"),
       email: champTexte(formData, "email"),
+      contactUrgence: champTexte(formData, "contactUrgence"),
       adresse: champTexte(formData, "adresse"),
+      complementAdresse: champTexte(formData, "complementAdresse"),
       codePostal: champTexte(formData, "codePostal"),
       ville: champTexte(formData, "ville"),
       profession: champTexte(formData, "profession"),
@@ -204,19 +273,7 @@ export async function preinscrireAction(
       statutInscription: "PREINSCRIT",
       sectionSouhaiteeId: sectionsSansCreneau[0]?.id ?? null,
       doublonPotentielId: doublon?.id,
-      responsables: estResponsable
-        ? {
-            create: {
-              civilite: champCivilite(formData, "responsableCivilite"),
-              nom: champTexte(formData, "responsableNom") ?? "",
-              prenom: champTexte(formData, "responsablePrenom") ?? "",
-              lien: champTexte(formData, "responsableLien") ?? "Non précisé",
-              telephone: champTexte(formData, "responsableTelephone"),
-              email: champTexte(formData, "responsableEmail"),
-              adresse: champTexte(formData, "responsableAdresse"),
-            },
-          }
-        : undefined,
+      responsables: responsablesACreer.length > 0 ? { create: responsablesACreer } : undefined,
       inscriptions: inscriptionsACreer.length > 0 ? { create: inscriptionsACreer } : undefined,
     },
   });

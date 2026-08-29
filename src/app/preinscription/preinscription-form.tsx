@@ -15,6 +15,68 @@ type Ligne = { id: number; sectionId: string; classeId: string };
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
+// Même jeu de champs que ResponsableLegal (voir prisma/schema.prisma) et
+// que le bloc "Ajouter un responsable" de la fiche étudiant côté staff
+// (etudiants/[id]/page.tsx) — nécessaire pour que le dossier généré
+// (src/lib/dossier/context.ts, modèle Jeunes) affiche déjà l'adresse, le
+// téléphone professionnel etc. du responsable sans ressaisie sur place.
+// Responsable 1 obligatoire (un mineur a toujours un responsable légal),
+// responsable 2 facultatif (ex. père et mère tous deux au dossier — voir
+// rl_pere/rl_mere sur la dernière page du gabarit Jeunes).
+function BlocResponsable({ index }: { index: 1 | 2 }) {
+  return (
+    <fieldset className={FIELDSET_CLASSES}>
+      <legend className={LEGEND_CLASSES}>
+        Responsable légal {index} {index === 2 && "(optionnel)"}
+      </legend>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ChampSelect label="Civilité" name={`responsable${index}Civilite`} defaultValue="">
+          <option value="">—</option>
+          <option value="M">M.</option>
+          <option value="MME">Mme</option>
+        </ChampSelect>
+        <Champ label="Lien (père, mère, tuteur…)" name={`responsable${index}Lien`} required={index === 1} />
+        <Champ label="Nom" name={`responsable${index}Nom`} required={index === 1} />
+        <Champ label="Prénom" name={`responsable${index}Prenom`} required={index === 1} />
+        <Champ
+          label="Téléphone"
+          name={`responsable${index}Telephone`}
+          required={index === 1}
+          inputMode="tel"
+          pattern={PATTERN_TELEPHONE}
+          title="Numéro français, ex. 06 12 34 56 78"
+          placeholder="06 12 34 56 78"
+        />
+        <Champ
+          label="Téléphone professionnel"
+          name={`responsable${index}TelephoneProfessionnel`}
+          inputMode="tel"
+          pattern={PATTERN_TELEPHONE}
+          title="Numéro français, ex. 04 91 23 45 67"
+          placeholder="04 91 23 45 67"
+        />
+        <Champ label="Email" name={`responsable${index}Email`} type="email" required={index === 1} />
+        <Champ label="Profession" name={`responsable${index}Profession`} />
+        <Champ
+          label="Adresse"
+          name={`responsable${index}Adresse`}
+          className="sm:col-span-2"
+        />
+        <Champ
+          label="Code postal"
+          name={`responsable${index}CodePostal`}
+          inputMode="numeric"
+          pattern={PATTERN_CODE_POSTAL}
+          maxLength={5}
+          title="5 chiffres"
+          placeholder="69000"
+        />
+        <Champ label="Ville" name={`responsable${index}Ville`} />
+      </div>
+    </fieldset>
+  );
+}
+
 // Laissé vide en attendant que le CA désigne l'adresse à afficher pour
 // l'exercice des droits RGPD ; en attendant, le texte reste correct en
 // renvoyant vers un contact générique plutôt qu'un placeholder brut.
@@ -177,37 +239,73 @@ export function PreinscriptionForm({
           <Champ label="Prénom" name="prenom" required />
           <Champ label="Date de naissance" name="dateNaissance" type="date" required />
           <Champ label="Ville de naissance" name="villeNaissance" required />
-          {!estJeunes && (
+          {estJeunes && (
             <>
-              <Champ
-                label="Téléphone mobile"
-                name="telephoneMobile"
-                required
-                inputMode="tel"
-                pattern={PATTERN_TELEPHONE}
-                title="Numéro français, ex. 06 12 34 56 78"
-                placeholder="06 12 34 56 78"
-              />
-              <Champ label="Email" name="email" type="email" required />
-              <Champ label="Adresse" name="adresse" className="sm:col-span-2" required />
-              <Champ
-                label="Code postal"
-                name="codePostal"
-                required
-                inputMode="numeric"
-                pattern={PATTERN_CODE_POSTAL}
-                maxLength={5}
-                title="5 chiffres"
-                placeholder="69000"
-              />
-              <Champ label="Ville" name="ville" required />
-              <Champ label="Profession" name="profession" />
-              <Champ label="Niveau d'études" name="niveauEtudes" required />
-              <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
+              <ChampSelect label="Sexe" name="sexe" defaultValue="">
+                <option value="">—</option>
+                <option value="F">F</option>
+                <option value="M">M</option>
+              </ChampSelect>
+              <Champ label="Niveau scolaire" name="niveauScolaire" placeholder="ex. CM2" />
             </>
           )}
         </div>
       </fieldset>
+
+      {!estJeunes && (
+        <fieldset className={FIELDSET_CLASSES}>
+          <legend className={LEGEND_CLASSES}>Coordonnées</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Champ
+              label="Téléphone mobile"
+              name="telephoneMobile"
+              required
+              inputMode="tel"
+              pattern={PATTERN_TELEPHONE}
+              title="Numéro français, ex. 06 12 34 56 78"
+              placeholder="06 12 34 56 78"
+            />
+            <Champ
+              label="Téléphone fixe"
+              name="telephoneFixe"
+              inputMode="tel"
+              pattern={PATTERN_TELEPHONE}
+              title="Numéro français, ex. 04 91 23 45 67"
+              placeholder="04 91 23 45 67"
+            />
+            <Champ label="Email" name="email" type="email" required />
+            <Champ
+              label="Contact d'urgence"
+              name="contactUrgence"
+              placeholder="Nom Prénom Numéro de mobile"
+            />
+            <Champ label="Adresse" name="adresse" className="sm:col-span-2" required />
+            <Champ label="Complément d'adresse" name="complementAdresse" />
+            <Champ
+              label="Code postal"
+              name="codePostal"
+              required
+              inputMode="numeric"
+              pattern={PATTERN_CODE_POSTAL}
+              maxLength={5}
+              title="5 chiffres"
+              placeholder="69000"
+            />
+            <Champ label="Ville" name="ville" required />
+          </div>
+        </fieldset>
+      )}
+
+      {!estJeunes && (
+        <fieldset className={FIELDSET_CLASSES}>
+          <legend className={LEGEND_CLASSES}>Situation</legend>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Champ label="Profession" name="profession" />
+            <Champ label="Niveau d'études" name="niveauEtudes" required />
+            <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
+          </div>
+        </fieldset>
+      )}
 
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Documents (facultatif)</legend>
@@ -271,22 +369,10 @@ export function PreinscriptionForm({
       </fieldset>
 
       {estJeunes && (
-        <fieldset className={FIELDSET_CLASSES}>
-          <legend className={LEGEND_CLASSES}>Responsable légal</legend>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <ChampSelect label="Civilité" name="responsableCivilite" defaultValue="">
-              <option value="">—</option>
-              <option value="M">M.</option>
-              <option value="MME">Mme</option>
-            </ChampSelect>
-            <Champ label="Lien (père, mère, tuteur…)" name="responsableLien" />
-            <Champ label="Nom" name="responsableNom" required />
-            <Champ label="Prénom" name="responsablePrenom" required />
-            <Champ label="Téléphone" name="responsableTelephone" />
-            <Champ label="Email" name="responsableEmail" type="email" />
-            <Champ label="Adresse" name="responsableAdresse" className="sm:col-span-2" />
-          </div>
-        </fieldset>
+        <>
+          <BlocResponsable index={1} />
+          <BlocResponsable index={2} />
+        </>
       )}
 
       <fieldset className={FIELDSET_CLASSES}>
