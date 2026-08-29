@@ -10,10 +10,11 @@ import {
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES:
@@ -49,6 +50,8 @@ export default async function SectionsPage({
         </p>
       </div>
 
+      <AdminSubNav current="/administration/sections" />
+
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
@@ -57,9 +60,9 @@ export default async function SectionsPage({
         <form action={creerSectionAction} className="mt-3 grid gap-3 sm:grid-cols-3">
           <ChampsSection />
           <div className="flex justify-end sm:col-span-3">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary" pendingLabel="Création…">
               Créer la section
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </Card>
@@ -105,9 +108,9 @@ export default async function SectionsPage({
                 }}
               />
               <div className="flex justify-end sm:col-span-3">
-                <Button type="submit" variant="secondary">
+                <SubmitButton variant="secondary" pendingLabel="Enregistrement…">
                   Enregistrer
-                </Button>
+                </SubmitButton>
               </div>
             </form>
 
@@ -130,9 +133,9 @@ export default async function SectionsPage({
                       </span>
                       <form action={supprimerCreneauAction}>
                         <input type="hidden" name="creneauId" value={c.id} />
-                        <button type="submit" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                        <SubmitButton variant="ghost" size="sm" pendingLabel="…">
                           Retirer
-                        </button>
+                        </SubmitButton>
                       </form>
                     </li>
                   ))}
@@ -156,9 +159,9 @@ export default async function SectionsPage({
                   placeholder="Seulement Niveau 1"
                 />
                 <div className="flex items-end">
-                  <Button type="submit" variant="secondary" size="sm">
+                  <SubmitButton variant="secondary" size="sm" pendingLabel="Ajout…">
                     Ajouter
-                  </Button>
+                  </SubmitButton>
                 </div>
               </form>
             </div>

@@ -151,9 +151,7 @@ export default async function TresoreriePage({
             </p>
           </div>
         </div>
-        <Link href={hrefExport} className={buttonVariants({ variant: "secondary" })}>
-          Exporter en CSV{filtresActifs ? " (période affichée)" : ""}
-        </Link>
+        {peutGerer && <NouveauMouvementDialog categoriesActives={categoriesActives} />}
       </div>
 
       {message && <Alert variant="danger">{message}</Alert>}
@@ -191,7 +189,9 @@ export default async function TresoreriePage({
 
       <div className="flex flex-wrap items-center gap-2">
         <CategoriesDialog categories={categories} peutGerer={peutGerer} />
-        {peutGerer && <NouveauMouvementDialog categoriesActives={categoriesActives} />}
+        <Link href={hrefExport} className={buttonVariants({ variant: "secondary" })}>
+          Exporter en CSV{filtresActifs ? " (période affichée)" : ""}
+        </Link>
       </div>
 
       <form className={TOOLBAR_CLASSES} action="/tresorerie" method="GET">

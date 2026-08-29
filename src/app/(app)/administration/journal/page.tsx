@@ -5,6 +5,9 @@ import { Role } from "@/lib/roles";
 import { buttonVariants } from "@/components/ui/button";
 import { BackLink } from "@/components/ui/back-link";
 import { TableWrap, TableHead } from "@/components/ui/table";
+import { AdminSubNav } from "../sub-nav";
+import { AutoSubmitSelect } from "@/components/ui/auto-submit";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 
 const PAR_PAGE = 50;
 
@@ -57,24 +60,27 @@ const ACTION_LABELS: Record<string, string> = {
 export default async function JournalAuditPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; action?: string }>;
 }) {
   await requireRole([Role.BUREAU]);
-  const { page } = await searchParams;
+  const { page, action } = await searchParams;
 
   const pageCourante = Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
+  const filtre = action ? { action } : {};
 
   const [entrees, total] = await Promise.all([
     prisma.journalAudit.findMany({
+      where: filtre,
       orderBy: { horodatage: "desc" },
       skip: (pageCourante - 1) * PAR_PAGE,
       take: PAR_PAGE,
       include: { utilisateur: true },
     }),
-    prisma.journalAudit.count(),
+    prisma.journalAudit.count({ where: filtre }),
   ]);
 
   const pages = Math.max(1, Math.ceil(total / PAR_PAGE));
+  const suffixePage = action ? `&action=${encodeURIComponent(action)}` : "";
 
   return (
     <div className="space-y-6">
@@ -88,6 +94,29 @@ export default async function JournalAuditPage({
           paiements, présences.
         </p>
       </div>
+
+      <AdminSubNav current="/administration/journal" />
+
+      <form className={TOOLBAR_CLASSES} action="/administration/journal" method="GET">
+        <div>
+          <label htmlFor="action" className="sr-only">
+            Type d&apos;action
+          </label>
+          <AutoSubmitSelect id="action" name="action" defaultValue={action ?? ""} className={CONTROL_SM_CLASSES}>
+            <option value="">Toutes les actions</option>
+            {Object.entries(ACTION_LABELS).map(([valeur, label]) => (
+              <option key={valeur} value={valeur}>
+                {label}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        {action && (
+          <Link href="/administration/journal" className="text-xs font-medium text-ink-muted hover:underline">
+            Réinitialiser
+          </Link>
+        )}
+      </form>
 
       <TableWrap>
         <TableHead>
@@ -120,7 +149,7 @@ export default async function JournalAuditPage({
           {entrees.length === 0 && (
             <tr>
               <td colSpan={5} className="px-4 py-8 text-center text-ink-faint">
-                Aucune entrée pour l&apos;instant.
+                {action ? "Aucune entrée pour ce type d'action." : "Aucune entrée pour l'instant."}
               </td>
             </tr>
           )}
@@ -131,7 +160,7 @@ export default async function JournalAuditPage({
         <div className="flex items-center justify-between text-sm">
           {pageCourante > 1 ? (
             <Link
-              href={`/administration/journal?page=${pageCourante - 1}`}
+              href={`/administration/journal?page=${pageCourante - 1}${suffixePage}`}
               className={buttonVariants({ variant: "secondary" })}
             >
               ← Précédent
@@ -144,7 +173,7 @@ export default async function JournalAuditPage({
           </span>
           {pageCourante < pages ? (
             <Link
-              href={`/administration/journal?page=${pageCourante + 1}`}
+              href={`/administration/journal?page=${pageCourante + 1}${suffixePage}`}
               className={buttonVariants({ variant: "secondary" })}
             >
               Suivant →

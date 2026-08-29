@@ -5,7 +5,8 @@ import { ChevronRight, Repeat } from "lucide-react";
 import { modifierActiviteAction, supprimerActiviteAction, supprimerSerieActiviteAction } from "./actions";
 import { FREQUENCE_LABELS, FrequenceActivite } from "@/lib/activites-recurrence";
 import { Champ, ChampTextarea } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -101,23 +102,7 @@ export function ActiviteRow({
         {contenuLigne}
       </button>
 
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-lg rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="max-h-[85vh] overflow-y-auto p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-sm font-semibold text-ink">{a.titre}</h3>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-          </div>
-
+      <ModalShell dialogRef={dialogRef} title={<h3 className="text-sm font-semibold text-ink">{a.titre}</h3>}>
           {a.frequence !== FrequenceActivite.AUCUNE && (
             <p className="mt-2 text-xs text-ink-faint">
               Fait partie d&apos;une série : {FREQUENCE_LABELS[a.frequence].toLowerCase()}
@@ -182,9 +167,9 @@ export function ActiviteRow({
             </div>
 
             <div className="flex justify-end sm:col-span-2">
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary" pendingLabel="Enregistrement…">
                 Enregistrer
-              </Button>
+              </SubmitButton>
             </div>
           </form>
 
@@ -214,8 +199,7 @@ export function ActiviteRow({
               confirmLabel="Supprimer définitivement"
             />
           </div>
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

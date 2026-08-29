@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SEUIL_ANNEES_INACTIVITE } from "@/lib/rgpd";
 import { etudiantsEligiblesAnonymisation } from "@/lib/rgpd-eligibles";
 import { anonymiserEtudiantAction } from "./actions";
+import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Dossier introuvable.",
@@ -40,6 +41,8 @@ export default async function RgpdPage({
           rétention formelle.
         </p>
       </div>
+
+      <AdminSubNav current="/administration/rgpd" />
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Dossier anonymisé.</Alert>}

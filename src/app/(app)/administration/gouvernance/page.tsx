@@ -13,11 +13,12 @@ import {
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect } from "@/components/ui/champ";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Les champs obligatoires doivent être renseignés.",
@@ -65,6 +66,8 @@ export default async function GouvernancePage({
         </p>
       </div>
 
+      <AdminSubNav current="/administration/gouvernance" />
+
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
@@ -77,9 +80,9 @@ export default async function GouvernancePage({
           <Champ label="Email" name="email" id="email-membre" type="email" />
           <Champ label="Date d'entrée" name="dateEntree" id="date-entree-membre" type="date" required />
           <div className="flex justify-end sm:col-span-5">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary" pendingLabel="Ajout…">
               Ajouter le membre
-            </Button>
+            </SubmitButton>
           </div>
         </form>
 
@@ -106,9 +109,9 @@ export default async function GouvernancePage({
                 {!m.dateSortie && (
                   <form action={marquerSortantMembreCAAction}>
                     <input type="hidden" name="membreId" value={m.id} />
-                    <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                    <SubmitButton variant="secondary" size="sm" pendingLabel="…">
                       Marquer sortant
-                    </button>
+                    </SubmitButton>
                   </form>
                 )}
                 <form id={`supprimer-membre-${m.id}`} action={supprimerMembreCAAction}>
@@ -144,9 +147,9 @@ export default async function GouvernancePage({
             placeholder="Optionnel"
           />
           <div className="flex justify-end sm:col-span-4">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary" pendingLabel="Création…">
               Créer la réunion
-            </Button>
+            </SubmitButton>
           </div>
         </form>
 
@@ -206,9 +209,9 @@ export default async function GouvernancePage({
                 <input type="hidden" name="reunionId" value={r.id} />
                 <input type="hidden" name="type" value="PV" />
                 <input type="file" name="fichier" required className="text-xs" />
-                <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                <SubmitButton variant="secondary" size="sm" pendingLabel="Envoi…">
                   Joindre le PV
-                </button>
+                </SubmitButton>
               </form>
             </div>
           ))}
@@ -233,9 +236,9 @@ export default async function GouvernancePage({
             </label>
             <input id="fichier-doc-reference" type="file" name="fichier" required className="text-sm" />
           </div>
-          <Button type="submit" variant="primary">
+          <SubmitButton variant="primary" pendingLabel="Envoi…">
             Ajouter le document
-          </Button>
+          </SubmitButton>
         </form>
 
         <div className="mt-5 divide-y divide-border">

@@ -1,6 +1,7 @@
+import Image from "next/image";
 import { loginAction } from "./actions";
 import { Champ } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -20,7 +21,15 @@ export default async function LoginPage({
     <div className="flex min-h-screen flex-1 items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <h1 className="font-display text-xl font-bold text-pine-strong">
+          <Image
+            src="/logo-loree-du-savoir.png"
+            alt="Logo de l'association L'Orée du Savoir"
+            width={480}
+            height={633}
+            className="mx-auto h-16 w-auto"
+            priority
+          />
+          <h1 className="mt-3 font-display text-xl font-bold text-pine-strong">
             L&apos;Orée du Savoir
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
@@ -45,9 +54,9 @@ export default async function LoginPage({
             required
           />
 
-          <Button type="submit" variant="primary" className="w-full">
+          <SubmitButton variant="primary" className="w-full" pendingLabel="Connexion…">
             Se connecter
-          </Button>
+          </SubmitButton>
         </form>
 
         <p className="mt-6 text-center text-xs text-ink-faint">

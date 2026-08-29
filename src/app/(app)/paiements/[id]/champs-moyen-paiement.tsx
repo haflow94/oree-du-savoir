@@ -17,7 +17,8 @@ export function ChampsMoyenPaiement({
   etudiantNom: string;
   etudiantPrenom: string;
 }) {
-  const idMoyen = useId();
+  const uid = useId();
+  const idMoyen = `${uid}-moyen`;
   const [moyen, setMoyen] = useState<MoyenPaiement>(MoyenPaiement.ESPECES);
   // Cas par défaut : le titulaire du chèque est l'étudiant lui-même — pas
   // besoin de ressaisir son nom/prénom ni de redemander une pièce
@@ -50,12 +51,12 @@ export function ChampsMoyenPaiement({
       {moyen === "CHEQUE" && (
         <>
           <div>
-            <label className={LABEL_CLASSES}>Banque</label>
-            <input type="text" name="chequeBanque" className={CHAMP_CLASSES} />
+            <label htmlFor={`${uid}-banque`} className={LABEL_CLASSES}>Banque</label>
+            <input id={`${uid}-banque`} type="text" name="chequeBanque" className={CHAMP_CLASSES} />
           </div>
           <div>
-            <label className={LABEL_CLASSES}>N° chèque</label>
-            <input type="text" name="chequeNumero" className={CHAMP_CLASSES} />
+            <label htmlFor={`${uid}-numero`} className={LABEL_CLASSES}>N° chèque</label>
+            <input id={`${uid}-numero`} type="text" name="chequeNumero" className={CHAMP_CLASSES} />
           </div>
           <label className="flex items-center gap-1.5 self-end pb-2 text-xs text-ink-muted">
             <input
@@ -69,16 +70,17 @@ export function ChampsMoyenPaiement({
           {!titulaireEstEtudiant && (
             <>
               <div>
-                <label className={LABEL_CLASSES}>Nom du titulaire</label>
-                <input type="text" name="chequeTitulaireNom" className={CHAMP_CLASSES} />
+                <label htmlFor={`${uid}-titulaire-nom`} className={LABEL_CLASSES}>Nom du titulaire</label>
+                <input id={`${uid}-titulaire-nom`} type="text" name="chequeTitulaireNom" className={CHAMP_CLASSES} />
               </div>
               <div>
-                <label className={LABEL_CLASSES}>Prénom du titulaire</label>
-                <input type="text" name="chequeTitulairePrenom" className={CHAMP_CLASSES} />
+                <label htmlFor={`${uid}-titulaire-prenom`} className={LABEL_CLASSES}>Prénom du titulaire</label>
+                <input id={`${uid}-titulaire-prenom`} type="text" name="chequeTitulairePrenom" className={CHAMP_CLASSES} />
               </div>
               <div>
-                <label className={LABEL_CLASSES}>Pièce d&apos;identité du titulaire</label>
+                <label htmlFor={`${uid}-titulaire-piece`} className={LABEL_CLASSES}>Pièce d&apos;identité du titulaire</label>
                 <input
+                  id={`${uid}-titulaire-piece`}
                   type="file"
                   name="chequeTitulairePieceIdentite"
                   accept="image/*,application/pdf"
@@ -93,20 +95,20 @@ export function ChampsMoyenPaiement({
       {moyen === "PRELEVEMENT" && (
         <>
           <div>
-            <label className={LABEL_CLASSES}>IBAN</label>
-            <input type="text" name="prelevementIban" className={CHAMP_CLASSES} />
+            <label htmlFor={`${uid}-iban`} className={LABEL_CLASSES}>IBAN</label>
+            <input id={`${uid}-iban`} type="text" name="prelevementIban" className={CHAMP_CLASSES} />
           </div>
           <div>
-            <label className={LABEL_CLASSES}>BIC</label>
-            <input type="text" name="prelevementBic" className={CHAMP_CLASSES} />
+            <label htmlFor={`${uid}-bic`} className={LABEL_CLASSES}>BIC</label>
+            <input id={`${uid}-bic`} type="text" name="prelevementBic" className={CHAMP_CLASSES} />
           </div>
           <div>
-            <label className={LABEL_CLASSES}>Titulaire</label>
-            <input type="text" name="prelevementTitulaire" className={CHAMP_CLASSES} />
+            <label htmlFor={`${uid}-prelevement-titulaire`} className={LABEL_CLASSES}>Titulaire</label>
+            <input id={`${uid}-prelevement-titulaire`} type="text" name="prelevementTitulaire" className={CHAMP_CLASSES} />
           </div>
           <div>
-            <label className={LABEL_CLASSES}>Réf. mandat</label>
-            <input type="text" name="prelevementReferenceMandat" className={CHAMP_CLASSES} />
+            <label htmlFor={`${uid}-mandat`} className={LABEL_CLASSES}>Réf. mandat</label>
+            <input id={`${uid}-mandat`} type="text" name="prelevementReferenceMandat" className={CHAMP_CLASSES} />
           </div>
         </>
       )}

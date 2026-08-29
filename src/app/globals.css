@@ -48,3 +48,28 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
 }
+
+/* Anneau de focus clavier visible et cohérent partout (audit UX P0) : les
+   boutons du design system ont déjà leur propre focus-visible (voir
+   components/ui/button.tsx), cette règle couvre tout le reste (liens de nav,
+   <summary>, onglets, éléments focusables ad hoc) sans dupliquer de styles
+   par fichier. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[role="tab"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-sky);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Renforce la validation native des champs avec la couleur d'erreur de
+   l'appli (au lieu du seul indicateur rouge par défaut du navigateur) :
+   s'applique à tout <input required>/pattern invalide après une tentative de
+   soumission, sans changer aucune règle de validation existante. */
+input:user-invalid,
+select:user-invalid,
+textarea:user-invalid {
+  border-color: var(--color-rust);
+}

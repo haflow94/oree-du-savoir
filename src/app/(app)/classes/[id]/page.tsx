@@ -24,7 +24,8 @@ import {
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -301,9 +302,9 @@ export default async function ClasseDetailPage({
             </div>
 
             <div className="flex justify-end">
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary">
                 Enregistrer
-              </Button>
+              </SubmitButton>
             </div>
           </form>
         </Card>
@@ -349,9 +350,9 @@ export default async function ClasseDetailPage({
           {administratif && (
             <form action={genererSeancesAction} className="mt-3">
               <input type="hidden" name="classeId" value={classe.id} />
-              <Button type="submit" variant="secondary">
+              <SubmitButton variant="secondary">
                 Générer les séances manquantes
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </Card>
@@ -370,9 +371,9 @@ export default async function ClasseDetailPage({
                 placeholder="Filtrer par nom ou prénom…"
                 className={CONTROL_CLASSES}
               />
-              <Button type="submit" variant="secondary">
+              <SubmitButton variant="secondary">
                 Filtrer
-              </Button>
+              </SubmitButton>
             </form>
 
             {etudiantsDisponibles.length > 0 ? (
@@ -386,9 +387,9 @@ export default async function ClasseDetailPage({
                     </option>
                   ))}
                 </select>
-                <Button type="submit" variant="secondary">
+                <SubmitButton variant="secondary">
                   Inscrire
-                </Button>
+                </SubmitButton>
               </form>
             ) : (
               <p className="text-sm text-ink-faint">
@@ -455,9 +456,9 @@ export default async function ClasseDetailPage({
               required
               className={`w-64 ${CONTROL_CLASSES}`}
             />
-            <Button type="submit" variant="secondary">
+            <SubmitButton variant="secondary">
               Créer la cohorte
-            </Button>
+            </SubmitButton>
           </form>
 
           {cohortes.length === 0 ? (
@@ -527,9 +528,9 @@ export default async function ClasseDetailPage({
                               </label>
                             ))}
                           </div>
-                          <Button type="submit" variant="secondary" size="sm">
+                          <SubmitButton variant="secondary" size="sm">
                             Enregistrer les membres
-                          </Button>
+                          </SubmitButton>
                         </form>
                       )}
                     </details>
@@ -554,9 +555,9 @@ export default async function ClasseDetailPage({
                             </option>
                           ))}
                         </select>
-                        <Button type="submit" variant="primary" size="sm">
+                        <SubmitButton variant="primary" size="sm">
                           Affecter la cohorte
-                        </Button>
+                        </SubmitButton>
                       </form>
                     )}
                   </li>

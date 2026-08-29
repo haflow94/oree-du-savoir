@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { creerActiviteAction } from "./actions";
 import { FREQUENCE_LABELS, FrequenceActivite, MAX_OCCURRENCES_SERIE } from "@/lib/activites-recurrence";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 
 type Responsable = { id: string; prenom: string; nom: string };
 
@@ -35,22 +37,7 @@ export function NouvelleActiviteDialog({
       >
         + Nouvelle activité
       </button>
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-lg rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="max-h-[85vh] overflow-y-auto p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-sm font-semibold text-ink">Créer une activité</h3>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-          </div>
+      <ModalShell dialogRef={dialogRef} title={<h3 className="text-sm font-semibold text-ink">Créer une activité</h3>}>
           <form action={creerActiviteAction} className="mt-4 grid gap-3 sm:grid-cols-2">
             <Champ label="Titre" name="titre" required className="sm:col-span-2" />
             <Champ label="Lieu" name="lieu" placeholder="Optionnel" className="sm:col-span-2" />
@@ -122,13 +109,12 @@ export function NouvelleActiviteDialog({
               >
                 Annuler
               </button>
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary" pendingLabel="Création…">
                 Créer l&apos;activité
-              </Button>
+              </SubmitButton>
             </div>
           </form>
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

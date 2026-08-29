@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NouveauCompteDialog } from "../nouveau-compte-dialog";
 import { UtilisateurRow } from "../utilisateur-row";
+import { AdminSubNav } from "../sub-nav";
 
 const FROM = "/administration/activites";
 
@@ -60,6 +61,8 @@ export default async function ResponsablesActivitesPage({
           triggerLabel="+ Nouveau compte"
         />
       </div>
+
+      <AdminSubNav current="/administration/activites" />
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}

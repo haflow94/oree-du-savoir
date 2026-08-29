@@ -87,41 +87,43 @@ export default async function FeuillePapierPage({
           Codes : {codes.map(([k, c]) => `${c} = ${STATUT_PRESENCE_LABELS[k]}`).join(" · ")}
         </p>
 
-        <table className="mt-4 w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b-2 border-ink text-left">
-              <th className="py-2 pr-2">#</th>
-              <th className="py-2 pr-2">Nom</th>
-              <th className="py-2 pr-2">Prénom</th>
-              {codes.map(([, code]) => (
-                <th key={code} className="w-12 py-2 text-center">
-                  {code}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {seance.classe.inscriptions.map((i, index) => (
-              <tr key={i.id} className="border-b border-border-strong">
-                <td className="py-2.5 pr-2 text-ink-faint">{index + 1}</td>
-                <td className="py-2.5 pr-2 font-medium text-ink">{i.etudiant.nom}</td>
-                <td className="py-2.5 pr-2 text-ink-muted">{i.etudiant.prenom}</td>
+        <div className="overflow-x-auto print:overflow-visible">
+          <table className="mt-4 w-full min-w-[480px] border-collapse text-sm print:min-w-0">
+            <thead>
+              <tr className="border-b-2 border-ink text-left">
+                <th className="py-2 pr-2">#</th>
+                <th className="py-2 pr-2">Nom</th>
+                <th className="py-2 pr-2">Prénom</th>
                 {codes.map(([, code]) => (
-                  <td key={code} className="py-2.5 text-center">
-                    <span className="inline-block h-4 w-4 border border-ink-faint" />
-                  </td>
+                  <th key={code} className="w-12 py-2 text-center">
+                    {code}
+                  </th>
                 ))}
               </tr>
-            ))}
-            {seance.classe.inscriptions.length === 0 && (
-              <tr>
-                <td colSpan={3 + codes.length} className="py-6 text-center text-ink-faint">
-                  Aucun étudiant inscrit.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {seance.classe.inscriptions.map((i, index) => (
+                <tr key={i.id} className="border-b border-border-strong">
+                  <td className="py-2.5 pr-2 text-ink-faint">{index + 1}</td>
+                  <td className="py-2.5 pr-2 font-medium text-ink">{i.etudiant.nom}</td>
+                  <td className="py-2.5 pr-2 text-ink-muted">{i.etudiant.prenom}</td>
+                  {codes.map(([, code]) => (
+                    <td key={code} className="py-2.5 text-center">
+                      <span className="inline-block h-4 w-4 border border-ink-faint" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {seance.classe.inscriptions.length === 0 && (
+                <tr>
+                  <td colSpan={3 + codes.length} className="py-6 text-center text-ink-faint">
+                    Aucun étudiant inscrit.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         <div className="mt-8 flex justify-end">
           <div className="w-64">

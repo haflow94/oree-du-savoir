@@ -4,8 +4,9 @@ import { modifierOrganisationAction } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
+import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Le nom de l'association est obligatoire.",
@@ -35,6 +36,8 @@ export default async function OrganisationPage({
           en dur dans les modèles.
         </p>
       </div>
+
+      <AdminSubNav current="/administration/organisation" />
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
@@ -91,9 +94,9 @@ export default async function OrganisationPage({
             </div>
 
             <div className="flex justify-end sm:col-span-2">
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary" pendingLabel="Enregistrement…">
                 Enregistrer
-              </Button>
+              </SubmitButton>
             </div>
           </form>
         </Card>

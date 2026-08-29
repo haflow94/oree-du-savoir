@@ -24,7 +24,7 @@ import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { ChampsMoyenPaiement } from "./champs-moyen-paiement";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -106,9 +106,9 @@ export default async function DossierPaiementPage({
         {peutGererCheque && (
           <form action={basculerRembourseAction}>
             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-            <Button type="submit" variant="secondary" size="sm">
+            <SubmitButton variant="secondary" size="sm">
               {dossier.rembourse ? "Annuler le remboursement" : "Marquer comme remboursé"}
-            </Button>
+            </SubmitButton>
           </form>
         )}
       </div>
@@ -161,9 +161,9 @@ export default async function DossierPaiementPage({
                   defaultValue={du}
                   className={`w-24 ${CONTROL_XS_CLASSES}`}
                 />
-                <Button type="submit" variant="secondary" size="sm">
+                <SubmitButton variant="secondary" size="sm">
                   OK
-                </Button>
+                </SubmitButton>
               </form>
             </details>
           )}
@@ -240,9 +240,9 @@ export default async function DossierPaiementPage({
                         className={CONTROL_XS_CLASSES}
                       />
                     </div>
-                    <Button type="submit" variant="secondary" size="sm">
+                    <SubmitButton variant="secondary" size="sm">
                       Enregistrer
-                    </Button>
+                    </SubmitButton>
                   </form>
                   <form action={supprimerEcheanceAction} className="mt-2">
                     <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
@@ -312,9 +312,9 @@ export default async function DossierPaiementPage({
                                 defaultValue={p.montant.toString()}
                                 className={`w-24 ${CONTROL_XS_CLASSES}`}
                               />
-                              <Button type="submit" variant="secondary" size="sm">
+                              <SubmitButton variant="secondary" size="sm">
                                 OK
-                              </Button>
+                              </SubmitButton>
                             </form>
                           </details>
                         )}
@@ -366,9 +366,9 @@ export default async function DossierPaiementPage({
                             defaultValue={p.cheque.motifRejet ?? ""}
                             className={CONTROL_XS_CLASSES}
                           />
-                          <Button type="submit" variant="secondary" size="sm">
+                          <SubmitButton variant="secondary" size="sm">
                             Mettre à jour
-                          </Button>
+                          </SubmitButton>
                         </form>
                       )}
                       {p.prelevement && peutGererCheque && (
@@ -393,9 +393,9 @@ export default async function DossierPaiementPage({
                             defaultValue={p.prelevement.motifRejet ?? ""}
                             className={CONTROL_XS_CLASSES}
                           />
-                          <Button type="submit" variant="secondary" size="sm">
+                          <SubmitButton variant="secondary" size="sm">
                             Mettre à jour
-                          </Button>
+                          </SubmitButton>
                         </form>
                       )}
                     </li>
@@ -427,9 +427,9 @@ export default async function DossierPaiementPage({
                       etudiantNom={dossier.etudiant.nom}
                       etudiantPrenom={dossier.etudiant.prenom}
                     />
-                    <Button type="submit" variant="primary" size="sm">
+                    <SubmitButton variant="primary" size="sm">
                       Enregistrer le paiement
-                    </Button>
+                    </SubmitButton>
                   </form>
                 </div>
               )}
@@ -471,9 +471,9 @@ export default async function DossierPaiementPage({
               <label className={LABEL_XS_CLASSES}>Date d&apos;échéance</label>
               <input type="date" name="dateEcheance" required className={CONTROL_SM_CLASSES} />
             </div>
-            <Button type="submit" variant="secondary">
+            <SubmitButton variant="secondary">
               Ajouter
-            </Button>
+            </SubmitButton>
           </form>
         </Card>
       )}

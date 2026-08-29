@@ -7,6 +7,7 @@ import { chargerSeanceAvecAppel } from "@/lib/appel";
 import { annulerSeanceAction } from "../actions";
 import { FeuilleAppel } from "./feuille-appel";
 import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 
@@ -111,9 +112,9 @@ export default async function SeancePage({
               className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
             />
           </div>
-          <button type="submit" className={buttonVariants({ variant: "danger" })}>
+          <SubmitButton variant="danger" pendingLabel="Annulation…">
             Annuler la séance
-          </button>
+          </SubmitButton>
         </form>
       )}
     </div>

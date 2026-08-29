@@ -9,6 +9,7 @@ import type { EnseignantAvecSections } from "@/lib/enseignants-section";
 import { filtrerParSection } from "@/lib/enseignants-section";
 import { Champ, ChampSelect } from "@/components/ui/champ";
 import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
@@ -174,9 +175,9 @@ export function NouvelleClasseForm({
         <Link href="/classes" className={buttonVariants({ variant: "secondary" })}>
           Annuler
         </Link>
-        <button type="submit" className={buttonVariants({ variant: "primary" })}>
+        <SubmitButton variant="primary" pendingLabel="Création…">
           {source ? "Créer cette copie" : "Créer la classe"}
-        </button>
+        </SubmitButton>
       </div>
     </form>
   );

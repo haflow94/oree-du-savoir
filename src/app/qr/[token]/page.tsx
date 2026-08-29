@@ -91,7 +91,7 @@ export default async function QrPage({
             <li key={c.seanceId}>
               <a
                 href={`/appel/${c.seanceId}`}
-                className="block rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-bg-sunken"
+                className="block rounded-md border border-border px-3 py-3 text-sm transition-colors hover:bg-bg-sunken"
               >
                 <span className="font-medium text-ink">
                   {c.heureDebut}–{c.heureFin} · {c.coursNom}
@@ -103,7 +103,7 @@ export default async function QrPage({
           ))}
         </ul>
         <div className="mt-4">
-          <QuitterButton className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken" />
+          <QuitterButton className="rounded-md border border-border px-4 py-3 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken" />
         </div>
       </div>
     </div>
@@ -123,7 +123,7 @@ function Message({
         <h1 className="font-display text-base font-semibold text-pine-strong">{titre}</h1>
         <p className="mt-2 text-sm text-ink-muted">{children}</p>
         <div className="mt-4">
-          <QuitterButton className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken" />
+          <QuitterButton className="rounded-md border border-border px-4 py-3 text-sm font-medium text-ink-muted transition-colors hover:bg-bg-sunken" />
         </div>
       </div>
     </div>

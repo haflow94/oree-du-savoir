@@ -3,7 +3,9 @@
 import { useEffect, useRef } from "react";
 import { creerUtilisateurAction } from "./actions";
 import { Champ, ChampSelect } from "@/components/ui/champ";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 import { Role, ROLE_LABELS, ROLES_STAFF } from "@/lib/roles";
 
@@ -48,22 +50,7 @@ export function NouveauCompteDialog({
       >
         {triggerLabel}
       </button>
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-lg rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-sm font-semibold text-ink">{titre}</h3>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-          </div>
+      <ModalShell dialogRef={dialogRef} title={<h3 className="text-sm font-semibold text-ink">{titre}</h3>}>
           <form action={creerUtilisateurAction} className="mt-4 grid gap-3 sm:grid-cols-2">
             {from && <input type="hidden" name="from" value={from} />}
             <Champ label="Prénom" name="prenom" required />
@@ -130,13 +117,12 @@ export function NouveauCompteDialog({
               >
                 Annuler
               </button>
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary" pendingLabel="Création…">
                 Créer le compte
-              </Button>
+              </SubmitButton>
             </div>
           </form>
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

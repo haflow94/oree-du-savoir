@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Trash2, Upload } from "lucide-react";
+import { Plus, Trash2, Upload, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { Role } from "@/lib/roles";
@@ -35,12 +35,14 @@ import {
 } from "./actions";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChampSelectAuto } from "@/components/ui/auto-submit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { IconChip } from "@/components/ui/icon-chip";
 import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
 
 const MESSAGES: Record<string, string> = {
@@ -138,9 +140,15 @@ const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 sha
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 const DT_CLASSES = "text-xs font-medium uppercase text-ink-faint";
 const DD_CLASSES = "mt-0.5 text-sm text-ink";
-const ZONE_TITLE_CLASSES = "mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint";
-const ZONE_CLASSES = "scroll-mt-20 space-y-4";
-const NAV_LINK_CLASSES = "font-medium text-ink-muted hover:text-pine-strong";
+// Titre de sous-section : palier intermédiaire entre le h1 de page (3xl) et
+// le texte courant (sm), jusqu'ici sous-exploité dans l'appli (échelle
+// réellement utilisée très concentrée sur xs/sm/3xl — voir audit UX). Sert de
+// repère visuel fort sur une fiche volontairement longue plutôt que de
+// masquer du contenu derrière de vrais onglets.
+const ZONE_TITLE_CLASSES = "mb-3 font-display text-lg font-semibold text-pine-strong";
+const ZONE_CLASSES = "scroll-mt-24 space-y-4";
+const NAV_LINK_CLASSES =
+  "rounded-md px-2.5 py-1.5 font-medium text-ink-muted transition-colors hover:bg-bg-sunken hover:text-pine-strong";
 
 export default async function EtudiantDetailPage({
   params,
@@ -293,34 +301,37 @@ export default async function EtudiantDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <BackLink href="/etudiants" label="Étudiants" />
-          <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold text-pine-strong">
-            {etudiant.prenom} {etudiant.nom}
-            {etudiant.statutInscription === "PREINSCRIT" && (
-              <Badge variant="info">Préinscrit — à valider</Badge>
-            )}
-            {etudiant.statutInscription === "VALIDE" && anneeActive && (
-              <Badge variant={reinscritAnneeActive ? "success" : "warning"}>
-                {nouveauEtudiant
-                  ? reinscritAnneeActive
-                    ? "Inscrit"
-                    : "Non inscrit"
-                  : reinscritAnneeActive
-                    ? "Réinscrit"
-                    : "Non réinscrit"}{" "}
-                {anneeActive.libelle}
-              </Badge>
-            )}
-          </h1>
+        <div className="flex items-center gap-3">
+          <IconChip icon={Users} accent="sage" />
+          <div>
+            <BackLink href="/etudiants" label="Étudiants" />
+            <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold text-pine-strong">
+              {etudiant.prenom} {etudiant.nom}
+              {etudiant.statutInscription === "PREINSCRIT" && (
+                <Badge variant="info">Préinscrit — à valider</Badge>
+              )}
+              {etudiant.statutInscription === "VALIDE" && anneeActive && (
+                <Badge variant={reinscritAnneeActive ? "success" : "warning"}>
+                  {nouveauEtudiant
+                    ? reinscritAnneeActive
+                      ? "Inscrit"
+                      : "Non inscrit"
+                    : reinscritAnneeActive
+                      ? "Réinscrit"
+                      : "Non réinscrit"}{" "}
+                  {anneeActive.libelle}
+                </Badge>
+              )}
+            </h1>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {peutModifier && etudiant.statutInscription === "PREINSCRIT" && (
             <form action={validerInscriptionAction}>
               <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <Button type="submit" variant="primary">
+              <SubmitButton variant="primary" pendingLabel="Validation…">
                 Valider l&apos;inscription
-              </Button>
+              </SubmitButton>
             </form>
           )}
           {peutSupprimer && (
@@ -372,15 +383,15 @@ export default async function EtudiantDetailPage({
             </Link>
             <form action={fusionnerDoublonAction}>
               <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <Button type="submit" variant="secondary" size="sm">
+              <SubmitButton variant="secondary" size="sm">
                 Mettre à jour la fiche existante
-              </Button>
+              </SubmitButton>
             </form>
             <form action={confirmerHomonymeAction}>
               <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <Button type="submit" variant="secondary" size="sm">
+              <SubmitButton variant="secondary" size="sm">
                 Ce n&apos;est pas un doublon (homonymie)
-              </Button>
+              </SubmitButton>
             </form>
           </div>
         </Alert>
@@ -398,7 +409,30 @@ export default async function EtudiantDetailPage({
         </Alert>
       )}
 
-      <nav className="flex flex-wrap gap-4 border-b border-border pb-2 text-sm">
+      {dossierAnneeActive &&
+        (() => {
+          const { du, encaisse, reste, statut } = statutCotisation(dossierAnneeActive);
+          return (
+            <Link
+              href={`/paiements/${dossierAnneeActive.id}`}
+              className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-border bg-bg-elevated px-4 py-3 text-sm shadow-card transition-colors hover:border-border-strong"
+            >
+              <span className="font-medium text-ink">Dossier {anneeActive!.libelle}</span>
+              <span className="text-ink-muted">
+                Dû <strong className="font-mono text-ink">{formaterMontant(du)}</strong>
+              </span>
+              <span className="text-ink-muted">
+                Encaissé <strong className="font-mono text-ink">{formaterMontant(encaisse)}</strong>
+              </span>
+              <span className="text-ink-muted">
+                Reste <strong className="font-mono text-ink">{formaterMontant(reste)}</strong>
+              </span>
+              <Badge variant={STATUT_COTISATION_VARIANTS[statut]}>{statut}</Badge>
+            </Link>
+          );
+        })()}
+
+      <nav className="sticky top-16 z-[5] -mx-1 flex flex-wrap gap-1 border-b border-border bg-bg px-1 py-2 text-sm">
         <a href="#zone-profil" className={NAV_LINK_CLASSES}>
           Profil
         </a>
@@ -559,9 +593,9 @@ export default async function EtudiantDetailPage({
           </fieldset>
 
           <div className="flex justify-end">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary">
               Enregistrer les informations personnelles
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       ) : (
@@ -667,9 +701,9 @@ export default async function EtudiantDetailPage({
                       <Champ label="Ville" name="ville" defaultValue={r.ville ?? ""} />
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button type="submit" variant="secondary" size="sm">
+                      <SubmitButton variant="secondary" size="sm">
                         Enregistrer
-                      </Button>
+                      </SubmitButton>
                     </div>
                   </form>
                 ) : (
@@ -736,9 +770,9 @@ export default async function EtudiantDetailPage({
               />
               <Champ label="Ville" name="ville" />
               <div className="flex justify-end sm:col-span-2">
-                <Button type="submit" variant="secondary" size="sm">
+                <SubmitButton variant="secondary" size="sm">
                   Ajouter
-                </Button>
+                </SubmitButton>
               </div>
             </form>
           </details>
@@ -847,9 +881,9 @@ export default async function EtudiantDetailPage({
                     </option>
                   ))}
                 </ChampSelect>
-                <Button type="submit" variant="secondary" size="sm">
+                <SubmitButton variant="secondary" size="sm">
                   Inscrire
-                </Button>
+                </SubmitButton>
               </form>
             ) : (
               <EmptyState
@@ -1061,10 +1095,10 @@ export default async function EtudiantDetailPage({
                 className="rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
               />
             </div>
-            <Button type="submit" variant="secondary" size="sm">
+            <SubmitButton variant="secondary" size="sm">
               <Upload size={13} aria-hidden />
               Téléverser
-            </Button>
+            </SubmitButton>
           </form>
         </Card>
       </section>

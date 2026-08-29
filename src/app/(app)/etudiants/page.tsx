@@ -17,6 +17,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
+import { TabLinks } from "@/components/ui/tabs";
 import { AutoSubmitSelect } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { IconChip } from "@/components/ui/icon-chip";
@@ -148,8 +149,8 @@ export default async function EtudiantsPage({
       {supprime && <Alert variant="success">Fiche supprimée.</Alert>}
 
       {sectionJeunes && (
-        <div role="tablist" className="flex gap-1 border-b border-border">
-          {(["adultes", "jeunes"] as const).map((p) => {
+        <TabLinks
+          tabs={(["adultes", "jeunes"] as const).map((p) => {
             const params = new URLSearchParams({
               ...(recherche ? { q: recherche } : {}),
               ...(sectionId ? { sectionId } : {}),
@@ -158,24 +159,14 @@ export default async function EtudiantsPage({
               ...(statutFiltre !== "valide" ? { statut: statutFiltre } : {}),
               population: p,
             });
-            const actif = populationSelectionnee === p;
-            return (
-              <Link
-                key={p}
-                href={`/etudiants?${params}`}
-                role="tab"
-                aria-selected={actif}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                  actif
-                    ? "border-pine text-pine-strong"
-                    : "border-transparent text-ink-muted hover:text-ink"
-                }`}
-              >
-                {p === "adultes" ? "Adultes" : "Jeunes"}
-              </Link>
-            );
+            return {
+              id: p,
+              label: p === "adultes" ? "Adultes" : "Jeunes",
+              href: `/etudiants?${params}`,
+              active: populationSelectionnee === p,
+            };
           })}
-        </div>
+        />
       )}
 
       <form className={TOOLBAR_CLASSES} action="/etudiants" method="GET">

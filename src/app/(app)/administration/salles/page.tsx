@@ -6,10 +6,11 @@ import { creerSalleAction, renommerSalleAction, supprimerSalleAction } from "./a
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Donnez un nom à la salle.",
@@ -62,6 +63,8 @@ export default async function SallesPage({
         </p>
       </div>
 
+      <AdminSubNav current="/administration/salles" />
+
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
@@ -69,9 +72,9 @@ export default async function SallesPage({
         <CardTitle>Créer une salle</CardTitle>
         <form action={creerSalleAction} className="mt-3 flex flex-wrap items-end gap-3">
           <Champ label="Nom" name="nom" id="nom-nouvelle-salle" required placeholder="ex. Salle 1" />
-          <Button type="submit" variant="primary">
+          <SubmitButton variant="primary" pendingLabel="Création…">
             Créer la salle
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
 
@@ -96,9 +99,9 @@ export default async function SallesPage({
                     required
                     defaultValue={s.nom}
                   />
-                  <Button type="submit" variant="secondary">
+                  <SubmitButton variant="secondary" pendingLabel="Enregistrement…">
                     Enregistrer
-                  </Button>
+                  </SubmitButton>
                 </form>
                 <div>
                   <form id={`supprimer-salle-${s.id}`} action={supprimerSalleAction}>

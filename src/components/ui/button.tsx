@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
-type Size = "default" | "sm";
+export type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
+export type Size = "default" | "sm";
 
 const BASE =
   "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky disabled:cursor-not-allowed disabled:opacity-40";
@@ -12,6 +12,11 @@ const VARIANTS: Record<Variant, string> = {
     "border border-border-strong text-pine bg-transparent hover:bg-pine-soft",
   ghost: "text-ink-muted hover:text-pine",
   danger: "bg-rust text-on-accent hover:bg-rust-strong",
+  // Formalise le variant "valider/approuver" jusqu'ici réinventé à la main
+  // par écran (ex. annees-scolaires/page.tsx) — même forme que `secondary`
+  // (bordure + fond transparent) mais en sauge, pour une action positive qui
+  // n'est pas la primaire de la page.
+  success: "border border-sage-border text-sage bg-transparent hover:bg-sage-bg",
 };
 
 const SIZES: Record<Size, string> = {

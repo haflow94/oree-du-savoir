@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NouveauCompteDialog } from "../nouveau-compte-dialog";
 import { UtilisateurRow } from "../utilisateur-row";
+import { AdminSubNav } from "../sub-nav";
 
 const FROM = "/administration/enseignants";
 
@@ -59,6 +60,8 @@ export default async function EnseignantsPage({
           sectionsDisponibles={sections}
         />
       </div>
+
+      <AdminSubNav current="/administration/enseignants" />
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}

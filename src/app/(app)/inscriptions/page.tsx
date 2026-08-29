@@ -6,12 +6,30 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { IconChip } from "@/components/ui/icon-chip";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 
-export default async function InscriptionsPage() {
+export default async function InscriptionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   await requireModule(Module.INSCRIPTIONS, "LECTURE");
+  const { q } = await searchParams;
+  const recherche = q?.trim() ?? "";
 
   const preinscrits = await prisma.etudiant.findMany({
-    where: { statutInscription: "PREINSCRIT" },
+    where: {
+      statutInscription: "PREINSCRIT",
+      ...(recherche
+        ? {
+            OR: [
+              { nom: { contains: recherche, mode: "insensitive" } },
+              { prenom: { contains: recherche, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
     orderBy: { creeLe: "desc" },
   });
 
@@ -36,6 +54,30 @@ export default async function InscriptionsPage() {
           <code className="rounded bg-bg-sunken px-1.5 py-0.5 text-xs">/preinscription</code>.
         </p>
       </Card>
+
+      <form className={TOOLBAR_CLASSES} action="/inscriptions" method="GET">
+        <div>
+          <label htmlFor="q" className="sr-only">
+            Rechercher par nom ou prénom
+          </label>
+          <input
+            id="q"
+            type="search"
+            name="q"
+            defaultValue={recherche}
+            placeholder="Nom ou prénom…"
+            className={`w-48 ${CONTROL_SM_CLASSES}`}
+          />
+        </div>
+        <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+          Rechercher
+        </button>
+        {recherche && (
+          <Link href="/inscriptions" className="text-xs font-medium text-ink-muted hover:underline">
+            Réinitialiser
+          </Link>
+        )}
+      </form>
 
       <TableWrap>
         <TableHead>
@@ -65,7 +107,9 @@ export default async function InscriptionsPage() {
           {preinscrits.length === 0 && (
             <tr>
               <td colSpan={3} className="px-4 py-8 text-center text-ink-faint">
-                Aucune préinscription en attente.
+                {recherche
+                  ? "Aucune préinscription ne correspond à cette recherche."
+                  : "Aucune préinscription en attente."}
               </td>
             </tr>
           )}

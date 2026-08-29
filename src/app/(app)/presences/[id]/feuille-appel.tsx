@@ -7,7 +7,8 @@ import {
 } from "@/lib/presences";
 import { validerPresencesAction } from "../actions";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -69,9 +70,9 @@ export function FeuilleAppel({
 
       {!lectureSeule && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
-          <Button
+          <button
             type="button"
-            variant="primary"
+            className={buttonVariants({ variant: "primary" })}
             onClick={() =>
               setStatuts(
                 Object.fromEntries(lignes.map((l) => [l.etudiantId, "PRESENT"])),
@@ -79,7 +80,7 @@ export function FeuilleAppel({
             }
           >
             Tous présents
-          </Button>
+          </button>
           <div className="flex flex-wrap gap-2">
             {compte.map((c) => (
               <Badge key={c.statut} variant="neutral">
@@ -116,7 +117,7 @@ export function FeuilleAppel({
                       onClick={() =>
                         setStatuts((prec) => ({ ...prec, [l.etudiantId]: s }))
                       }
-                      className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-60 ${
+                      className={`rounded-lg px-3 py-2.5 text-xs font-medium transition-colors disabled:opacity-60 ${
                         actif
                           ? COULEURS[s]
                           : "bg-bg-sunken text-ink-muted hover:bg-border"
@@ -145,9 +146,9 @@ export function FeuilleAppel({
             <input type="checkbox" name="saisieViaPapier" value="1" />
             Saisie depuis la feuille papier
           </label>
-          <Button type="submit" variant="primary">
+          <SubmitButton variant="primary" pendingLabel="Enregistrement…">
             {dejaValidee ? "Enregistrer la correction" : "Valider l'appel"}
-          </Button>
+          </SubmitButton>
         </div>
       )}
     </form>

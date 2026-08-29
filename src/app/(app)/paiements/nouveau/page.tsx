@@ -6,6 +6,7 @@ import { montantSuggereDossier } from "@/lib/sections-etudiant";
 import { creerDossierAction } from "./actions";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
 import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -136,9 +137,9 @@ export default async function NouveauDossierPage({
             <Link href="/paiements" className={buttonVariants({ variant: "secondary" })}>
               Annuler
             </Link>
-            <button type="submit" className={buttonVariants({ variant: "primary" })}>
+            <SubmitButton variant="primary" pendingLabel="Création…">
               Créer le dossier
-            </button>
+            </SubmitButton>
           </div>
         </form>
       )}

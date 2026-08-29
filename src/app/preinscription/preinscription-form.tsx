@@ -12,8 +12,10 @@ type Section = { id: string; nom: string };
 type Creneau = { id: string; sectionId: string; label: string };
 type Ligne = { id: number; sectionId: string; classeId: string };
 
-const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
+const FIELDSET_CLASSES = "scroll-mt-20 rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
+const STEP_NAV_LINK_CLASSES =
+  "shrink-0 rounded-full border border-border-strong px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-pine hover:text-pine-strong";
 
 // Même jeu de champs que ResponsableLegal (voir prisma/schema.prisma) et
 // que le bloc "Ajouter un responsable" de la fiche étudiant côté staff
@@ -25,7 +27,7 @@ const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 // rl_pere/rl_mere sur la dernière page du gabarit Jeunes).
 function BlocResponsable({ index }: { index: 1 | 2 }) {
   return (
-    <fieldset className={FIELDSET_CLASSES}>
+    <fieldset id={index === 1 ? "section-responsables" : undefined} className={FIELDSET_CLASSES}>
       <legend className={LEGEND_CLASSES}>
         Responsable légal {index} {index === 2 && "(optionnel)"}
       </legend>
@@ -152,7 +154,40 @@ export function PreinscriptionForm({
     >
       {error && <Alert variant="danger">{error}</Alert>}
 
-      <Card className="space-y-4">
+      <nav
+        aria-label="Sections du formulaire"
+        className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-bg px-4 py-2 sm:mx-0 sm:flex-wrap sm:px-0"
+      >
+        <a href="#section-cours" className={STEP_NAV_LINK_CLASSES}>
+          1. Cours
+        </a>
+        <a href="#section-identite" className={STEP_NAV_LINK_CLASSES}>
+          2. {estJeunes ? "Enfant" : "Vous"}
+        </a>
+        {!estJeunes && (
+          <a href="#section-coordonnees" className={STEP_NAV_LINK_CLASSES}>
+            3. Coordonnées
+          </a>
+        )}
+        {!estJeunes && (
+          <a href="#section-situation" className={STEP_NAV_LINK_CLASSES}>
+            4. Situation
+          </a>
+        )}
+        <a href="#section-documents" className={STEP_NAV_LINK_CLASSES}>
+          {estJeunes ? "3." : "5."} Documents
+        </a>
+        {estJeunes && (
+          <a href="#section-responsables" className={STEP_NAV_LINK_CLASSES}>
+            4. Responsable(s)
+          </a>
+        )}
+        <a href="#section-rgpd" className={STEP_NAV_LINK_CLASSES}>
+          {estJeunes ? "5." : "6."} Confidentialité
+        </a>
+      </nav>
+
+      <Card id="section-cours" className="scroll-mt-20 space-y-4">
         <p className="text-sm font-medium text-ink">Cours souhaités</p>
         {lignes.map((ligne, index) => {
           const creneauxLigne = creneaux.filter((c) => c.sectionId === ligne.sectionId);
@@ -224,7 +259,7 @@ export function PreinscriptionForm({
         </button>
       </Card>
 
-      <fieldset className={FIELDSET_CLASSES}>
+      <fieldset id="section-identite" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>
           {estJeunes ? "Informations de l'enfant" : "Vos informations"}
         </legend>
@@ -253,7 +288,7 @@ export function PreinscriptionForm({
       </fieldset>
 
       {!estJeunes && (
-        <fieldset className={FIELDSET_CLASSES}>
+        <fieldset id="section-coordonnees" className={FIELDSET_CLASSES}>
           <legend className={LEGEND_CLASSES}>Coordonnées</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <Champ
@@ -297,7 +332,7 @@ export function PreinscriptionForm({
       )}
 
       {!estJeunes && (
-        <fieldset className={FIELDSET_CLASSES}>
+        <fieldset id="section-situation" className={FIELDSET_CLASSES}>
           <legend className={LEGEND_CLASSES}>Situation</legend>
           <div className="grid gap-4 sm:grid-cols-2">
             <Champ label="Profession" name="profession" />
@@ -307,7 +342,7 @@ export function PreinscriptionForm({
         </fieldset>
       )}
 
-      <fieldset className={FIELDSET_CLASSES}>
+      <fieldset id="section-documents" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Documents (facultatif)</legend>
         <p className="mb-3 text-sm text-ink-muted">
           Si vous les avez sous la main, vous pouvez déjà envoyer une photo et
@@ -375,7 +410,7 @@ export function PreinscriptionForm({
         </>
       )}
 
-      <fieldset className={FIELDSET_CLASSES}>
+      <fieldset id="section-rgpd" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Protection des données</legend>
         <p className="text-sm text-ink-muted">
           Les données collectées dans ce formulaire sont utilisées par L&apos;Orée

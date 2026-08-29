@@ -6,7 +6,9 @@ import {
   modifierCategorieAction,
   changerActivationCategorieAction,
 } from "./actions";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { Badge } from "@/components/ui/badge";
 import { CONTROL_CLASSES, CONTROL_SM_CLASSES } from "@/components/ui/champ";
 
@@ -34,23 +36,7 @@ export function CategoriesDialog({
       >
         Catégories ({categories.length})
       </button>
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-lg rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="max-h-[85vh] overflow-y-auto p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-sm font-semibold text-ink">Catégories</h3>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-          </div>
-
+      <ModalShell dialogRef={dialogRef} title={<h3 className="text-sm font-semibold text-ink">Catégories</h3>}>
           <div className="mt-3 flex flex-wrap gap-2">
             {categories.length === 0 && (
               <p className="text-sm text-ink-faint">Aucune catégorie enregistrée.</p>
@@ -68,9 +54,9 @@ export function CategoriesDialog({
                   <form action={modifierCategorieAction} className="mt-3 flex flex-wrap items-center gap-2">
                     <input type="hidden" name="categorieId" value={c.id} />
                     <input name="nom" required defaultValue={c.nom} className={CONTROL_SM_CLASSES} />
-                    <Button type="submit" variant="secondary" size="sm">
+                    <SubmitButton variant="secondary" size="sm" pendingLabel="Renommage…">
                       Renommer
-                    </Button>
+                    </SubmitButton>
                   </form>
                   <form action={changerActivationCategorieAction} className="mt-2">
                     <input type="hidden" name="categorieId" value={c.id} />
@@ -97,13 +83,12 @@ export function CategoriesDialog({
                 placeholder="Nom de la nouvelle catégorie"
                 className={CONTROL_CLASSES}
               />
-              <Button type="submit" variant="secondary">
+              <SubmitButton variant="secondary" pendingLabel="Ajout…">
                 Ajouter
-              </Button>
+              </SubmitButton>
             </form>
           )}
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

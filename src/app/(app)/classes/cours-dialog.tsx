@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import { creerCoursAction, modifierCoursAction, supprimerCoursAction } from "./actions";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { Badge } from "@/components/ui/badge";
 import { CONTROL_CLASSES, CONTROL_SM_CLASSES } from "@/components/ui/champ";
 
@@ -41,23 +43,7 @@ export function CoursDialog({
       >
         Cours ({cours.length})
       </button>
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-2xl rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="max-h-[85vh] overflow-y-auto p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-sm font-semibold text-ink">Cours</h3>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-          </div>
-
+      <ModalShell dialogRef={dialogRef} title={<h3 className="text-sm font-semibold text-ink">Cours</h3>} maxWidth="max-w-2xl">
           <div className="mt-3 flex flex-wrap gap-2">
             {cours.length === 0 && <p className="text-sm text-ink-faint">Aucun cours enregistré.</p>}
             {cours.map((c) =>
@@ -88,9 +74,9 @@ export function CoursDialog({
                         ))}
                       </select>
                     </div>
-                    <Button type="submit" variant="secondary" size="sm">
+                    <SubmitButton variant="secondary" size="sm" pendingLabel="Enregistrement…">
                       Enregistrer
-                    </Button>
+                    </SubmitButton>
                   </form>
                   <form action={supprimerCoursAction} className="mt-2">
                     <input type="hidden" name="coursId" value={c.id} />
@@ -136,9 +122,9 @@ export function CoursDialog({
                     </option>
                   ))}
                 </select>
-                <Button type="submit" variant="secondary">
+                <SubmitButton variant="secondary" pendingLabel="Ajout…">
                   Ajouter
-                </Button>
+                </SubmitButton>
               </form>
               {sections.length === 0 && (
                 <p className="mt-2 text-sm text-ochre">
@@ -148,8 +134,7 @@ export function CoursDialog({
               )}
             </>
           )}
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

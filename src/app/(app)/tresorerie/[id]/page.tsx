@@ -11,7 +11,7 @@ import { modifierMouvementAction, supprimerMouvementAction } from "../actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card } from "@/components/ui/card";
 import { Champ, ChampSelect } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -105,9 +105,9 @@ export default async function MouvementDetailPage({
             className="sm:col-span-2"
           />
           <div className="flex justify-end sm:col-span-2">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary">
               Enregistrer
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </Card>

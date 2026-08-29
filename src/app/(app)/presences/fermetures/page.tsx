@@ -8,7 +8,7 @@ import {
 } from "../actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -65,8 +65,9 @@ export default async function FermeturesPage({
         <CardTitle>Ajouter une période</CardTitle>
         <form action={creerPeriodeFermetureAction} className="mt-3 flex flex-wrap items-end gap-2">
           <div>
-            <label className={LABEL_XS_CLASSES}>Année scolaire</label>
+            <label htmlFor="anneeScolaireId-nouvelle" className={LABEL_XS_CLASSES}>Année scolaire</label>
             <select
+              id="anneeScolaireId-nouvelle"
               name="anneeScolaireId"
               required
               defaultValue={anneeParDefaut}
@@ -81,8 +82,9 @@ export default async function FermeturesPage({
             </select>
           </div>
           <div>
-            <label className={LABEL_XS_CLASSES}>Libellé</label>
+            <label htmlFor="libelle-nouvelle" className={LABEL_XS_CLASSES}>Libellé</label>
             <input
+              id="libelle-nouvelle"
               type="text"
               name="libelle"
               required
@@ -91,16 +93,16 @@ export default async function FermeturesPage({
             />
           </div>
           <div>
-            <label className={LABEL_XS_CLASSES}>Du</label>
-            <input type="date" name="dateDebut" required className={CONTROL_CLASSES} />
+            <label htmlFor="dateDebut-nouvelle" className={LABEL_XS_CLASSES}>Du</label>
+            <input id="dateDebut-nouvelle" type="date" name="dateDebut" required className={CONTROL_CLASSES} />
           </div>
           <div>
-            <label className={LABEL_XS_CLASSES}>Au</label>
-            <input type="date" name="dateFin" required className={CONTROL_CLASSES} />
+            <label htmlFor="dateFin-nouvelle" className={LABEL_XS_CLASSES}>Au</label>
+            <input id="dateFin-nouvelle" type="date" name="dateFin" required className={CONTROL_CLASSES} />
           </div>
-          <Button type="submit" variant="primary">
+          <SubmitButton variant="primary" pendingLabel="Ajout…">
             Ajouter
-          </Button>
+          </SubmitButton>
         </form>
         <p className="mt-3 text-xs text-ink-faint">
           Les séances déjà générées ne sont pas supprimées : annulez-les
@@ -140,8 +142,9 @@ export default async function FermeturesPage({
                     >
                       <input type="hidden" name="periodeId" value={p.id} />
                       <div>
-                        <label className={LABEL_XS_CLASSES}>Libellé</label>
+                        <label htmlFor={`libelle-${p.id}`} className={LABEL_XS_CLASSES}>Libellé</label>
                         <input
+                          id={`libelle-${p.id}`}
                           type="text"
                           name="libelle"
                           required
@@ -150,8 +153,9 @@ export default async function FermeturesPage({
                         />
                       </div>
                       <div>
-                        <label className={LABEL_XS_CLASSES}>Du</label>
+                        <label htmlFor={`dateDebut-${p.id}`} className={LABEL_XS_CLASSES}>Du</label>
                         <input
+                          id={`dateDebut-${p.id}`}
                           type="date"
                           name="dateDebut"
                           required
@@ -160,8 +164,9 @@ export default async function FermeturesPage({
                         />
                       </div>
                       <div>
-                        <label className={LABEL_XS_CLASSES}>Au</label>
+                        <label htmlFor={`dateFin-${p.id}`} className={LABEL_XS_CLASSES}>Au</label>
                         <input
+                          id={`dateFin-${p.id}`}
                           type="date"
                           name="dateFin"
                           required
@@ -169,9 +174,9 @@ export default async function FermeturesPage({
                           className={CONTROL_SM_CLASSES}
                         />
                       </div>
-                      <Button type="submit" variant="secondary" size="sm">
+                      <SubmitButton variant="secondary" size="sm" pendingLabel="Enregistrement…">
                         Enregistrer
-                      </Button>
+                      </SubmitButton>
                     </form>
                     <form action={supprimerPeriodeFermetureAction} className="mt-2">
                       <input type="hidden" name="periodeId" value={p.id} />

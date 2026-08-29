@@ -9,7 +9,8 @@ import {
   reinitialiserMotDePasseAction,
   revoquerSessionsAction,
 } from "./actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { Badge } from "@/components/ui/badge";
 import { CONTROL_SM_CLASSES } from "@/components/ui/champ";
 import { Role, ROLE_LABELS, ROLES_STAFF } from "@/lib/roles";
@@ -96,36 +97,25 @@ export function UtilisateurRow({
         </div>
       </button>
 
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-lg rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
-                {u.prenom} {u.nom}
-                {soiMeme && <Badge variant="neutral">vous</Badge>}
-              </h3>
-              <p className="text-xs text-ink-muted">{u.email}</p>
-              <p className="mt-1 text-xs text-ink-faint">
-                {infoExtra && `${infoExtra} · `}
-                {u.dernierLogin
-                  ? `Dernière connexion : ${new Date(u.dernierLogin).toLocaleString("fr-FR")}`
-                  : "Jamais connecté"}
-                {u.sessionsActives > 0 && ` · ${u.sessionsActives} session(s) active(s)`}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
+      <ModalShell
+        dialogRef={dialogRef}
+        title={
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
+              {u.prenom} {u.nom}
+              {soiMeme && <Badge variant="neutral">vous</Badge>}
+            </h3>
+            <p className="text-xs text-ink-muted">{u.email}</p>
+            <p className="mt-1 text-xs text-ink-faint">
+              {infoExtra && `${infoExtra} · `}
+              {u.dernierLogin
+                ? `Dernière connexion : ${new Date(u.dernierLogin).toLocaleString("fr-FR")}`
+                : "Jamais connecté"}
+              {u.sessionsActives > 0 && ` · ${u.sessionsActives} session(s) active(s)`}
+            </p>
           </div>
-
+        }
+      >
           <div className="mt-4 space-y-4">
             <form action={changerRoleAction} className="flex flex-wrap items-end gap-2">
               {from && <input type="hidden" name="from" value={from} />}
@@ -149,9 +139,9 @@ export function UtilisateurRow({
                   ))}
                 </select>
               </div>
-              <Button type="submit" variant="secondary" size="sm">
+              <SubmitButton variant="secondary" size="sm" pendingLabel="Changement…">
                 Changer
-              </Button>
+              </SubmitButton>
             </form>
 
             {sectionsDisponibles && sectionsDisponibles.length > 0 && (
@@ -177,9 +167,9 @@ export function UtilisateurRow({
                     </label>
                   ))}
                 </div>
-                <Button type="submit" variant="secondary" size="sm">
+                <SubmitButton variant="secondary" size="sm" pendingLabel="Enregistrement…">
                   Enregistrer les spécialités
-                </Button>
+                </SubmitButton>
               </form>
             )}
 
@@ -197,9 +187,9 @@ export function UtilisateurRow({
                   className={`w-44 ${CONTROL_SM_CLASSES}`}
                 />
               </div>
-              <Button type="submit" variant="secondary" size="sm">
+              <SubmitButton variant="secondary" size="sm" pendingLabel="Réinitialisation…">
                 Réinitialiser
-              </Button>
+              </SubmitButton>
             </form>
 
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
@@ -207,9 +197,9 @@ export function UtilisateurRow({
                 <form action={revoquerSessionsAction}>
                   {from && <input type="hidden" name="from" value={from} />}
                   <input type="hidden" name="utilisateurId" value={u.id} />
-                  <Button type="submit" variant="secondary" size="sm">
+                  <SubmitButton variant="secondary" size="sm" pendingLabel="Révocation…">
                     Révoquer les sessions
-                  </Button>
+                  </SubmitButton>
                 </form>
               )}
               <form action={changerActivationAction}>
@@ -235,8 +225,7 @@ export function UtilisateurRow({
               </form>
             </div>
           </div>
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

@@ -4,8 +4,9 @@ import { Role, ROLE_LABELS, ALL_ROLES } from "@/lib/roles";
 import { Module, NiveauAcces, MODULE_LABELS } from "@/lib/permissions";
 import { enregistrerPermissionsAction } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
+import { AdminSubNav } from "../sub-nav";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { CONTROL_SM_CLASSES } from "@/components/ui/champ";
 
@@ -46,6 +47,8 @@ export default async function PermissionsPage({
           toujours accès complet et n&apos;apparaît pas dans la grille éditable.
         </p>
       </div>
+
+      <AdminSubNav current="/administration/permissions" />
 
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
@@ -147,9 +150,9 @@ export default async function PermissionsPage({
             </tbody>
           </table>
           <div className="mt-4 flex justify-end">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary" pendingLabel="Enregistrement…">
               Enregistrer
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </Card>

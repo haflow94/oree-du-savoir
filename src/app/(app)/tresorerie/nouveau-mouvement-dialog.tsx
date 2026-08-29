@@ -8,7 +8,9 @@ import {
   TypeMouvement,
   TYPE_MOUVEMENT_LABELS,
 } from "@/lib/paiements";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { CONTROL_CLASSES } from "@/components/ui/champ";
 
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
@@ -29,22 +31,7 @@ export function NouveauMouvementDialog({ categoriesActives }: { categoriesActive
       >
         + Nouveau mouvement
       </button>
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-full max-w-md rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
-      >
-        <div className="max-h-[85vh] overflow-y-auto p-5">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-sm font-semibold text-ink">Nouveau mouvement</h3>
-            <button
-              type="button"
-              onClick={() => dialogRef.current?.close()}
-              className="text-ink-faint hover:text-ink"
-              aria-label="Fermer"
-            >
-              ✕
-            </button>
-          </div>
+      <ModalShell dialogRef={dialogRef} title={<h3 className="text-sm font-semibold text-ink">Nouveau mouvement</h3>} maxWidth="max-w-md">
           <form action={creerMouvementAction} className="mt-4 flex flex-col gap-3">
             <div>
               <label className={LABEL_XS_CLASSES}>Date</label>
@@ -98,12 +85,11 @@ export function NouveauMouvementDialog({ categoriesActives }: { categoriesActive
                 className={CONTROL_CLASSES}
               />
             </div>
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary" pendingLabel="Enregistrement…">
               Enregistrer
-            </Button>
+            </SubmitButton>
           </form>
-        </div>
-      </dialog>
+      </ModalShell>
     </>
   );
 }

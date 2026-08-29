@@ -10,10 +10,11 @@ import {
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Libellé et dates sont obligatoires.",
@@ -53,6 +54,8 @@ export default async function AnneesScolairesPage({
         </p>
       </div>
 
+      <AdminSubNav current="/administration/annees-scolaires" />
+
       {message && <Alert variant="danger">{message}</Alert>}
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
@@ -75,9 +78,9 @@ export default async function AnneesScolairesPage({
             </label>
           </div>
           <div className="flex justify-end sm:col-span-4">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary" pendingLabel="Création…">
               Créer l&apos;année scolaire
-            </Button>
+            </SubmitButton>
           </div>
         </form>
       </Card>
@@ -103,23 +106,17 @@ export default async function AnneesScolairesPage({
                 {!a.active && (
                   <form action={activerAnneeScolaireAction}>
                     <input type="hidden" name="anneeId" value={a.id} />
-                    <button
-                      type="submit"
-                      className="rounded-md border border-sage-border px-3 py-1.5 text-xs font-semibold text-sage hover:bg-sage-bg"
-                    >
+                    <SubmitButton variant="success" size="sm" pendingLabel="Activation…">
                       Activer
-                    </button>
+                    </SubmitButton>
                   </form>
                 )}
                 {!a.active && (
                   <form action={a.archivee ? desarchiverAnneeScolaireAction : archiverAnneeScolaireAction}>
                     <input type="hidden" name="anneeId" value={a.id} />
-                    <button
-                      type="submit"
-                      className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-ink-muted hover:bg-bg-sunken"
-                    >
+                    <SubmitButton variant="secondary" size="sm" pendingLabel="…">
                       {a.archivee ? "Désarchiver" : "Archiver"}
-                    </button>
+                    </SubmitButton>
                   </form>
                 )}
               </div>
@@ -151,9 +148,9 @@ export default async function AnneesScolairesPage({
                 defaultValue={versChampDate(a.dateFin)}
               />
               <div className="flex justify-end sm:col-span-3">
-                <Button type="submit" variant="secondary">
+                <SubmitButton variant="secondary" pendingLabel="Enregistrement…">
                   Enregistrer
-                </Button>
+                </SubmitButton>
               </div>
             </form>
           </Card>

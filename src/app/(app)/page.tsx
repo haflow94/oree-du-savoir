@@ -1,6 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Home } from "lucide-react";
+import {
+  Home,
+  Users,
+  GraduationCap,
+  CreditCard,
+  Receipt,
+  FolderOpen,
+  UserSearch,
+  Paperclip,
+  RotateCcw,
+  Landmark,
+  ClipboardCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, Role } from "@/lib/roles";
@@ -126,65 +139,65 @@ export default async function DashboardPage() {
 
   const metrics: {
     label: string;
-    icon: string;
+    icon: LucideIcon;
     valeur: string | number;
     href: string;
     accent: Accent;
   }[] = [
-    { label: "Étudiants", icon: "👥", valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
-    { label: "Classes", icon: "🏫", valeur: nbClasses, href: "/classes", accent: "sage" },
+    { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
+    { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage" },
     {
       label: "Reste à encaisser",
-      icon: "💳",
+      icon: CreditCard,
       valeur: formaterMontant(resteAEncaisser),
       href: "/paiements",
       accent: "ochre",
     },
     {
       label: "Paiements incomplets",
-      icon: "🧾",
+      icon: Receipt,
       valeur: nbPaiementsIncomplets,
       href: "/paiements",
       accent: "rust",
     },
     {
       label: "Dossiers à traiter",
-      icon: "📁",
+      icon: FolderOpen,
       valeur: nbPreinscrits,
       href: "/inscriptions",
       accent: "sky",
     },
     {
       label: "Doublons potentiels",
-      icon: "🔍",
+      icon: UserSearch,
       valeur: nbDoublonsPotentiels,
       href: "/inscriptions",
       accent: "rust",
     },
     {
       label: "Dossiers incomplets",
-      icon: "📎",
+      icon: Paperclip,
       valeur: nbDossiersIncomplets,
       href: "/etudiants",
       accent: "sky",
     },
     {
       label: "Non réinscrits",
-      icon: "🔄",
+      icon: RotateCcw,
       valeur: nbNonReinscrits,
       href: "/etudiants?reinscription=non",
       accent: "rust",
     },
     {
       label: "Chèques en attente",
-      icon: "🏦",
+      icon: Landmark,
       valeur: nbChequesEnAttente,
       href: "/paiements",
       accent: "rust",
     },
     {
       label: "Séances non validées",
-      icon: "📋",
+      icon: ClipboardCheck,
       valeur: nbSeancesNonValidees,
       href: "/presences",
       accent: "ochre",
@@ -231,8 +244,8 @@ export default async function DashboardPage() {
         {metrics.map((m) => (
           <Link key={m.label} href={m.href}>
             <Card className="transition-colors hover:border-border-strong">
-              <div className="text-sm text-ink-muted">
-                <span className="mr-1.5">{m.icon}</span>
+              <div className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <m.icon aria-hidden size={14} className="shrink-0" />
                 {m.label}
               </div>
               <div className={`mt-2 text-2xl font-bold ${ACCENT_TEXT[m.accent]}`}>
