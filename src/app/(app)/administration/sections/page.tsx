@@ -4,11 +4,13 @@ import {
   creerSectionAction,
   modifierSectionAction,
   supprimerSectionAction,
+  ajouterCreneauAction,
+  supprimerCreneauAction,
 } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Champ } from "@/components/ui/champ";
-import { Button } from "@/components/ui/button";
+import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -33,7 +35,7 @@ export default async function SectionsPage({
 
   const sections = await prisma.section.findMany({
     orderBy: { nom: "asc" },
-    include: { _count: { select: { cours: true } } },
+    include: { _count: { select: { cours: true } }, creneaux: { orderBy: { ordre: "asc" } } },
   });
 
   return (
@@ -98,6 +100,8 @@ export default async function SectionsPage({
                   volumeHoraireAnnuel: s.volumeHoraireAnnuel?.toString() ?? "",
                   remboursementAvant15Jours: s.remboursementAvant15Jours.toString(),
                   remboursementAvant29Jours: s.remboursementAvant29Jours.toString(),
+                  modeleDossier: s.modeleDossier,
+                  reglesSpecifiques: s.reglesSpecifiques.join("\n"),
                 }}
               />
               <div className="flex justify-end sm:col-span-3">
@@ -106,6 +110,58 @@ export default async function SectionsPage({
                 </Button>
               </div>
             </form>
+
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-faint">
+                Créneaux du dossier d&apos;inscription
+              </p>
+              {s.creneaux.length === 0 ? (
+                <p className="mb-2 text-sm text-ink-faint">Aucun créneau pour l&apos;instant.</p>
+              ) : (
+                <ul className="mb-3 space-y-1">
+                  {s.creneaux.map((c) => (
+                    <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
+                      <span>
+                        <span className="font-mono text-xs text-ochre">{c.code}</span> — {c.jour},{" "}
+                        {c.horaire}
+                        {c.restriction && (
+                          <span className="text-ink-faint"> ({c.restriction})</span>
+                        )}
+                      </span>
+                      <form action={supprimerCreneauAction}>
+                        <input type="hidden" name="creneauId" value={c.id} />
+                        <button type="submit" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+                          Retirer
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <form action={ajouterCreneauAction} className="grid gap-2 sm:grid-cols-5">
+                <input type="hidden" name="sectionId" value={s.id} />
+                <Champ label="Code" name="code" id={`creneau-code-${s.id}`} required placeholder="CS" />
+                <Champ label="Jour" name="jour" id={`creneau-jour-${s.id}`} required placeholder="Dimanche" />
+                <Champ
+                  label="Horaire"
+                  name="horaire"
+                  id={`creneau-horaire-${s.id}`}
+                  required
+                  placeholder="09h00 – 13h00"
+                />
+                <Champ
+                  label="Restriction (optionnel)"
+                  name="restriction"
+                  id={`creneau-restriction-${s.id}`}
+                  placeholder="Seulement Niveau 1"
+                />
+                <div className="flex items-end">
+                  <Button type="submit" variant="secondary" size="sm">
+                    Ajouter
+                  </Button>
+                </div>
+              </form>
+            </div>
           </Card>
         ))}
         {sections.length === 0 && <EmptyState message="Aucune section enregistrée." />}
@@ -124,6 +180,8 @@ function ChampsSection({
     volumeHoraireAnnuel: string;
     remboursementAvant15Jours: string;
     remboursementAvant29Jours: string;
+    modeleDossier: string;
+    reglesSpecifiques: string;
   };
 }) {
   const idSuffix = defaults ? `-${defaults.nom}` : "-nouvelle";
@@ -184,6 +242,26 @@ function ChampsSection({
         max={100}
         placeholder="25"
         defaultValue={defaults?.remboursementAvant29Jours}
+      />
+      <ChampSelect
+        label="Modèle de dossier"
+        name="modeleDossier"
+        id={`modeleDossier${idSuffix}`}
+        required
+        defaultValue={defaults?.modeleDossier ?? "ADULTES"}
+        hint="Détermine le gabarit PDF utilisé (voir Dossiers vierges)."
+      >
+        <option value="ADULTES">Adultes</option>
+        <option value="JEUNES">Jeunes</option>
+      </ChampSelect>
+      <ChampTextarea
+        label="Dispositions propres à la section (optionnel, une par ligne)"
+        name="reglesSpecifiques"
+        id={`reglesSpecifiques${idSuffix}`}
+        className="sm:col-span-3"
+        rows={2}
+        defaultValue={defaults?.reglesSpecifiques}
+        placeholder={"Une règle par ligne, affichée dans le règlement du dossier."}
       />
     </>
   );

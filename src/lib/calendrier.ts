@@ -2,19 +2,30 @@ import { aujourdhuiUTC, normaliserDateUTC } from "@/lib/presences";
 
 export { aujourdhuiUTC, normaliserDateUTC };
 
-export type VueCalendrier = "jour" | "semaine" | "mois" | "annee";
+// "salles" : planning hebdomadaire récurrent (jour+heure de chaque Classe),
+// pas une plage de dates comme les 4 autres vues — voir decalerDate ci-dessous
+// et (app)/calendrier/page.tsx, qui masque la navigation jour/semaine/mois
+// précédent-suivant pour cette vue.
+export type VueCalendrier = "jour" | "semaine" | "mois" | "annee" | "salles";
 
-export const VUES_CALENDRIER: VueCalendrier[] = ["jour", "semaine", "mois", "annee"];
+export const VUES_CALENDRIER: VueCalendrier[] = ["jour", "semaine", "mois", "annee", "salles"];
 
 export const VUE_LABELS: Record<VueCalendrier, string> = {
   jour: "Jour",
   semaine: "Semaine",
   mois: "Mois",
   annee: "Année",
+  salles: "Salles",
 };
 
 export function estVueCalendrier(valeur: string | undefined): valeur is VueCalendrier {
-  return valeur === "jour" || valeur === "semaine" || valeur === "mois" || valeur === "annee";
+  return (
+    valeur === "jour" ||
+    valeur === "semaine" ||
+    valeur === "mois" ||
+    valeur === "annee" ||
+    valeur === "salles"
+  );
 }
 
 export function ajouterJoursUTC(date: Date, jours: number): Date {
@@ -102,6 +113,9 @@ export function decalerDate(date: Date, vue: VueCalendrier, sens: 1 | -1): Date 
       return ajouterMoisUTC(debutMoisUTC(date), sens);
     case "annee":
       return ajouterAnneesUTC(debutAnneeUTC(date), sens);
+    case "salles":
+      // Planning récurrent, sans navigation par date (voir le type ci-dessus).
+      return date;
   }
 }
 

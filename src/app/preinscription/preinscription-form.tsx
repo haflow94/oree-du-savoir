@@ -55,6 +55,7 @@ export function PreinscriptionForm({
   const [error, setError] = useState<string | null>(null);
   const [succes, setSucces] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [pieceIdentiteFournie, setPieceIdentiteFournie] = useState(false);
 
   if (succes) {
     return (
@@ -199,9 +200,71 @@ export function PreinscriptionForm({
                 title="5 chiffres"
                 placeholder="69000"
               />
+              <Champ label="Ville" name="ville" required />
               <Champ label="Profession" name="profession" />
               <Champ label="Niveau d'études" name="niveauEtudes" required />
               <Champ label="Dernier diplôme obtenu" name="dernierDiplome" />
+            </>
+          )}
+        </div>
+      </fieldset>
+
+      <fieldset className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>Documents (facultatif)</legend>
+        <p className="mb-3 text-sm text-ink-muted">
+          Si vous les avez sous la main, vous pouvez déjà envoyer une photo et
+          une pièce d&apos;identité — sinon l&apos;association vous les
+          demandera lors du contrôle sur place.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink" htmlFor="photo">
+              Photo d&apos;identité
+            </label>
+            <input
+              id="photo"
+              type="file"
+              name="photo"
+              accept="image/*"
+              className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-ink" htmlFor="pieceIdentite">
+              Pièce d&apos;identité
+            </label>
+            <input
+              id="pieceIdentite"
+              type="file"
+              name="pieceIdentite"
+              accept="image/*,application/pdf"
+              onChange={(e) => setPieceIdentiteFournie(!!e.target.files?.length)}
+              className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
+            />
+          </div>
+          {pieceIdentiteFournie && (
+            <>
+              <ChampSelect
+                label="Type de pièce"
+                name="typePieceIdentite"
+                required={pieceIdentiteFournie}
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Choisir…
+                </option>
+                <option value="CARTE_IDENTITE">Carte d&apos;identité</option>
+                <option value="PASSEPORT">Passeport</option>
+                <option value="TITRE_SEJOUR">Titre de séjour</option>
+                <option value="PERMIS_CONDUIRE">Permis de conduire</option>
+                <option value="AUTRE">Autre</option>
+              </ChampSelect>
+              <Champ
+                label="Date d'expiration"
+                name="dateExpirationPiece"
+                type="date"
+                required={pieceIdentiteFournie}
+              />
             </>
           )}
         </div>

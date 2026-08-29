@@ -194,6 +194,14 @@ async function main() {
   const sections = await prisma.section.findMany();
   const sectionIdParNom = new Map(sections.map((s) => [s.nom, s.id]));
 
+  // Une salle par code utilisé ci-dessus (A1, A2, B1, C3…) : chacune porte
+  // désormais son propre QR permanent (voir Salle.qrToken).
+  const nomsSalles = [...new Set(definitions.flatMap((d) => d.classes.map((c) => c.salle)))];
+  const salles = await Promise.all(
+    nomsSalles.map((nom) => prisma.salle.create({ data: { nom } })),
+  );
+  const salleIdParNom = new Map(salles.map((s) => [s.nom, s.id]));
+
   const classesCreees: Array<{ id: string; jour: JourSemaine }> = [];
   // Répartition en tourniquet plutôt qu'au hasard : chaque enseignant a des
   // classes, sinon se connecter avec certains comptes ne montrerait rien.
@@ -213,7 +221,7 @@ async function main() {
           jour: c.jour,
           heureDebut: c.debut,
           heureFin: c.fin,
-          salle: c.salle,
+          salleId: salleIdParNom.get(c.salle),
           enseignants: { create: [{ utilisateurId: titulaire.id }] },
         },
       });
@@ -400,7 +408,8 @@ async function main() {
               paiementId: paiement.id,
               banque: choisir(BANQUES),
               numero: String(1000000 + Math.floor(alea() * 8999999)),
-              titulaire: `${etudiant.prenom} ${etudiant.nom}`,
+              titulaireNom: etudiant.nom,
+              titulairePrenom: etudiant.prenom,
               statut,
               dateDepot: statut === "RECU" ? null : part.date,
               dateEncaissement: statut === "ENCAISSE" ? part.date : null,

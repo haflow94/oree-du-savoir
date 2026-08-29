@@ -100,7 +100,7 @@ export async function dupliquerClassesAction(formData: FormData): Promise<void> 
           jour: c.jour,
           heureDebut: c.heureDebut,
           heureFin: c.heureFin,
-          salle: c.salle,
+          salleId: c.salleId,
           enseignants: {
             create: c.enseignants.map((e) => ({ utilisateurId: e.utilisateurId })),
           },

@@ -3,8 +3,12 @@
 # incompatibilités connues entre les moteurs Prisma et musl/Alpine.
 
 FROM node:22-bookworm-slim AS base
+# chromium : moteur de génération PDF des dossiers d'inscription (voir
+# src/lib/dossier/browser.ts) — paquet système plutôt que le téléchargement
+# intégré de Puppeteer, pour ne pas dépendre du réseau à l'installation et
+# suivre les mises à jour de sécurité du navigateur via apt.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && apt-get install -y --no-install-recommends openssl ca-certificates chromium \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
@@ -20,6 +24,7 @@ RUN npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public

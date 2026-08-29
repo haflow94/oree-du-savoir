@@ -17,11 +17,11 @@ export function Alert({
   children: ReactNode;
 }) {
   return (
-    <p
+    <div
       role="alert"
       className={`rounded-lg border border-l-4 px-3 py-2 text-sm ${VARIANTS[variant]}`}
     >
       {children}
-    </p>
+    </div>
   );
 }

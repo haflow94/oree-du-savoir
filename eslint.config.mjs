@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Chromium local pour tester la génération PDF en dev (voir
+    // src/lib/dossier/browser.ts) — jamais versionné, pas du code applicatif.
+    ".cache-chromium/**",
   ]),
 ]);
 

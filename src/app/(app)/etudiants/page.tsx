@@ -119,7 +119,10 @@ export default async function EtudiantsPage({
       dossiersAnnuels: anneeSelectionneeId
         ? inclureDossierAnnuelActif(anneeSelectionneeId)
         : { where: { id: "" }, include: { echeances: { include: { paiements: true } } } },
-      documents: { select: { type: true } },
+      // chequeId: null exclut la pièce d'identité d'un titulaire de chèque
+      // tiers (voir Document.chequeId), qui n'appartient pas au dossier de
+      // l'étudiant lui-même.
+      documents: { where: { chequeId: null }, select: { type: true, dateExpiration: true } },
     },
   });
 

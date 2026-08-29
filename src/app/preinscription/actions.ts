@@ -1,9 +1,10 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { Civilite } from "@/generated/prisma/enums";
+import { Civilite, TypePieceIdentite } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
+import { enregistrerDocumentEtudiant } from "@/lib/documents";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -15,6 +16,10 @@ function champTexte(formData: FormData, nom: string): string | null {
 function champCivilite(formData: FormData, nom: string): Civilite | null {
   const valeur = champTexte(formData, nom);
   return valeur === "M" || valeur === "MME" ? valeur : null;
+}
+
+function estTypePieceIdentite(valeur: string | null): valeur is TypePieceIdentite {
+  return !!valeur && valeur in TypePieceIdentite;
 }
 
 // Point d'entrée public, sans authentification : toute donnée saisie ici
@@ -79,6 +84,22 @@ export async function preinscrireAction(
     };
   }
 
+  // Photo et pièce d'identité sont facultatives sur ce formulaire public (la
+  // famille peut ne pas les avoir sous la main, ou déjà être connue de
+  // l'association) : voir CLAUDE.md, formulaire public/anonyme. Type et date
+  // d'expiration ne sont exigés que si un fichier de pièce d'identité est
+  // effectivement fourni.
+  const photo = formData.get("photo");
+  const pieceIdentite = formData.get("pieceIdentite");
+  const typePieceIdentite = champTexte(formData, "typePieceIdentite");
+  const dateExpirationPieceBrute = champTexte(formData, "dateExpirationPiece");
+  const pieceIdentiteFournie = pieceIdentite instanceof File && pieceIdentite.size > 0;
+  if (pieceIdentiteFournie && (!estTypePieceIdentite(typePieceIdentite) || !dateExpirationPieceBrute)) {
+    return {
+      erreur: "Le type de pièce et sa date d'expiration sont obligatoires si vous joignez une pièce d'identité.",
+    };
+  }
+
   const sectionIdsChoisies = [...new Set(lignes.map((l) => l.sectionId))];
   const sectionsChoisies = await prisma.section.findMany({
     where: { id: { in: sectionIdsChoisies } },
@@ -98,11 +119,12 @@ export async function preinscrireAction(
     const email = champTexte(formData, "email");
     const adresse = champTexte(formData, "adresse");
     const codePostal = champTexte(formData, "codePostal");
+    const ville = champTexte(formData, "ville");
     const niveauEtudes = champTexte(formData, "niveauEtudes");
-    if (!telephoneMobile || !email || !adresse || !codePostal || !niveauEtudes) {
+    if (!telephoneMobile || !email || !adresse || !codePostal || !ville || !niveauEtudes) {
       return {
         erreur:
-          "Le téléphone mobile, l'email, l'adresse, le code postal et le niveau d'études sont obligatoires.",
+          "Le téléphone mobile, l'email, l'adresse, le code postal, la ville et le niveau d'études sont obligatoires.",
       };
     }
     if (!estTelephoneValide(telephoneMobile)) {
@@ -163,7 +185,7 @@ export async function preinscrireAction(
           .join(", ")}.`
       : null;
 
-  await prisma.etudiant.create({
+  const etudiant = await prisma.etudiant.create({
     data: {
       civilite,
       nom,
@@ -174,6 +196,7 @@ export async function preinscrireAction(
       email: champTexte(formData, "email"),
       adresse: champTexte(formData, "adresse"),
       codePostal: champTexte(formData, "codePostal"),
+      ville: champTexte(formData, "ville"),
       profession: champTexte(formData, "profession"),
       niveauEtudes: champTexte(formData, "niveauEtudes"),
       dernierDiplome: champTexte(formData, "dernierDiplome"),
@@ -197,6 +220,41 @@ export async function preinscrireAction(
       inscriptions: inscriptionsACreer.length > 0 ? { create: inscriptionsACreer } : undefined,
     },
   });
+
+  // Écriture des fichiers hors transaction (même pattern que
+  // televerserDocumentAction, etudiants/[id]/actions.ts) : le fichier vit
+  // sur DOCUMENTS_DIR, jamais en base, la ligne Document ne référence que le
+  // chemin une fois le fichier réellement écrit.
+  if (photo instanceof File && photo.size > 0) {
+    const contenu = Buffer.from(await photo.arrayBuffer());
+    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, photo.name, contenu);
+    await prisma.document.create({
+      data: {
+        etudiantId: etudiant.id,
+        type: "PHOTO",
+        nomFichier: photo.name,
+        cheminRelatif,
+        mimeType: photo.type || "application/octet-stream",
+        tailleOctets: contenu.length,
+      },
+    });
+  }
+  if (pieceIdentiteFournie && pieceIdentite instanceof File) {
+    const contenu = Buffer.from(await pieceIdentite.arrayBuffer());
+    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, pieceIdentite.name, contenu);
+    await prisma.document.create({
+      data: {
+        etudiantId: etudiant.id,
+        type: "PIECE_IDENTITE",
+        typePieceIdentite: typePieceIdentite as TypePieceIdentite,
+        dateExpiration: new Date(dateExpirationPieceBrute!),
+        nomFichier: pieceIdentite.name,
+        cheminRelatif,
+        mimeType: pieceIdentite.type || "application/octet-stream",
+        tailleOctets: contenu.length,
+      },
+    });
+  }
 
   return { ok: true };
 }

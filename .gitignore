@@ -46,3 +46,8 @@ next-env.d.ts
 # fichiers applicatifs (documents/justificatifs) en dev local — jamais en base, jamais versionnés
 /data
 /backups
+
+# Chromium local pour tester la génération PDF en dev (npm run dev) — en
+# production le Dockerfile installe le paquet système "chromium" à la place
+# (voir src/lib/dossier/browser.ts et PUPPETEER_EXECUTABLE_PATH).
+/.cache-chromium

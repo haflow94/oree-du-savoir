@@ -56,7 +56,7 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
       heureFin,
       niveau,
       semestre,
-      salle: champTexte(formData, "salle"),
+      salleId: champTexte(formData, "salleId"),
       enseignants: {
         create: enseignantIds.map((utilisateurId) => ({ utilisateurId })),
       },

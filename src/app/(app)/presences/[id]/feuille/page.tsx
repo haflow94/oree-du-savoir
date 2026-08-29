@@ -25,6 +25,7 @@ export default async function FeuillePapierPage({
       classe: {
         include: {
           cours: true,
+          salle: true,
           enseignants: { include: { utilisateur: true } },
           // Même filtre que la feuille en ligne (voir presences/[id]/page.tsx) :
           // les préinscriptions n'apparaissent pas ici non plus.
@@ -71,7 +72,7 @@ export default async function FeuillePapierPage({
           {JOUR_LABELS[seance.classe.jour]}{" "}
           {new Date(seance.date).toLocaleDateString("fr-FR")} ·{" "}
           {seance.classe.heureDebut}–{seance.classe.heureFin}
-          {seance.classe.salle && ` · Salle ${seance.classe.salle}`}
+          {seance.classe.salle && ` · Salle ${seance.classe.salle.nom}`}
         </p>
         <p className="mt-1 text-sm text-ink-muted">
           Enseignant(s) :{" "}

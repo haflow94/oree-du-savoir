@@ -37,7 +37,7 @@ export default async function ClassesPage({
     ok?: string;
     sectionId?: string;
     jour?: string;
-    salle?: string;
+    salleId?: string;
     anneeScolaireId?: string;
     q?: string;
     archives?: string;
@@ -45,23 +45,18 @@ export default async function ClassesPage({
 }) {
   const session = await requireModule(Module.CLASSES, "LECTURE");
   const peutGerer = await peutAccederModule(session.role, Module.CLASSES, "ECRITURE");
-  const { error, ok, sectionId, jour, salle, anneeScolaireId, q, archives } = await searchParams;
+  const { error, ok, sectionId, jour, salleId, anneeScolaireId, q, archives } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   const recherche = q?.trim() ?? "";
   const voirArchives = archives === "1";
 
-  const [cours, sections, sallesDistinctes, annees, anneeActive] = await Promise.all([
+  const [cours, sections, salles, annees, anneeActive] = await Promise.all([
     prisma.cours.findMany({
       orderBy: { nom: "asc" },
       include: { section: { select: { id: true, nom: true } }, _count: { select: { classes: true } } },
     }),
     prisma.section.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
-    prisma.classe.findMany({
-      where: { salle: { not: null } },
-      distinct: ["salle"],
-      select: { salle: true },
-      orderBy: { salle: "asc" },
-    }),
+    prisma.salle.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
     prisma.anneeScolaire.findFirst({ where: { active: true } }),
   ]);
@@ -76,7 +71,7 @@ export default async function ClassesPage({
     where: {
       ...(sectionId ? { cours: { sectionId } } : {}),
       ...(jour ? { jour: jour as (typeof JOURS_ORDONNES)[number] } : {}),
-      ...(salle ? { salle } : {}),
+      ...(salleId ? { salleId } : {}),
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
       // Une année précisément choisie reste visible quel que soit son statut
       // (choix explicite) : le filtre "voir les archives" ne joue qu'en mode
@@ -87,7 +82,7 @@ export default async function ClassesPage({
             OR: [
               { cours: { nom: { contains: recherche, mode: "insensitive" } } },
               { niveau: { contains: recherche, mode: "insensitive" } },
-              { salle: { contains: recherche, mode: "insensitive" } },
+              { salle: { nom: { contains: recherche, mode: "insensitive" } } },
               {
                 enseignants: {
                   some: {
@@ -108,6 +103,7 @@ export default async function ClassesPage({
     include: {
       cours: { include: { section: true } },
       anneeScolaire: true,
+      salle: true,
       enseignants: { include: { utilisateur: true } },
       _count: { select: { seances: true, inscriptions: true } },
     },
@@ -202,16 +198,13 @@ export default async function ClassesPage({
             </option>
           ))}
         </AutoSubmitSelect>
-        <AutoSubmitSelect name="salle" defaultValue={salle ?? ""} className={CONTROL_SM_CLASSES}>
+        <AutoSubmitSelect name="salleId" defaultValue={salleId ?? ""} className={CONTROL_SM_CLASSES}>
           <option value="">Toutes salles</option>
-          {sallesDistinctes.map(
-            (c) =>
-              c.salle && (
-                <option key={c.salle} value={c.salle}>
-                  {c.salle}
-                </option>
-              ),
-          )}
+          {salles.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.nom}
+            </option>
+          ))}
         </AutoSubmitSelect>
         <label className="flex items-center gap-2 text-sm text-ink-muted">
           <AutoSubmitInput type="checkbox" name="archives" value="1" defaultChecked={voirArchives} />
@@ -248,7 +241,7 @@ export default async function ClassesPage({
               <td className="px-4 py-3 text-ink-muted">
                 {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
               </td>
-              <td className="px-4 py-3 text-ink-muted">{c.salle ?? "—"}</td>
+              <td className="px-4 py-3 text-ink-muted">{c.salle?.nom ?? "—"}</td>
               <td className="px-4 py-3 text-ink-muted">
                 {c.enseignants.length > 0
                   ? c.enseignants

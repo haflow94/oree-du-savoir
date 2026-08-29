@@ -17,8 +17,9 @@ Vous n'avez pas besoin de connaissances techniques pour suivre ce guide : chaque
 
 ## 1. Ce qu'il faut savoir avant de commencer
 
-- Un **QR code** est affiché (imprimé ou sur un écran) dans chacune de vos salles de classe. Il correspond à **une seule classe**.
-- **Le QR code ne vous connecte pas automatiquement.** Il vous amène directement à la feuille de présence du jour, mais vous devez d'abord être connecté avec votre propre compte (email + mot de passe fournis par l'administration).
+- Un **QR code** est affiché (imprimé ou sur un écran) dans chacune des salles. Il est **fixe pour la salle** : le même code sert pour tous les cours qui s'y succèdent au fil de la journée, il ne change jamais.
+- **Le QR code ne vous connecte pas automatiquement.** Il identifie la salle, mais vous devez d'abord être connecté avec votre propre compte (email + mot de passe fournis par l'administration).
+- Une fois connecté, l'application ne vous propose que les cours **du jour**, **dans cette salle**, qui vous sont attribués. S'il n'y en a qu'un, vous arrivez directement dessus ; s'il y en a plusieurs (plusieurs cours se suivent dans la même salle), on vous demande de choisir le vôtre.
 - Vous n'avez accès qu'aux classes qui vous sont attribuées.
 
 ---
@@ -35,11 +36,14 @@ Vous n'avez pas besoin de connaissances techniques pour suivre ce guide : chaque
 
      ![écran de connexion atteint après le scan du QR code](images/enseignant-02-connexion-qr.png)
 
-   - **Si vous êtes déjà connecté**, vous arrivez directement sur la feuille de présence du jour (étape 3).
+   - **Si vous êtes déjà connecté**, vous arrivez directement à l'étape 3.
 
-3. Après connexion, vous êtes automatiquement redirigé vers la feuille de présence de la séance du jour pour cette classe.
+3. Après connexion, vous êtes redirigé :
 
-> Si le QR code ne correspond à aucune séance prévue aujourd'hui, ou si la séance a été annulée, un message clair vous l'indique à la place de la feuille de présence.
+   - **s'il n'y a qu'un seul cours vous concernant aujourd'hui dans cette salle**, directement sur sa feuille de présence ;
+   - **s'il y en a plusieurs** (par exemple plusieurs cours qui se suivent dans la même salle), un écran vous demande de choisir le vôtre parmi ceux du jour.
+
+> Si aucun cours ne vous concerne aujourd'hui dans cette salle, ou si la séance a été annulée, un message clair vous l'indique à la place de la feuille de présence.
 
 ---
 
@@ -99,7 +103,7 @@ Le fonctionnement de l'appel est ensuite identique à celui décrit au §3.
 
 ## 6. À retenir
 
-- **Le QR code n'est jamais une authentification** : il vous mène directement à la feuille de présence, mais vous devez être connecté avec votre propre compte.
+- **Le QR code n'est jamais une authentification** : il identifie la salle et vous mène à vos cours du jour qui s'y trouvent, mais vous devez être connecté avec votre propre compte. Il ne contient aucune donnée personnelle et reste le même d'une semaine à l'autre.
 - **On ne devine jamais une absence** : chaque élève doit avoir un statut renseigné avant de pouvoir valider l'appel.
 - **La correction d'une feuille de présence n'est possible que le jour même** — au-delà, seule l'administration peut intervenir.
 - La page d'appel atteinte par QR code est isolée : vous n'avez accès à aucune autre partie de l'application depuis cet écran. Pour vous déconnecter, utilisez le bouton **Déconnexion** en haut de la page.

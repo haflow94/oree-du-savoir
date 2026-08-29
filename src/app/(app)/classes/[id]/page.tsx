@@ -13,7 +13,14 @@ import {
   inscrireEtudiantAction,
   retirerEtudiantAction,
 } from "../../presences/actions";
-import { modifierClasseAction, supprimerClasseAction } from "./actions";
+import {
+  modifierClasseAction,
+  supprimerClasseAction,
+  creerCohorteAction,
+  supprimerCohorteAction,
+  modifierMembresCohorteAction,
+  affecterCohorteAction,
+} from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
@@ -33,6 +40,11 @@ const MESSAGES: Record<string, string> = {
   INSCRIPTION_INVALIDE: "Sélectionnez un étudiant à inscrire.",
   CLASSE_DEJA_EXISTANTE:
     "Une classe identique (même cours, niveau et session) existe déjà pour cette année scolaire.",
+  COHORTE_NOM_MANQUANT: "Donnez un nom à la cohorte.",
+  COHORTE_DEJA_EXISTANTE: "Une cohorte porte déjà ce nom pour cette classe.",
+  COHORTE_INTROUVABLE: "Cette cohorte n'existe plus.",
+  COHORTE_VIDE: "Ajoutez au moins un étudiant à la cohorte avant de l'affecter.",
+  CLASSE_CIBLE_INVALIDE: "Sélectionnez une classe à laquelle affecter la cohorte.",
 };
 
 export default async function ClasseDetailPage({
@@ -58,6 +70,7 @@ export default async function ClasseDetailPage({
     include: {
       cours: true,
       anneeScolaire: true,
+      salle: true,
       enseignants: { include: { utilisateur: true } },
       inscriptions: {
         include: { etudiant: true },
@@ -71,20 +84,37 @@ export default async function ClasseDetailPage({
     notFound();
   }
 
-  // Salles déjà utilisées par d'autres classes, proposées via un <datalist> :
-  // pas de référentiel Salle séparé (l'appli n'en a pas besoin ailleurs), mais
-  // un typo dans ce champ casse le rapprochement du QR de salle (voir
-  // src/lib/qr.ts) — ce datalist réduit ce risque tout en laissant la saisie
-  // libre pour une salle réellement nouvelle.
-  const sallesDistinctes = await prisma.classe.findMany({
-    where: { salle: { not: null } },
-    distinct: ["salle"],
-    select: { salle: true },
-    orderBy: { salle: "asc" },
+  const salles = await prisma.salle.findMany({
+    orderBy: { nom: "asc" },
+    select: { id: true, nom: true },
   });
 
   const administratif = estAdministratif(session.role);
   const peutInscrire = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
+
+  // Cohortes de cette classe : raccourci pour affecter plusieurs étudiants
+  // d'un coup à une autre classe (voir actions.ts#affecterCohorteAction),
+  // sans confondre avec les inscriptions individuelles ci-dessous.
+  const cohortes = peutInscrire
+    ? await prisma.cohorte.findMany({
+        where: { classeId: id },
+        include: { membres: { include: { etudiant: true }, orderBy: { ajouteLe: "asc" } } },
+        orderBy: { creeLe: "asc" },
+      })
+    : [];
+  // Classes cibles proposées pour l'affectation en masse : la même année
+  // scolaire que la classe courante (portée la plus pertinente), à
+  // l'exclusion d'elle-même — un étudiant peut suivre plusieurs cours, donc
+  // aucune restriction de section ici (contrairement à l'inscription
+  // individuelle ci-dessous, filtrée par section pour rester lisible).
+  const classesCibles =
+    peutInscrire && cohortes.length > 0
+      ? await prisma.classe.findMany({
+          where: { anneeScolaireId: classe.anneeScolaireId, id: { not: classe.id } },
+          include: { cours: true },
+          orderBy: [{ cours: { nom: "asc" } }, { niveau: "asc" }],
+        })
+      : [];
 
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
   // Ne proposer que les enseignants déjà rattachés à la section de ce cours
@@ -147,29 +177,15 @@ export default async function ClasseDetailPage({
   const enTetes = await headers();
   const hote = process.env.PUBLIC_HOST || enTetes.get("host") || "localhost:3000";
   const protocole = enTetes.get("x-forwarded-proto") ?? "http";
-  // Une salle accueille en général plusieurs classes différentes au fil
-  // d'une même journée, et l'association ne peut afficher/imprimer qu'un
-  // seul QR fixe par salle (jamais échangé entre les cours) : le QR pointe
-  // donc sur la salle plutôt que sur cette classe précise dès qu'une salle
-  // est renseignée (résolution du bon cours à l'heure du scan, voir
-  // src/lib/qr.ts) ; le QR par classe ne reste utile que sans salle définie.
-  const cheminQr = classe.salle
-    ? `/qr-salle/${encodeURIComponent(classe.salle)}`
-    : `/qr/${classe.qrToken}`;
-  const urlQr = `${protocole}://${hote}${cheminQr}`;
-  const qrSvg = await QRCode.toString(urlQr, {
-    type: "svg",
-    margin: 1,
-    width: 160,
-  });
+  // Le QR est désormais permanent par salle (voir Salle.qrToken et
+  // src/lib/qr.ts), pas par classe : simple rappel/raccourci vers celui de
+  // la salle assignée, géré depuis Administration → Salles (où il peut aussi
+  // être imprimé sans passer par une classe précise).
+  const urlQr = classe.salle ? `${protocole}://${hote}/qr/${classe.salle.qrToken}` : null;
+  const qrSvg = urlQr ? await QRCode.toString(urlQr, { type: "svg", margin: 1, width: 160 }) : null;
 
   return (
     <div className="max-w-3xl space-y-6">
-      <datalist id="salles-existantes">
-        {sallesDistinctes.map(
-          (s) => s.salle && <option key={s.salle} value={s.salle} />,
-        )}
-      </datalist>
       <div>
         <BackLink href="/classes" label="Classes" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
@@ -178,7 +194,7 @@ export default async function ClasseDetailPage({
         </h1>
         <p className="text-sm text-ink-muted">
           {JOUR_LABELS[classe.jour]} {classe.heureDebut}–{classe.heureFin}
-          {classe.salle && ` · ${classe.salle}`}
+          {classe.salle && ` · ${classe.salle.nom}`}
           {` · ${classe.anneeScolaire.libelle}`}
           {classe.semestre && ` · semestre ${classe.semestre}`}
         </p>
@@ -229,12 +245,14 @@ export default async function ClasseDetailPage({
                 <option value="1">Semestre 1</option>
                 <option value="2">Semestre 2</option>
               </ChampSelect>
-              <Champ
-                label="Salle"
-                name="salle"
-                list="salles-existantes"
-                defaultValue={classe.salle ?? ""}
-              />
+              <ChampSelect label="Salle (optionnel)" name="salleId" defaultValue={classe.salleId ?? ""}>
+                <option value="">Aucune salle</option>
+                {salles.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nom}
+                  </option>
+                ))}
+              </ChampSelect>
               <ChampSelect label="Jour" name="jour" required defaultValue={classe.jour}>
                 {JOURS_ORDONNES.map((j) => (
                   <option key={j} value={j}>
@@ -293,21 +311,32 @@ export default async function ClasseDetailPage({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
-          <CardTitle>
-            {classe.salle ? `QR de la salle ${classe.salle}` : "QR d'accès à la séance du jour"}
-          </CardTitle>
-          <p className="mt-1 text-xs text-ink-faint">
-            {classe.salle
-              ? "Ce même QR sert pour tous les cours de cette salle : il peut rester affiché en permanence, le bon cours est retrouvé automatiquement à l'heure du scan (ou proposé au choix si plusieurs cours s'y suivent). Le QR ne connecte personne : l'enseignant doit être authentifié."
-              : "À afficher en salle. Le QR ne connecte personne : l'enseignant doit être authentifié."}
-          </p>
-          <div
-            className="mt-3 inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
-            // SVG produit côté serveur par la bibliothèque qrcode à partir
-            // d'un chemin interne : aucune donnée utilisateur n'y transite.
-            dangerouslySetInnerHTML={{ __html: qrSvg }}
-          />
-          <p className="mt-2 break-all font-mono text-xs text-ink-faint">{urlQr}</p>
+          <CardTitle>{classe.salle ? `QR de la salle ${classe.salle.nom}` : "QR d'accès"}</CardTitle>
+          {classe.salle && qrSvg ? (
+            <>
+              <p className="mt-1 text-xs text-ink-faint">
+                Ce même QR sert pour tous les cours de cette salle : il peut
+                rester affiché en permanence, le bon cours est retrouvé
+                automatiquement à l&apos;heure du scan (ou proposé au choix
+                si plusieurs cours s&apos;y suivent). Le QR ne connecte
+                personne : l&apos;enseignant doit être authentifié.
+              </p>
+              <div
+                className="mt-3 inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
+                // SVG produit côté serveur par la bibliothèque qrcode à
+                // partir d'un chemin interne : aucune donnée utilisateur n'y
+                // transite.
+                dangerouslySetInnerHTML={{ __html: qrSvg }}
+              />
+              <p className="mt-2 break-all font-mono text-xs text-ink-faint">{urlQr}</p>
+            </>
+          ) : (
+            <p className="mt-1 text-xs text-ink-faint">
+              Aucune salle assignée à cette classe : sélectionnez-en une
+              ci-dessus pour afficher son QR, ou gérez les salles depuis
+              Administration → Salles.
+            </p>
+          )}
         </Card>
 
         <Card>
@@ -406,6 +435,137 @@ export default async function ClasseDetailPage({
           </ul>
         )}
       </Card>
+
+      {peutInscrire && (
+        <Card>
+          <CardTitle>Cohortes</CardTitle>
+          <p className="mt-1 text-xs text-ink-faint">
+            Un groupe nommé d&apos;étudiants de cette classe, pour les affecter
+            d&apos;un coup à un autre cours au lieu de les sélectionner un par
+            un. Chaque affectation reste ensuite modifiable individuellement
+            depuis la fiche de la classe cible.
+          </p>
+
+          <form action={creerCohorteAction} className="mt-3 flex flex-wrap gap-2">
+            <input type="hidden" name="classeId" value={classe.id} />
+            <input
+              type="text"
+              name="nom"
+              placeholder="Nom de la cohorte (ex. Groupe A)"
+              required
+              className={`w-64 ${CONTROL_CLASSES}`}
+            />
+            <Button type="submit" variant="secondary">
+              Créer la cohorte
+            </Button>
+          </form>
+
+          {cohortes.length === 0 ? (
+            <div className="mt-3">
+              <EmptyState message="Aucune cohorte pour cette classe." />
+            </div>
+          ) : (
+            <ul className="mt-4 space-y-4">
+              {cohortes.map((cohorte) => {
+                const membresIds = new Set(cohorte.membres.map((m) => m.etudiantId));
+                return (
+                  <li key={cohorte.id} className="rounded-xl border border-border p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <span className="text-sm font-semibold text-ink">{cohorte.nom}</span>
+                        <span className="ml-2 text-xs text-ink-faint">
+                          {cohorte.membres.length} étudiant{cohorte.membres.length > 1 ? "s" : ""}
+                        </span>
+                        {cohorte.membres.length > 0 && (
+                          <p className="mt-1 text-xs text-ink-muted">
+                            {cohorte.membres
+                              .map((m) => `${m.etudiant.prenom} ${m.etudiant.nom}`)
+                              .join(", ")}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <form id={`supprimer-cohorte-${cohorte.id}`} action={supprimerCohorteAction}>
+                          <input type="hidden" name="classeId" value={classe.id} />
+                          <input type="hidden" name="cohorteId" value={cohorte.id} />
+                        </form>
+                        <ConfirmDialog
+                          formId={`supprimer-cohorte-${cohorte.id}`}
+                          triggerLabel="Supprimer"
+                          title="Supprimer cette cohorte ?"
+                          description="Les étudiants déjà affectés via cette cohorte restent inscrits : seul le groupe est supprimé."
+                          confirmLabel="Supprimer"
+                        />
+                      </div>
+                    </div>
+
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-xs font-medium text-pine">
+                        Gérer les membres
+                      </summary>
+                      {classe.inscriptions.length === 0 ? (
+                        <p className="mt-2 text-xs text-ink-faint">
+                          Inscrivez d&apos;abord des étudiants à cette classe.
+                        </p>
+                      ) : (
+                        <form action={modifierMembresCohorteAction} className="mt-2 space-y-2">
+                          <input type="hidden" name="classeId" value={classe.id} />
+                          <input type="hidden" name="cohorteId" value={cohorte.id} />
+                          <div className="flex flex-wrap gap-2">
+                            {classe.inscriptions.map((i) => (
+                              <label
+                                key={i.etudiantId}
+                                className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs text-ink-muted"
+                              >
+                                <input
+                                  type="checkbox"
+                                  name="etudiants"
+                                  value={i.etudiantId}
+                                  defaultChecked={membresIds.has(i.etudiantId)}
+                                />
+                                {i.etudiant.prenom} {i.etudiant.nom}
+                              </label>
+                            ))}
+                          </div>
+                          <Button type="submit" variant="secondary" size="sm">
+                            Enregistrer les membres
+                          </Button>
+                        </form>
+                      )}
+                    </details>
+
+                    {classesCibles.length > 0 && (
+                      <form
+                        action={affecterCohorteAction}
+                        className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3"
+                      >
+                        <input type="hidden" name="classeId" value={classe.id} />
+                        <input type="hidden" name="cohorteId" value={cohorte.id} />
+                        <select
+                          name="classeCibleId"
+                          required
+                          className={`w-full max-w-xs ${CONTROL_CLASSES}`}
+                        >
+                          <option value="">Affecter à…</option>
+                          {classesCibles.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.cours.nom}
+                              {c.niveau ? ` — ${c.niveau}` : ""} ({JOUR_LABELS[c.jour]} {c.heureDebut})
+                            </option>
+                          ))}
+                        </select>
+                        <Button type="submit" variant="primary" size="sm">
+                          Affecter la cohorte
+                        </Button>
+                      </form>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      )}
     </div>
   );
 }

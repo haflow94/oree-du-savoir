@@ -15,6 +15,7 @@ const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
 type Cours = { id: string; nom: string; sectionId: string };
 type Annee = { id: string; libelle: string; active: boolean };
+type Salle = { id: string; nom: string };
 type Source = {
   coursId: string;
   niveau: string | null;
@@ -22,7 +23,7 @@ type Source = {
   jour: JourSemaine;
   heureDebut: string;
   heureFin: string;
-  salle: string | null;
+  salleId: string | null;
 } | null;
 
 // Client component : le choix du cours détermine sa section, qui filtre la
@@ -43,7 +44,7 @@ export function NouvelleClasseForm({
   enseignants: EnseignantAvecSections[];
   source: Source;
   anneeParDefaut: string | undefined;
-  salles: string[];
+  salles: Salle[];
 }) {
   const [coursId, setCoursId] = useState(source?.coursId ?? cours[0]?.id ?? "");
   const sectionId = cours.find((c) => c.id === coursId)?.sectionId;
@@ -51,11 +52,6 @@ export function NouvelleClasseForm({
 
   return (
     <form action={creerClasseAction} className="space-y-6">
-      <datalist id="salles-existantes">
-        {salles.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Cours et niveau</legend>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -129,13 +125,21 @@ export function NouvelleClasseForm({
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Salle</legend>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Champ
-            label="Salle"
-            name="salle"
-            list="salles-existantes"
-            defaultValue={source?.salle ?? ""}
-          />
+          <ChampSelect label="Salle (optionnel)" name="salleId" defaultValue={source?.salleId ?? ""}>
+            <option value="">Aucune salle</option>
+            {salles.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nom}
+              </option>
+            ))}
+          </ChampSelect>
         </div>
+        {salles.length === 0 && (
+          <p className="mt-2 text-xs text-ink-faint">
+            Aucune salle enregistrée. Créez-en une depuis Administration →
+            Salles.
+          </p>
+        )}
       </fieldset>
 
       <fieldset className={FIELDSET_CLASSES}>

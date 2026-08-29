@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Civilite, TypeDocument } from "@/generated/prisma/enums";
+import { Civilite, Sexe, TypeDocument, TypePieceIdentite } from "@/generated/prisma/enums";
 import { enregistrerDocumentEtudiant, supprimerFichierDocument } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
@@ -18,6 +18,13 @@ function champTexte(formData: FormData, nom: string): string | null {
 function champCivilite(formData: FormData, nom: string): Civilite | null {
   const valeur = champTexte(formData, nom);
   return valeur === "M" || valeur === "MME" ? valeur : null;
+}
+
+// Optionnel (dossier Jeunes uniquement, voir Etudiant.sexe) : null si non
+// renseigné, jamais bloquant.
+function champSexe(formData: FormData, nom: string): Sexe | null {
+  const valeur = champTexte(formData, nom);
+  return valeur === "F" || valeur === "M" ? valeur : null;
 }
 
 function retour(etudiantId: string, erreur?: string): never {
@@ -89,6 +96,8 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
         niveauEtudes,
         dernierDiplome: champTexte(formData, "dernierDiplome"),
         remarque: champTexte(formData, "remarque"),
+        sexe: champSexe(formData, "sexe"),
+        niveauScolaire: champTexte(formData, "niveauScolaire"),
       },
     }),
     prisma.journalAudit.create({
@@ -132,15 +141,30 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
   retour(etudiantId);
 }
 
+// Un document PHOTO/PIECE_IDENTITE compte comme valide s'il n'a pas de date
+// d'expiration (tous les types sauf PIECE_IDENTITE) ou si elle n'est pas
+// dépassée — voir lib/documents.ts#statutDocumentsRequis pour la même règle
+// appliquée au badge de la fiche étudiant.
+function documentValide(d: { type: string; dateExpiration: Date | null }): boolean {
+  return d.type !== "PIECE_IDENTITE" || !d.dateExpiration || d.dateExpiration >= new Date();
+}
+
 // Tranche un doublon potentiel détecté à la préinscription (voir
 // Etudiant.doublonPotentielId, preinscription/actions.ts) en fusionnant
 // cette fiche (la préinscription en double) dans la fiche existante :
 // coordonnées reprises quand la préinscription en apporte une valeur (sans
 // écraser un champ déjà renseigné par du vide), inscriptions/responsables
 // rattachés à la fiche existante (sans dupliquer ceux déjà présents), puis
-// la préinscription en double est supprimée. Refusé si elle porte déjà des
-// documents/paiements/présences réels : la fusion automatique deviendrait
-// destructrice, mieux vaut laisser le staff trancher à la main.
+// la préinscription en double est supprimée. Refusé si elle porte déjà un
+// dossier annuel ou des présences réelles : la fusion automatique
+// deviendrait destructrice, mieux vaut laisser le staff trancher à la main.
+//
+// Les documents PHOTO/PIECE_IDENTITE de la préinscription (formulaire public,
+// voir preinscription-form.tsx) ne bloquent plus la fusion : chacun est soit
+// réparenté sur la fiche existante (si elle n'a pas déjà un document valide
+// du même type), soit supprimé comme redondant (si elle en a déjà un valide)
+// — c'est ce qui met en œuvre « ne pas redemander une pièce déjà présente et
+// valide » côté staff.
 export async function fusionnerDoublonAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
 
@@ -152,22 +176,19 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
     include: {
       responsables: true,
       inscriptions: true,
-      _count: { select: { documents: true, dossiersAnnuels: true, presences: true } },
+      documents: true,
+      _count: { select: { dossiersAnnuels: true, presences: true } },
     },
   });
   if (!doublon || !doublon.doublonPotentielId) retour(etudiantId, "DOUBLON_INTROUVABLE");
-  if (
-    doublon._count.documents > 0 ||
-    doublon._count.dossiersAnnuels > 0 ||
-    doublon._count.presences > 0
-  ) {
+  if (doublon._count.dossiersAnnuels > 0 || doublon._count.presences > 0) {
     retour(etudiantId, "DOUBLON_NON_FUSIONNABLE");
   }
 
   const existantId = doublon.doublonPotentielId;
   const existant = await prisma.etudiant.findUnique({
     where: { id: existantId },
-    include: { responsables: true, inscriptions: true },
+    include: { responsables: true, inscriptions: true, documents: true },
   });
   if (!existant) retour(etudiantId, "DOUBLON_INTROUVABLE");
 
@@ -181,6 +202,12 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
           e.nom.toLowerCase() === r.nom.toLowerCase() &&
           e.prenom.toLowerCase() === r.prenom.toLowerCase(),
       ),
+  );
+  const documentsAReparenter = doublon.documents.filter(
+    (d) => !existant.documents.some((e) => e.type === d.type && documentValide(e)),
+  );
+  const documentsASupprimer = doublon.documents.filter(
+    (d) => !documentsAReparenter.some((r) => r.id === d.id),
   );
 
   await prisma.$transaction([
@@ -207,6 +234,17 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
     ...responsablesAReparenter.map((r) =>
       prisma.responsableLegal.update({ where: { id: r.id }, data: { etudiantId: existantId } }),
     ),
+    ...(documentsAReparenter.length > 0
+      ? [
+          prisma.document.updateMany({
+            where: { id: { in: documentsAReparenter.map((d) => d.id) } },
+            data: { etudiantId: existantId },
+          }),
+        ]
+      : []),
+    ...(documentsASupprimer.length > 0
+      ? [prisma.document.deleteMany({ where: { id: { in: documentsASupprimer.map((d) => d.id) } } })]
+      : []),
     prisma.etudiant.delete({ where: { id: etudiantId } }),
     prisma.journalAudit.create({
       data: {
@@ -214,10 +252,17 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
         action: "fusion_doublon_etudiant",
         entite: "Etudiant",
         entiteId: existantId,
-        details: { etudiantSupprimeId: etudiantId, nom: doublon.nom, prenom: doublon.prenom },
+        details: {
+          etudiantSupprimeId: etudiantId,
+          nom: doublon.nom,
+          prenom: doublon.prenom,
+          documentsReparentes: documentsAReparenter.length,
+          documentsRedondantsSupprimes: documentsASupprimer.length,
+        },
       },
     }),
   ]);
+  await Promise.all(documentsASupprimer.map((d) => supprimerFichierDocument(d.cheminRelatif)));
 
   revalidatePath(`/etudiants/${existantId}`);
   revalidatePath("/etudiants");
@@ -258,6 +303,10 @@ function estTypeDocument(valeur: string | null): valeur is TypeDocument {
   return !!valeur && valeur in TypeDocument;
 }
 
+function estTypePieceIdentite(valeur: string | null): valeur is TypePieceIdentite {
+  return !!valeur && valeur in TypePieceIdentite;
+}
+
 export async function televerserDocumentAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
 
@@ -269,6 +318,15 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
     retour(etudiantId, "FICHIER_MANQUANT");
   }
 
+  // Type de pièce + date d'expiration ne sont pertinents que pour
+  // PIECE_IDENTITE (voir statutDocumentsRequis), ignorés silencieusement
+  // sinon plutôt que de bloquer le téléversement d'un autre type de document.
+  const typePieceIdentite = champTexte(formData, "typePieceIdentite");
+  const dateExpirationBrute = champTexte(formData, "dateExpiration");
+  if (type === "PIECE_IDENTITE" && (!estTypePieceIdentite(typePieceIdentite) || !dateExpirationBrute)) {
+    retour(etudiantId, "PIECE_IDENTITE_INCOMPLETE");
+  }
+
   const contenu = Buffer.from(await fichier.arrayBuffer());
   const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, fichier.name, contenu);
 
@@ -276,6 +334,9 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
     data: {
       etudiantId,
       type,
+      typePieceIdentite: type === "PIECE_IDENTITE" ? (typePieceIdentite as TypePieceIdentite) : null,
+      dateExpiration:
+        type === "PIECE_IDENTITE" && dateExpirationBrute ? new Date(dateExpirationBrute) : null,
       nomFichier: fichier.name,
       cheminRelatif,
       mimeType: fichier.type || "application/octet-stream",
@@ -399,8 +460,12 @@ export async function ajouterResponsableAction(formData: FormData): Promise<void
       prenom,
       lien: champTexte(formData, "lien") ?? "Non précisé",
       telephone,
+      telephoneProfessionnel: champTexte(formData, "telephoneProfessionnel"),
       email,
       adresse: champTexte(formData, "adresse"),
+      codePostal: champTexte(formData, "codePostal"),
+      ville: champTexte(formData, "ville"),
+      profession: champTexte(formData, "profession"),
     },
   });
 
@@ -442,8 +507,12 @@ export async function modifierResponsableAction(formData: FormData): Promise<voi
         prenom,
         lien: champTexte(formData, "lien") ?? "Non précisé",
         telephone,
+        telephoneProfessionnel: champTexte(formData, "telephoneProfessionnel"),
         email,
         adresse: champTexte(formData, "adresse"),
+        codePostal: champTexte(formData, "codePostal"),
+        ville: champTexte(formData, "ville"),
+        profession: champTexte(formData, "profession"),
       },
     }),
     prisma.journalAudit.create({

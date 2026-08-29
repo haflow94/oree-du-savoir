@@ -47,6 +47,7 @@ export default async function DashboardPage() {
     nbClasses,
     dossiersAnnee,
     nbPreinscrits,
+    nbDoublonsPotentiels,
     nbNonReinscrits,
     etudiantsValides,
     nbChequesEnAttente,
@@ -67,6 +68,12 @@ export default async function DashboardPage() {
         })
       : Promise.resolve([]),
     prisma.etudiant.count({ where: { statutInscription: "PREINSCRIT" } }),
+    // Préinscriptions rapprochées automatiquement d'une fiche existante
+    // (voir Etudiant.doublonPotentielId, lib/doublons-etudiant.ts) et pas
+    // encore tranchées par le staff (fusion ou confirmation d'homonymie
+    // depuis la fiche) : à surfacer sans attendre que le staff tombe dessus
+    // en ouvrant chaque préinscription une par une.
+    prisma.etudiant.count({ where: { doublonPotentielId: { not: null } } }),
     anneeActive
       ? prisma.etudiant.count({
           where: {
@@ -80,7 +87,10 @@ export default async function DashboardPage() {
     // dossier confirmé, indépendamment de l'année active.
     prisma.etudiant.findMany({
       where: { statutInscription: "VALIDE" },
-      select: { documents: { select: { type: true } } },
+      // chequeId: null exclut la pièce d'identité d'un titulaire de chèque
+      // tiers, qui n'appartient pas au dossier documentaire de l'étudiant
+      // lui-même (voir Document.chequeId).
+      select: { documents: { where: { chequeId: null }, select: { type: true, dateExpiration: true } } },
     }),
     // En attente de dépôt ou d'encaissement : un chèque qui traîne dans ces
     // deux statuts est le seul risque réel du cycle (perte, oubli), REJETE
@@ -143,6 +153,13 @@ export default async function DashboardPage() {
       valeur: nbPreinscrits,
       href: "/inscriptions",
       accent: "sky",
+    },
+    {
+      label: "Doublons potentiels",
+      icon: "🔍",
+      valeur: nbDoublonsPotentiels,
+      href: "/inscriptions",
+      accent: "rust",
     },
     {
       label: "Dossiers incomplets",

@@ -33,6 +33,11 @@ de correction des présences) et vaut `Europe/Paris` par défaut. Un conteneur
 sans ce réglage tourne en UTC : le jour basculerait à 2h du matin heure
 française.
 
+L'image installe **Chromium** (paquet système, voir `Dockerfile`) pour
+générer les dossiers d'inscription en PDF (`src/lib/dossier/`) — ajoute
+environ 300 Mo à l'image, aucune variable à configurer (`PUPPETEER_EXECUTABLE_PATH`
+est fixée dans le Dockerfile).
+
 ## Volumes persistants
 
 | Volume    | Contenu                                   |

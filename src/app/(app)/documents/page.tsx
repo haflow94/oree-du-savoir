@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileText, FileStack } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { dossierDocumentaireComplet } from "@/lib/documents";
 import { TableWrap, TableHead } from "@/components/ui/table";
@@ -22,21 +22,28 @@ export default async function DocumentsPage({
   // chaque document (voir, télécharger, supprimer) vit sur sa fiche — ce
   // tableau sert seulement à retrouver le bon étudiant, pas à dupliquer ces
   // actions ici (source de confusion entre les documents d'une même ligne).
+  // chequeId: null exclut la pièce d'identité d'un titulaire de chèque tiers
+  // (voir Document.chequeId), qui n'appartient pas au dossier de l'étudiant
+  // lui-même et n'a rien à faire dans cette liste.
   const etudiants = await prisma.etudiant.findMany({
     where: {
-      documents: { some: {} },
+      documents: { some: { chequeId: null } },
       ...(recherche
         ? {
             OR: [
               { nom: { contains: recherche, mode: "insensitive" } },
               { prenom: { contains: recherche, mode: "insensitive" } },
-              { documents: { some: { nomFichier: { contains: recherche, mode: "insensitive" } } } },
+              {
+                documents: {
+                  some: { chequeId: null, nomFichier: { contains: recherche, mode: "insensitive" } },
+                },
+              },
             ],
           }
         : {}),
     },
     include: {
-      documents: { select: { type: true, creeLe: true } },
+      documents: { where: { chequeId: null }, select: { type: true, creeLe: true, dateExpiration: true } },
     },
   });
 
@@ -56,16 +63,25 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <IconChip icon={FileText} accent="sky" />
-        <div>
-          <h1 className="font-display text-3xl font-semibold text-pine-strong">Documents</h1>
-          <p className="text-sm text-ink-muted">
-            Étudiants ayant au moins un document rattaché (identité, photo,
-            dossiers, justificatifs). Stockés séparément de la base, la
-            gestion détaillée se fait depuis la fiche de chaque étudiant.
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <IconChip icon={FileText} accent="sky" />
+          <div>
+            <h1 className="font-display text-3xl font-semibold text-pine-strong">Documents</h1>
+            <p className="text-sm text-ink-muted">
+              Étudiants ayant au moins un document rattaché (identité, photo,
+              dossiers, justificatifs). Stockés séparément de la base, la
+              gestion détaillée se fait depuis la fiche de chaque étudiant.
+            </p>
+          </div>
         </div>
+        <Link
+          href="/documents/dossier-vierge"
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
+        >
+          <FileStack aria-hidden size={14} />
+          Dossiers vierges
+        </Link>
       </div>
 
       <form className={TOOLBAR_CLASSES} action="/documents" method="GET">

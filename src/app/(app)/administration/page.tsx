@@ -60,13 +60,19 @@ export default async function AdministrationPage({
             <p className="text-sm text-ink-muted">
               {estBureau
                 ? "Comptes, rôles, activation et révocation."
-                : "Référentiels : sections, année scolaire."}
+                : "Référentiels : sections, salles, année scolaire."}
             </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Link href="/administration/organisation" className={buttonVariants({ variant: "secondary" })}>
+            Organisation
+          </Link>
           <Link href="/administration/sections" className={buttonVariants({ variant: "secondary" })}>
             Sections
+          </Link>
+          <Link href="/administration/salles" className={buttonVariants({ variant: "secondary" })}>
+            Salles
           </Link>
           <Link
             href="/administration/annees-scolaires"

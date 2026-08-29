@@ -106,7 +106,7 @@ Un « cours » (ex. Arabe débutant) doit exister avant de créer une « classe 
 1. Sur la page **Classes**, cliquez sur **+ Nouvelle classe**.
 2. Renseignez **Cours**, **Année scolaire**, **Niveau** (optionnel), **Semestre** (optionnel).
 3. Renseignez le **Créneau** : Jour, Heure de début, Heure de fin.
-4. Renseignez **Salle** et **Capacité** si besoin.
+4. Choisissez la **Salle** si besoin (créée au préalable depuis *Administration → Salles*).
 5. Cochez le ou les **Enseignant(s)** assignés.
 
    ![formulaire de création d'une classe](images/admin-09-formulaire-classe.png)
@@ -122,7 +122,7 @@ Les dates de séances sont calculées automatiquement à partir du créneau hebd
 
    ![carte Séances avec le bouton de génération](images/admin-10-carte-seances.png)
 
-> Le QR code affiché sur la fiche de la classe sert à l'enseignant pour accéder directement à la feuille de présence du jour depuis son téléphone — il ne remplace jamais sa connexion.
+> Le QR code est désormais permanent par salle (créé et imprimé depuis *Administration → Salles*, un seul code pour tous les cours qui s'y succèdent), pas par classe. Il sert à l'enseignant pour retrouver ses cours du jour dans cette salle depuis son téléphone — il ne remplace jamais sa connexion.
 
 ### 3.4 Gérer les inscriptions d'une classe
 
@@ -193,7 +193,7 @@ Depuis la fiche étudiant, section **Situation financière**, chaque dossier ann
 
 ## 6. À retenir
 
-- **Le QR code n'authentifie jamais personne** — c'est un raccourci vers la séance du jour, l'enseignant doit toujours être connecté avec son propre compte.
+- **Le QR code n'authentifie jamais personne** — permanent par salle, c'est un raccourci vers les cours du jour de l'enseignant dans cette salle ; il doit toujours être connecté avec son propre compte.
 - **On ne devine jamais une absence** : une feuille de présence incomplète ne peut pas être validée.
 - **Vous n'êtes pas soumis au délai de correction du jour même** — contrairement aux enseignants, vous pouvez corriger une feuille de présence à tout moment.
 - **Les fichiers (photos, pièces d'identité, dossiers signés) sont toujours séparés de la base de données** : ils sont téléversés depuis la fiche étudiant.

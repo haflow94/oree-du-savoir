@@ -35,6 +35,21 @@ function champHeuresOptionnel(formData: FormData, nom: string): number | null | 
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
+/** Une ligne = une règle spécifique à la section (bloc "Dispositions propres à la section" du dossier). */
+function champListeLignes(formData: FormData, nom: string): string[] {
+  const valeur = formData.get(nom);
+  if (typeof valeur !== "string") return [];
+  return valeur
+    .split("\n")
+    .map((ligne) => ligne.trim())
+    .filter((ligne) => ligne.length > 0);
+}
+
+function champModeleDossier(formData: FormData): "ADULTES" | "JEUNES" | null {
+  const valeur = champTexte(formData, "modeleDossier");
+  return valeur === "ADULTES" || valeur === "JEUNES" ? valeur : null;
+}
+
 function retour(erreur?: string): never {
   redirect(
     erreur
@@ -52,6 +67,8 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
   const volumeHoraireAnnuel = champHeuresOptionnel(formData, "volumeHoraireAnnuel");
   const remboursementAvant15Jours = champPourcentage(formData, "remboursementAvant15Jours");
   const remboursementAvant29Jours = champPourcentage(formData, "remboursementAvant29Jours");
+  const modeleDossier = champModeleDossier(formData);
+  const reglesSpecifiques = champListeLignes(formData, "reglesSpecifiques");
 
   if (
     !nom ||
@@ -59,7 +76,8 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
     !fraisDossier ||
     volumeHoraireAnnuel === undefined ||
     remboursementAvant15Jours === null ||
-    remboursementAvant29Jours === null
+    remboursementAvant29Jours === null ||
+    !modeleDossier
   ) {
     retour("CHAMPS_INVALIDES");
   }
@@ -75,6 +93,8 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
       volumeHoraireAnnuel,
       remboursementAvant15Jours,
       remboursementAvant29Jours,
+      modeleDossier,
+      reglesSpecifiques,
     },
   });
 
@@ -103,6 +123,8 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
   const volumeHoraireAnnuel = champHeuresOptionnel(formData, "volumeHoraireAnnuel");
   const remboursementAvant15Jours = champPourcentage(formData, "remboursementAvant15Jours");
   const remboursementAvant29Jours = champPourcentage(formData, "remboursementAvant29Jours");
+  const modeleDossier = champModeleDossier(formData);
+  const reglesSpecifiques = champListeLignes(formData, "reglesSpecifiques");
 
   if (
     !sectionId ||
@@ -111,7 +133,8 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
     !fraisDossier ||
     volumeHoraireAnnuel === undefined ||
     remboursementAvant15Jours === null ||
-    remboursementAvant29Jours === null
+    remboursementAvant29Jours === null ||
+    !modeleDossier
   ) {
     retour("CHAMPS_INVALIDES");
   }
@@ -132,6 +155,8 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
         volumeHoraireAnnuel,
         remboursementAvant15Jours,
         remboursementAvant29Jours,
+        modeleDossier,
+        reglesSpecifiques,
       },
     }),
     prisma.journalAudit.create({
@@ -182,5 +207,44 @@ export async function supprimerSectionAction(formData: FormData): Promise<void> 
 
   revalidatePath("/administration/sections");
   revalidatePath("/classes");
+  retour();
+}
+
+// Créneaux affichés sur le dossier d'inscription de la section (voir modèle
+// CreneauSection) : catalogue simple, pas de contrainte d'unicité ni de
+// dépendance à supprimer avant — une section peut toujours modifier/vider
+// ses créneaux librement.
+export async function ajouterCreneauAction(formData: FormData): Promise<void> {
+  await requireModule(Module.ADMINISTRATION, "ECRITURE");
+
+  const sectionId = champTexte(formData, "sectionId");
+  const code = champTexte(formData, "code");
+  const jour = champTexte(formData, "jour");
+  const horaire = champTexte(formData, "horaire");
+  const restriction = champTexte(formData, "restriction");
+
+  if (!sectionId || !code || !jour || !horaire) retour("CHAMPS_INVALIDES");
+
+  const section = await prisma.section.findUnique({ where: { id: sectionId } });
+  if (!section) retour("INTROUVABLE");
+
+  const nombreExistant = await prisma.creneauSection.count({ where: { sectionId } });
+  await prisma.creneauSection.create({
+    data: { sectionId, code, jour, horaire, restriction, ordre: nombreExistant },
+  });
+
+  revalidatePath("/administration/sections");
+  retour();
+}
+
+export async function supprimerCreneauAction(formData: FormData): Promise<void> {
+  await requireModule(Module.ADMINISTRATION, "ECRITURE");
+
+  const creneauId = champTexte(formData, "creneauId");
+  if (!creneauId) retour("CHAMPS_INVALIDES");
+
+  await prisma.creneauSection.delete({ where: { id: creneauId } }).catch(() => null);
+
+  revalidatePath("/administration/sections");
   retour();
 }

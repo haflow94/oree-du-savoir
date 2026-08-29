@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
+import { enregistrerDocumentEtudiant } from "@/lib/documents";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -54,8 +55,24 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
   }
   const moyen = moyenBrut as MoyenPaiement;
 
-  const echeance = await prisma.echeance.findUnique({ where: { id: echeanceId } });
+  const echeance = await prisma.echeance.findUnique({
+    where: { id: echeanceId },
+    include: { dossierAnnuel: { include: { etudiant: true } } },
+  });
   if (!echeance) retour(dossierAnnuelId, "ECHEANCE_INTROUVABLE");
+
+  // Le titulaire par défaut est l'étudiant lui-même (voir
+  // ChampsMoyenPaiement) : nom/prénom sont alors repris depuis le dossier
+  // plutôt que depuis des champs cachés du formulaire, jamais fiables côté
+  // client. Une pièce d'identité dédiée n'a de sens que pour un tiers payeur
+  // (voir plus bas, ignorée silencieusement sinon).
+  const titulaireEstEtudiant = moyen === "CHEQUE" ? formData.get("titulaireEstEtudiant") === "on" : true;
+  const titulaireNom = titulaireEstEtudiant
+    ? echeance.dossierAnnuel.etudiant.nom
+    : champTexte(formData, "chequeTitulaireNom");
+  const titulairePrenom = titulaireEstEtudiant
+    ? echeance.dossierAnnuel.etudiant.prenom
+    : champTexte(formData, "chequeTitulairePrenom");
 
   const paiement = await prisma.paiement.create({
     data: {
@@ -68,7 +85,9 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
               create: {
                 banque: champTexte(formData, "chequeBanque"),
                 numero: champTexte(formData, "chequeNumero"),
-                titulaire: champTexte(formData, "chequeTitulaire"),
+                titulaireNom,
+                titulairePrenom,
+                titulaireEstEtudiant,
               },
             },
           }
@@ -86,7 +105,39 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
           }
         : {}),
     },
+    include: { cheque: true },
   });
+
+  // Écriture du fichier hors transaction, une fois le chèque créé (besoin de
+  // son id) — même pattern que televerserDocumentAction
+  // (etudiants/[id]/actions.ts) : le fichier vit sur DOCUMENTS_DIR, jamais
+  // en base.
+  const pieceIdentiteTitulaire = formData.get("chequeTitulairePieceIdentite");
+  if (
+    paiement.cheque &&
+    !titulaireEstEtudiant &&
+    pieceIdentiteTitulaire instanceof File &&
+    pieceIdentiteTitulaire.size > 0
+  ) {
+    const contenu = Buffer.from(await pieceIdentiteTitulaire.arrayBuffer());
+    const cheminRelatif = await enregistrerDocumentEtudiant(
+      echeance.dossierAnnuel.etudiantId,
+      pieceIdentiteTitulaire.name,
+      contenu,
+    );
+    await prisma.document.create({
+      data: {
+        etudiantId: echeance.dossierAnnuel.etudiantId,
+        type: "PIECE_IDENTITE",
+        chequeId: paiement.cheque.id,
+        nomFichier: pieceIdentiteTitulaire.name,
+        cheminRelatif,
+        mimeType: pieceIdentiteTitulaire.type || "application/octet-stream",
+        tailleOctets: contenu.length,
+        creeParId: session.id,
+      },
+    });
+  }
 
   await prisma.journalAudit.create({
     data: {

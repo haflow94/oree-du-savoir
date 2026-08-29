@@ -130,7 +130,7 @@ Un « cours » (ex. Arabe débutant) doit exister avant de pouvoir créer une «
 1. Sur la page **Classes**, cliquez sur **+ Nouvelle classe**.
 2. Renseignez **Cours**, **Année scolaire**, **Niveau** (optionnel) et **Semestre** (optionnel, sinon toute l'année).
 3. Renseignez le **Créneau** : Jour, Heure de début, Heure de fin.
-4. Renseignez **Salle** et **Capacité** si besoin.
+4. Choisissez la **Salle** si besoin (liste des salles déjà créées depuis *Administration → Salles* — voir §4.4).
 5. Cochez le ou les **Enseignant(s)** assignés à cette classe.
 
    ![formulaire de création d'une classe, avec le bloc Créneau](images/bureau-10-formulaire-classe.png)
@@ -150,16 +150,19 @@ Les séances (dates concrètes) sont calculées automatiquement à partir du cr�
 
 > Cette action est **sans risque** à relancer : elle ne crée jamais deux fois la même séance.
 
-### 4.4 Afficher le QR code de la classe
+### 4.4 Afficher le QR code d'une salle
 
-Chaque classe a son propre QR code, à afficher en salle : il permet à l'enseignant d'accéder directement à la feuille de présence du jour depuis son téléphone.
+Le QR code n'est plus attaché à une classe mais à une **salle** : un seul code, permanent, sert pour tous les cours qui s'y succèdent au fil de la journée — il n'est jamais à régénérer ni à réimprimer entre deux cours.
 
-1. Sur la fiche de la classe, la carte **QR d'accès à la séance du jour** affiche le QR code et son adresse.
-2. Imprimez-le ou affichez-le sur un écran en salle.
+1. Depuis **Administration → Salles**, créez la salle si elle n'existe pas encore (un simple nom, ex. « Salle 1 »).
+2. Sur cette même page, chaque salle affiche son QR code et son adresse.
+3. Imprimez-le ou affichez-le sur un écran, une bonne fois pour toutes, dans la salle correspondante.
 
    ![carte QR code sur la fiche d'une classe](images/bureau-12-carte-qr.png)
 
-> **Important** : le QR code n'est **jamais** une authentification. Il redirige simplement vers la séance du jour ; l'enseignant doit être connecté avec son propre compte pour faire l'appel.
+4. Affectez ensuite cette salle à chaque classe qui s'y déroule (formulaire de la classe, champ **Salle** — voir §4.2/§4.4). Un rappel du même QR est aussi visible sur la fiche de chaque classe qui y est rattachée.
+
+> **Important** : le QR code n'est **jamais** une authentification. Il identifie la salle ; l'enseignant doit être connecté avec son propre compte, puis choisit son cours parmi ceux du jour dans cette salle qui le concernent, avant de faire l'appel.
 
 ### 4.5 Gérer les inscriptions d'une classe
 
@@ -315,7 +318,7 @@ Le lien **Exporter en CSV** en haut de la page reprend les filtres actifs.
 
 ## 9. À retenir
 
-- **Le QR code n'authentifie jamais personne** — il n'est qu'un raccourci vers la séance du jour.
+- **Le QR code n'authentifie jamais personne** — il est permanent par salle et n'est qu'un raccourci vers les cours du jour de l'enseignant dans cette salle.
 - **On ne devine jamais une absence** : une feuille de présence incomplète ne peut pas être validée.
 - **La correction d'une présence n'est possible que le jour même** pour la plupart du personnel — le Bureau et l'Administration en sont dispensés.
 - **Les fichiers (photos, pièces d'identité, dossiers signés) sont toujours séparés de la base de données** : ils sont téléversés depuis la fiche étudiant et ne doivent jamais être manipulés en dehors de l'application.

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
+import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import {
   VUES_CALENDRIER,
   VUE_LABELS,
@@ -61,7 +62,9 @@ export default async function CalendrierPage({
   let debut: Date;
   let fin: Date;
   let grille: Date[][] = [];
-  if (vue === "jour") {
+  if (vue === "jour" || vue === "salles") {
+    // "salles" ne navigue pas par date (planning hebdomadaire récurrent) :
+    // debut/fin restent sans effet pour cette vue, voir plus bas.
     debut = dateRef;
     fin = dateRef;
   } else if (vue === "semaine") {
@@ -76,27 +79,33 @@ export default async function CalendrierPage({
     fin = finAnneeUTC(dateRef);
   }
 
-  const [activites, fermetures, seances] = await Promise.all([
-    prisma.activite.findMany({
-      // Chevauchement avec la fenêtre affichée : la date de début doit être
-      // avant sa fin, et la fin effective (dateFin si l'activité dure
-      // plusieurs jours, sinon date) après son début — sans quoi une
-      // activité commencée avant `debut` mais qui déborde dedans (ex. un
-      // camp à cheval sur deux mois) disparaîtrait de la vue.
-      where: {
-        date: { lte: fin },
-        OR: [{ dateFin: { gte: debut } }, { dateFin: null, date: { gte: debut } }],
-      },
-      include: { responsables: { include: { utilisateur: true } } },
-      orderBy: { date: "asc" },
-    }),
-    prisma.periodeFermeture.findMany({
-      where: { dateDebut: { lte: fin }, dateFin: { gte: debut } },
-    }),
+  const [activites, fermetures, seances, anneeActive] = await Promise.all([
+    vue === "salles"
+      ? Promise.resolve([])
+      : prisma.activite.findMany({
+          // Chevauchement avec la fenêtre affichée : la date de début doit
+          // être avant sa fin, et la fin effective (dateFin si l'activité
+          // dure plusieurs jours, sinon date) après son début — sans quoi une
+          // activité commencée avant `debut` mais qui déborde dedans (ex. un
+          // camp à cheval sur deux mois) disparaîtrait de la vue.
+          where: {
+            date: { lte: fin },
+            OR: [{ dateFin: { gte: debut } }, { dateFin: null, date: { gte: debut } }],
+          },
+          include: { responsables: { include: { utilisateur: true } } },
+          orderBy: { date: "asc" },
+        }),
+    vue === "salles"
+      ? Promise.resolve([])
+      : prisma.periodeFermeture.findMany({
+          where: { dateDebut: { lte: fin }, dateFin: { gte: debut } },
+        }),
     // Vue année : les séances hebdomadaires (une par classe et par semaine)
     // ne feraient que du bruit à cette échelle, aucune valeur ajoutée à les
-    // afficher — seules les activités et fermetures y apparaissent.
-    vue === "annee"
+    // afficher — seules les activités et fermetures y apparaissent. Vue
+    // salles : planning récurrent par Classe, pas par Seance datée (voir
+    // classesSalles plus bas).
+    vue === "annee" || vue === "salles"
       ? Promise.resolve([])
       : prisma.seance.findMany({
           where: { date: { gte: debut, lte: fin } },
@@ -104,31 +113,53 @@ export default async function CalendrierPage({
             classe: {
               include: {
                 cours: { include: { section: true } },
+                salle: true,
                 enseignants: { include: { utilisateur: true } },
               },
             },
           },
           orderBy: { date: "asc" },
         }),
+    vue === "salles" ? prisma.anneeScolaire.findFirst({ where: { active: true } }) : Promise.resolve(null),
   ]);
 
   const activitesParJour = activitesParJourAvecPlage(activites);
   const seancesParJour = parJour(seances, (s) => s.date);
 
-  const libellePeriode =
-    vue === "jour"
-      ? dateRef.toLocaleDateString("fr-FR", {
-          weekday: "long",
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-          timeZone: "UTC",
+  // Planning hebdomadaire récurrent (jour+heure de chaque Classe) sur
+  // l'année scolaire active — pas les Seance datées, qui n'apporteraient
+  // rien de plus pour vérifier l'occupation des salles semaine type.
+  const classesSalles =
+    vue === "salles"
+      ? await prisma.classe.findMany({
+          where: anneeActive ? { anneeScolaireId: anneeActive.id } : {},
+          include: {
+            cours: true,
+            salle: true,
+            enseignants: { include: { utilisateur: true } },
+          },
+          // Le tri par salle (relation) se fait après coup, sur le nom, en
+          // même temps que le regroupement ci-dessous.
+          orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
         })
-      : vue === "semaine"
-        ? `Semaine du ${debut.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" })} au ${fin.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}`
-        : vue === "mois"
-          ? `${MOIS_LABELS[dateRef.getUTCMonth()]} ${dateRef.getUTCFullYear()}`
-          : `${dateRef.getUTCFullYear()}`;
+      : [];
+
+  const libellePeriode =
+    vue === "salles"
+      ? `Occupation des salles${anneeActive ? ` · ${anneeActive.libelle}` : ""}`
+      : vue === "jour"
+        ? dateRef.toLocaleDateString("fr-FR", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            timeZone: "UTC",
+          })
+        : vue === "semaine"
+          ? `Semaine du ${debut.toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" })} au ${fin.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })}`
+          : vue === "mois"
+            ? `${MOIS_LABELS[dateRef.getUTCMonth()]} ${dateRef.getUTCFullYear()}`
+            : `${dateRef.getUTCFullYear()}`;
 
   function lienVue(v: VueCalendrier, d: Date = dateRef): string {
     return `/calendrier?vue=${v}&date=${versParamDate(d)}`;
@@ -144,25 +175,27 @@ export default async function CalendrierPage({
             <p className="text-sm capitalize text-ink-muted">{libellePeriode}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href={lienVue(vue, decalerDate(dateRef, vue, -1))}
-            aria-label="Période précédente"
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-          >
-            ‹
-          </Link>
-          <Link href={lienVue(vue, aujourdhui)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
-            Aujourd&apos;hui
-          </Link>
-          <Link
-            href={lienVue(vue, decalerDate(dateRef, vue, 1))}
-            aria-label="Période suivante"
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-          >
-            ›
-          </Link>
-        </div>
+        {vue !== "salles" && (
+          <div className="flex items-center gap-2">
+            <Link
+              href={lienVue(vue, decalerDate(dateRef, vue, -1))}
+              aria-label="Période précédente"
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              ‹
+            </Link>
+            <Link href={lienVue(vue, aujourdhui)} className={buttonVariants({ variant: "secondary", size: "sm" })}>
+              Aujourd&apos;hui
+            </Link>
+            <Link
+              href={lienVue(vue, decalerDate(dateRef, vue, 1))}
+              aria-label="Période suivante"
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              ›
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-1">
@@ -184,6 +217,97 @@ export default async function CalendrierPage({
           </Link>
         )}
       </div>
+
+      {vue === "salles" &&
+        (() => {
+          const classesParSalle = new Map<string, typeof classesSalles>();
+          for (const c of classesSalles) {
+            const cle = c.salle?.nom ?? "";
+            const liste = classesParSalle.get(cle) ?? [];
+            liste.push(c);
+            classesParSalle.set(cle, liste);
+          }
+          const salles = [...classesParSalle.keys()].sort((a, b) => {
+            if (a === "") return 1;
+            if (b === "") return -1;
+            return a.localeCompare(b, "fr");
+          });
+
+          return salles.length === 0 ? (
+            <p className="text-sm text-ink-faint">
+              Aucune classe planifiée{anneeActive ? ` sur ${anneeActive.libelle}` : ""}.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1000px] border-separate border-spacing-1">
+                <thead>
+                  <tr>
+                    <th className="sticky left-0 z-10 bg-bg px-2 py-1 text-left text-xs font-semibold uppercase text-ink-faint">
+                      Salle
+                    </th>
+                    {JOURS_ORDONNES.map((j) => (
+                      <th
+                        key={j}
+                        className="px-2 py-1 text-left text-xs font-semibold uppercase text-ink-faint"
+                      >
+                        {JOUR_LABELS[j]}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {salles.map((salle) => {
+                    const classesSalle = classesParSalle.get(salle)!;
+                    return (
+                      <tr key={salle}>
+                        <td className="sticky left-0 z-10 whitespace-nowrap bg-bg px-2 py-2 align-top text-sm font-medium text-ink">
+                          {salle || "Sans salle"}
+                        </td>
+                        {JOURS_ORDONNES.map((j) => {
+                          const classesJour = classesSalle
+                            .filter((c) => c.jour === j)
+                            .sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+                          return (
+                            <td
+                              key={j}
+                              className="min-w-[160px] rounded-lg border border-border bg-bg-elevated p-1.5 align-top"
+                            >
+                              {classesJour.length === 0 ? (
+                                <span className="text-xs text-ink-faint">—</span>
+                              ) : (
+                                <div className="space-y-1">
+                                  {classesJour.map((c) => (
+                                    <Link
+                                      key={c.id}
+                                      href={`/classes/${c.id}`}
+                                      className="block rounded-md bg-bg-sunken px-1.5 py-1 text-xs text-ink hover:bg-pine-soft"
+                                    >
+                                      <div className="font-medium">
+                                        {c.heureDebut}–{c.heureFin} {c.cours.nom}
+                                        {c.niveau && ` (${c.niveau})`}
+                                      </div>
+                                      {c.enseignants.length > 0 && (
+                                        <div className="text-ink-faint">
+                                          {c.enseignants
+                                            .map((e) => `${e.utilisateur.prenom} ${e.utilisateur.nom}`)
+                                            .join(", ")}
+                                        </div>
+                                      )}
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
 
       {vue === "jour" &&
         (() => {
@@ -217,7 +341,7 @@ export default async function CalendrierPage({
                           </div>
                           <div className="text-xs text-ink-faint">
                             {s.classe.cours.section.nom}
-                            {s.classe.salle && ` · ${s.classe.salle}`}
+                            {s.classe.salle && ` · ${s.classe.salle.nom}`}
                             {s.classe.enseignants.length > 0 &&
                               ` · ${s.classe.enseignants.map((e) => `${e.utilisateur.prenom} ${e.utilisateur.nom}`).join(", ")}`}
                           </div>

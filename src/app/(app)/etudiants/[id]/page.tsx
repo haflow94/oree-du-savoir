@@ -6,8 +6,18 @@ import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { Role } from "@/lib/roles";
 import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
-import { MIME_DOCX, TYPE_DOCUMENT_LABELS, TYPES_DOCUMENTS_GENERES } from "@/lib/documents";
+import {
+  MIME_DOCX,
+  TYPE_DOCUMENT_LABELS,
+  TYPE_PIECE_IDENTITE_LABELS,
+  TYPES_DOCUMENTS_GENERES,
+  TYPES_DOCUMENTS_REQUIS,
+  statutDocumentsRequis,
+  dossierDocumentaireComplet,
+  type StatutDocumentRequis,
+} from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
+import { ChampsTeleversementDocument } from "./champs-televersement-document";
 import { estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { BackLink } from "@/components/ui/back-link";
 import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
@@ -41,13 +51,25 @@ const MESSAGES: Record<string, string> = {
   EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
   CODE_POSTAL_INVALIDE: "Le code postal doit comporter 5 chiffres.",
   FICHIER_MANQUANT: "Choisissez un fichier et un type de document.",
+  PIECE_IDENTITE_INCOMPLETE: "Le type de pièce et sa date d'expiration sont obligatoires pour une pièce d'identité.",
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
     "Impossible de supprimer : un dossier annuel, une inscription ou des présences existent déjà pour cet étudiant.",
   INSCRIPTION_INVALIDE: "Sélectionnez une classe à inscrire.",
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
   DOUBLON_NON_FUSIONNABLE:
-    "Fusion impossible : cette fiche porte déjà des documents, un dossier ou des présences. Transférez-les manuellement avant de la supprimer.",
+    "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles. Transférez-les manuellement avant de la supprimer.",
+};
+
+const STATUT_DOCUMENT_LABELS: Record<StatutDocumentRequis, string> = {
+  OK: "OK",
+  MANQUANT: "Manquant",
+  EXPIRE: "Expiré",
+};
+const STATUT_DOCUMENT_VARIANTS: Record<StatutDocumentRequis, "success" | "warning" | "danger"> = {
+  OK: "success",
+  MANQUANT: "danger",
+  EXPIRE: "warning",
 };
 
 function versChampDate(date: Date | null): string {
@@ -150,7 +172,7 @@ export default async function EtudiantDetailPage({
       include: {
         responsables: true,
         sectionSouhaitee: true,
-        doublonPotentiel: { select: { id: true, nom: true, prenom: true } },
+        doublonPotentiel: { select: { id: true, nom: true, prenom: true, dateNaissance: true, creeLe: true } },
         inscriptions: {
           include: {
             classe: { include: { cours: { include: { section: true } }, anneeScolaire: true } },
@@ -164,7 +186,10 @@ export default async function EtudiantDetailPage({
           },
           orderBy: { anneeScolaire: { libelle: "desc" } },
         },
-        documents: { orderBy: { creeLe: "desc" } },
+        // chequeId: null exclut la pièce d'identité d'un titulaire de chèque
+        // tiers (voir Document.chequeId), qui n'appartient pas au dossier
+        // documentaire de l'étudiant lui-même.
+        documents: { where: { chequeId: null }, orderBy: { creeLe: "desc" } },
         // Une inscription peut être retirée sans effacer les présences déjà
         // enregistrées (relation séparée) : à compter à part pour le
         // garde-fou de suppression, voir supprimerEtudiantAction.
@@ -234,6 +259,12 @@ export default async function EtudiantDetailPage({
   const typesGeneres: readonly string[] = TYPES_DOCUMENTS_GENERES;
   const documentsGeneres = etudiant.documents.filter((d) => typesGeneres.includes(d.type));
   const documentsFournis = etudiant.documents.filter((d) => !typesGeneres.includes(d.type));
+
+  // Bloc DOSSIER : statut Complet/Incomplet et détail par type requis, à ne
+  // pas confondre avec le statut PAIEMENT plus bas (voir CLAUDE.md, retours
+  // utilisateurs — deux situations distinctes).
+  const statutDossier = statutDocumentsRequis(etudiant.documents);
+  const dossierComplet = dossierDocumentaireComplet(etudiant.documents);
 
   // Bandeau d'état : ce que la fiche cachait jusqu'ici (dossier financier de
   // l'année active manquant, ou pas encore soldé) devient visible en tête,
@@ -317,15 +348,28 @@ export default async function EtudiantDetailPage({
       {peutModifier && etudiant.doublonPotentiel && (
         <Alert variant="warning">
           <p>
-            Doublon potentiel : cette préinscription ressemble à la fiche
-            existante de{" "}
-            <Link href={`/etudiants/${etudiant.doublonPotentiel.id}`} className="underline">
-              {etudiant.doublonPotentiel.prenom} {etudiant.doublonPotentiel.nom}
-            </Link>{" "}
-            (même nom, prénom et date de naissance, ou mêmes coordonnées de
-            responsable).
+            Doublon potentiel : cette préinscription ressemble à une fiche
+            existante — même nom, prénom et date de naissance, ou mêmes
+            coordonnées de responsable. Ouvrez-la pour comparer avant de
+            choisir : vérifiez notamment la date de naissance et les
+            coordonnées.
+          </p>
+          <p className="mt-1 text-xs">
+            Fiche existante : {etudiant.doublonPotentiel.prenom} {etudiant.doublonPotentiel.nom}
+            {etudiant.doublonPotentiel.dateNaissance &&
+              ` · né(e) le ${new Date(etudiant.doublonPotentiel.dateNaissance).toLocaleDateString("fr-FR")}`}
+            {" · créée le "}
+            {new Date(etudiant.doublonPotentiel.creeLe).toLocaleDateString("fr-FR")}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`/etudiants/${etudiant.doublonPotentiel.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className={buttonVariants({ variant: "primary", size: "sm" })}
+            >
+              Voir la fiche existante (nouvel onglet)
+            </Link>
             <form action={fusionnerDoublonAction}>
               <input type="hidden" name="etudiantId" value={etudiant.id} />
               <Button type="submit" variant="secondary" size="sm">
@@ -497,6 +541,23 @@ export default async function EtudiantDetailPage({
             </div>
           </fieldset>
 
+          <fieldset className={FIELDSET_CLASSES}>
+            <legend className={LEGEND_CLASSES}>Formation Jeunes (optionnel)</legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ChampSelect label="Sexe" name="sexe" defaultValue={etudiant.sexe ?? ""}>
+                <option value="">—</option>
+                <option value="F">F</option>
+                <option value="M">M</option>
+              </ChampSelect>
+              <Champ
+                label="Niveau scolaire"
+                name="niveauScolaire"
+                defaultValue={etudiant.niveauScolaire ?? ""}
+                placeholder="ex. CM2"
+              />
+            </div>
+          </fieldset>
+
           <div className="flex justify-end">
             <Button type="submit" variant="primary">
               Enregistrer les informations personnelles
@@ -581,13 +642,29 @@ export default async function EtudiantDetailPage({
                         pattern={PATTERN_TELEPHONE}
                         title="Numéro français, ex. 06 12 34 56 78"
                       />
+                      <Champ
+                        label="Téléphone professionnel"
+                        name="telephoneProfessionnel"
+                        defaultValue={r.telephoneProfessionnel ?? ""}
+                        inputMode="tel"
+                      />
                       <Champ label="Email" name="email" type="email" defaultValue={r.email ?? ""} />
+                      <Champ label="Profession" name="profession" defaultValue={r.profession ?? ""} />
                       <Champ
                         label="Adresse"
                         name="adresse"
                         defaultValue={r.adresse ?? ""}
                         className="sm:col-span-2"
                       />
+                      <Champ
+                        label="Code postal"
+                        name="codePostal"
+                        defaultValue={r.codePostal ?? ""}
+                        inputMode="numeric"
+                        pattern={PATTERN_CODE_POSTAL}
+                        maxLength={5}
+                      />
+                      <Champ label="Ville" name="ville" defaultValue={r.ville ?? ""} />
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button type="submit" variant="secondary" size="sm">
@@ -646,8 +723,18 @@ export default async function EtudiantDetailPage({
                 pattern={PATTERN_TELEPHONE}
                 title="Numéro français, ex. 06 12 34 56 78"
               />
+              <Champ label="Téléphone professionnel" name="telephoneProfessionnel" inputMode="tel" />
               <Champ label="Email" name="email" type="email" />
+              <Champ label="Profession" name="profession" />
               <Champ label="Adresse" name="adresse" className="sm:col-span-2" />
+              <Champ
+                label="Code postal"
+                name="codePostal"
+                inputMode="numeric"
+                pattern={PATTERN_CODE_POSTAL}
+                maxLength={5}
+              />
+              <Champ label="Ville" name="ville" />
               <div className="flex justify-end sm:col-span-2">
                 <Button type="submit" variant="secondary" size="sm">
                   Ajouter
@@ -815,7 +902,7 @@ export default async function EtudiantDetailPage({
         ) : (
           <ul className="mt-4 divide-y divide-border">
             {etudiant.dossiersAnnuels.map((d) => {
-              const { du, reste, statut } = statutCotisation(d);
+              const { du, encaisse, reste, statut } = statutCotisation(d);
               const statutVariant = STATUT_COTISATION_VARIANTS[statut];
               return (
                 <li key={d.id} className="flex items-center justify-between py-2.5">
@@ -827,6 +914,7 @@ export default async function EtudiantDetailPage({
                   </Link>
                   <div className="flex items-center gap-3 text-sm text-ink-muted">
                     <span>Dû {formaterMontant(du)}</span>
+                    <span>Encaissé {formaterMontant(encaisse)}</span>
                     <span>Reste {formaterMontant(reste)}</span>
                     <Badge variant={statutVariant}>{statut}</Badge>
                     {peutGenererPdf && (
@@ -862,12 +950,38 @@ export default async function EtudiantDetailPage({
       <section id="zone-documents" className={ZONE_CLASSES}>
       <p className={ZONE_TITLE_CLASSES}>Documents</p>
         <Card>
-          <CardTitle>Dossier officiel</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Dossier</CardTitle>
+            <Badge variant={dossierComplet ? "success" : "danger"}>
+              {dossierComplet ? "Complet" : "Incomplet"}
+            </Badge>
+          </div>
+          <p className="mb-1 mt-1 text-xs text-ink-faint">
+            Pièces administratives à fournir par la famille — distinct de la
+            situation financière ci-dessus.
+          </p>
+          <dl className="mt-3 divide-y divide-border">
+            {TYPES_DOCUMENTS_REQUIS.map((type) => (
+              <div key={type} className="flex items-center justify-between py-1.5 text-sm">
+                <dt className="text-ink">{TYPE_DOCUMENT_LABELS[type]}</dt>
+                <dd>
+                  <Badge variant={STATUT_DOCUMENT_VARIANTS[statutDossier[type]]}>
+                    {STATUT_DOCUMENT_LABELS[statutDossier[type]]}
+                  </Badge>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Card>
+
+        <Card>
+          <CardTitle>Dossier d&apos;inscription</CardTitle>
           <p className="mb-3 mt-1 text-xs text-ink-faint">
-            Génère le dossier Word pré-rempli (gabarit officiel de
-            l&apos;association) : à ouvrir dans Word ou LibreOffice pour
-            l&apos;imprimer et le faire signer. Le fichier est conservé et
-            réapparaît dans les documents ci-dessous.
+            Génère le dossier d&apos;inscription en PDF (modèle Adultes ou
+            Jeunes selon la section, mise en page identique à
+            l&apos;impression) à partir des informations de l&apos;étudiant.
+            Le fichier est conservé et réapparaît dans les documents
+            ci-dessous.
           </p>
           {sections.length === 0 ? (
             <EmptyState message="Aucune section enregistrée." />
@@ -885,7 +999,16 @@ export default async function EtudiantDetailPage({
                 formTarget="_blank"
                 className={buttonVariants({ variant: "secondary", size: "sm" })}
               >
-                Générer (Word)
+                Voir / imprimer
+              </button>
+              <button
+                type="submit"
+                formTarget="_blank"
+                name="dl"
+                value="1"
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                Télécharger le PDF
               </button>
             </form>
           )}
@@ -920,18 +1043,15 @@ export default async function EtudiantDetailPage({
             className="flex flex-wrap items-end gap-2 border-t border-border pt-4"
           >
             <input type="hidden" name="etudiantId" value={etudiant.id} />
-            <ChampSelect label="Type" name="type" required defaultValue="">
-              <option value="" disabled>
-                Choisir…
-              </option>
-              {Object.values(TypeDocument)
+            <ChampsTeleversementDocument
+              typesDocument={Object.values(TypeDocument)
                 .filter((t) => t !== "DOSSIER_GENERE")
-                .map((t) => (
-                  <option key={t} value={t}>
-                    {TYPE_DOCUMENT_LABELS[t]}
-                  </option>
-                ))}
-            </ChampSelect>
+                .map((t) => ({ value: t, label: TYPE_DOCUMENT_LABELS[t] }))}
+              typesPieceIdentite={Object.entries(TYPE_PIECE_IDENTITE_LABELS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+            />
             <div>
               <label className="mb-1 block text-sm font-medium text-ink">Fichier</label>
               <input

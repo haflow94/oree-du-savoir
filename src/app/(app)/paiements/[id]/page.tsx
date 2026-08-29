@@ -71,7 +71,9 @@ export default async function DossierPaiementPage({
       anneeScolaire: true,
       echeances: {
         orderBy: { dateEcheance: "asc" },
-        include: { paiements: { include: { cheque: true, prelevement: true } } },
+        include: {
+          paiements: { include: { cheque: { include: { documents: true } }, prelevement: true } },
+        },
       },
     },
   });
@@ -317,6 +319,31 @@ export default async function DossierPaiementPage({
                           </details>
                         )}
                       </div>
+                      {p.cheque && (
+                        <p className="mt-1 text-xs text-ink-faint">
+                          {p.cheque.numero && `N° ${p.cheque.numero}`}
+                          {p.cheque.numero && p.cheque.banque && " · "}
+                          {p.cheque.banque}
+                          {(p.cheque.numero || p.cheque.banque) &&
+                            (p.cheque.titulaireNom || p.cheque.titulairePrenom) &&
+                            " · "}
+                          {(p.cheque.titulaireNom || p.cheque.titulairePrenom) &&
+                            `Titulaire : ${p.cheque.titulairePrenom ?? ""} ${p.cheque.titulaireNom ?? ""}`.trim()}
+                          {!p.cheque.titulaireEstEtudiant && p.cheque.documents.length > 0 && (
+                            <>
+                              {" · "}
+                              <a
+                                href={`/etudiants/${dossier.etudiantId}/documents/${p.cheque.documents[0].id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="font-medium text-pine hover:underline"
+                              >
+                                Voir la pièce d&apos;identité du titulaire
+                              </a>
+                            </>
+                          )}
+                        </p>
+                      )}
                       {p.cheque && peutGererCheque && (
                         <form action={mettreAJourChequeAction} className="mt-2 flex flex-wrap items-center gap-2">
                           <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
@@ -396,7 +423,10 @@ export default async function DossierPaiementPage({
                         className={`w-28 ${CONTROL_SM_CLASSES}`}
                       />
                     </div>
-                    <ChampsMoyenPaiement />
+                    <ChampsMoyenPaiement
+                      etudiantNom={dossier.etudiant.nom}
+                      etudiantPrenom={dossier.etudiant.prenom}
+                    />
                     <Button type="submit" variant="primary" size="sm">
                       Enregistrer le paiement
                     </Button>

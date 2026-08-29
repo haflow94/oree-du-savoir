@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   rechercherDoublonsAction,
+  rechercherEtudiantsAction,
   creerEtudiantAction,
   type Doublon,
 } from "./actions";
@@ -50,6 +51,73 @@ function BlocResponsable({ index }: { index: 1 | 2 }) {
   );
 }
 
+// Recherche proactive d'une fiche existante, avant même de commencer à
+// remplir le formulaire de création : un ancien étudiant qui se réinscrit
+// doit rouvrir sa fiche (historique, documents déjà fournis conservés),
+// jamais en recréer une nouvelle. Débounce simple (300ms) plutôt qu'une lib
+// dédiée, cohérent avec le reste de l'appli (pas de lib de formulaire
+// partagée, voir CLAUDE.md).
+function RechercheEtudiantExistant() {
+  const [recherche, setRecherche] = useState("");
+  const [resultats, setResultats] = useState<Doublon[]>([]);
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    const nettoyee = recherche.trim();
+    const delai = setTimeout(() => {
+      if (nettoyee.length < 2) {
+        setResultats([]);
+        return;
+      }
+      startTransition(async () => {
+        setResultats(await rechercherEtudiantsAction(nettoyee));
+      });
+    }, 300);
+    return () => clearTimeout(delai);
+  }, [recherche]);
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-elevated p-5 shadow-card">
+      <label className="mb-1 block text-sm font-semibold text-ink" htmlFor="recherche-etudiant-existant">
+        Vérifier d&apos;abord si l&apos;étudiant a déjà une fiche
+      </label>
+      <input
+        id="recherche-etudiant-existant"
+        type="search"
+        value={recherche}
+        onChange={(e) => setRecherche(e.target.value)}
+        placeholder="Nom ou prénom…"
+        className="w-full rounded-md border border-border-strong bg-bg px-3 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
+      />
+      <p className="mt-1 text-xs text-ink-faint">
+        Un ancien étudiant qui se réinscrit doit rouvrir sa fiche existante
+        (historique et documents déjà fournis conservés), pas en créer une
+        nouvelle.
+      </p>
+      {pending && <p className="mt-2 text-xs text-ink-faint">Recherche…</p>}
+      {resultats.length > 0 && (
+        <ul className="mt-3 space-y-1 rounded-lg border border-border bg-bg-sunken/40 p-2">
+          {resultats.map((d) => (
+            <li key={d.id}>
+              <Link
+                href={`/etudiants/${d.id}`}
+                className="flex items-center justify-between rounded px-2 py-1 text-sm text-pine hover:bg-bg-elevated hover:underline"
+              >
+                <span>{d.prenom} {d.nom}</span>
+                {d.dateNaissance && (
+                  <span className="text-xs text-ink-faint">
+                    né(e) le {new Date(d.dateNaissance).toLocaleDateString("fr-FR")}
+                  </span>
+                )}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function EtudiantForm() {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -84,14 +152,16 @@ export function EtudiantForm() {
   }
 
   return (
-    <form
-      ref={formRef}
-      onSubmit={(e) => {
-        e.preventDefault();
-        soumettre(e.currentTarget, false);
-      }}
-      className="space-y-6"
-    >
+    <div className="space-y-6">
+      <RechercheEtudiantExistant />
+      <form
+        ref={formRef}
+        onSubmit={(e) => {
+          e.preventDefault();
+          soumettre(e.currentTarget, false);
+        }}
+        className="space-y-6"
+      >
       {error && <Alert variant="danger">{error}</Alert>}
 
       {doublons && doublons.length > 0 && (
@@ -207,6 +277,7 @@ export function EtudiantForm() {
           {pending ? "Enregistrement…" : "Créer la fiche"}
         </Button>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }

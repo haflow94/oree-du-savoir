@@ -45,6 +45,7 @@ export default async function PresencesPage({
       classe: {
         include: {
           cours: true,
+          salle: true,
           _count: { select: { inscriptions: true } },
         },
       },
@@ -111,7 +112,7 @@ export default async function PresencesPage({
                 <div className="text-sm text-ink-muted">
                   {JOUR_LABELS[s.classe.jour]} {s.classe.heureDebut}–
                   {s.classe.heureFin}
-                  {s.classe.salle && ` · ${s.classe.salle}`}
+                  {s.classe.salle && ` · ${s.classe.salle.nom}`}
                   {` · ${s.classe._count.inscriptions} inscrit(s)`}
                 </div>
                 {s.statut === "ANNULEE" && s.motifAnnulation && (

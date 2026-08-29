@@ -15,6 +15,7 @@ export const SECTIONS_REFERENCE = [
     volumeHoraireAnnuel: 93,
     remboursementAvant15Jours: 75,
     remboursementAvant29Jours: 50,
+    modeleDossier: "JEUNES",
   },
   {
     nom: "Langue Arabe",
@@ -23,6 +24,7 @@ export const SECTIONS_REFERENCE = [
     volumeHoraireAnnuel: 120,
     remboursementAvant15Jours: 50,
     remboursementAvant29Jours: 25,
+    modeleDossier: "ADULTES",
   },
   {
     nom: "Études Coraniques",
@@ -31,6 +33,7 @@ export const SECTIONS_REFERENCE = [
     volumeHoraireAnnuel: 120,
     remboursementAvant15Jours: 50,
     remboursementAvant29Jours: 25,
+    modeleDossier: "ADULTES",
   },
   {
     nom: "Études Islamiques",
@@ -39,5 +42,32 @@ export const SECTIONS_REFERENCE = [
     volumeHoraireAnnuel: 120,
     remboursementAvant15Jours: 50,
     remboursementAvant29Jours: 25,
+    modeleDossier: "ADULTES",
   },
 ] as const;
+
+// Catalogue des créneaux affichés sur le dossier d'inscription de chaque
+// section (voir modèle CreneauSection et SPEC-dossiers.md §1 — reprend les
+// horaires et restrictions des 4 dossiers Word d'origine). Donnée de
+// catalogue, distincte du planning réel (Classe.jour/heureDebut/heureFin).
+export const CRENEAUX_REFERENCE: Record<
+  string,
+  { code: string; jour: string; horaire: string; restriction?: string; ordre: number }[]
+> = {
+  Jeunes: [{ code: "D", jour: "Dimanche", horaire: "13h30 – 16h30", ordre: 0 }],
+  "Langue Arabe": [
+    { code: "CS", jour: "mardi et jeudi", horaire: "19h00 – 21h00", restriction: "Seulement Niveau 1", ordre: 0 },
+    { code: "S", jour: "Samedi", horaire: "09h00 – 13h00", ordre: 1 },
+    { code: "D", jour: "Dimanche", horaire: "14h00 – 18h00", ordre: 2 },
+  ],
+  "Études Coraniques": [
+    { code: "CS", jour: "mardi et jeudi", horaire: "19h00 – 21h00", ordre: 0 },
+    { code: "S", jour: "Samedi", horaire: "09h00 – 13h00", ordre: 1 },
+    { code: "D", jour: "Dimanche", horaire: "09h00 – 13h00", ordre: 2 },
+  ],
+  "Études Islamiques": [
+    { code: "CS", jour: "mardi et jeudi", horaire: "19h00 – 21h00", restriction: "Seulement 1ʳᵉ année", ordre: 0 },
+    { code: "S", jour: "Samedi", horaire: "09h00 – 13h00", ordre: 1 },
+    { code: "D", jour: "Dimanche", horaire: "09h00 – 13h00", ordre: 2 },
+  ],
+};

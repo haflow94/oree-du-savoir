@@ -21,7 +21,7 @@ export default async function NouvelleClassePage({
   const { error, depuis } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
-  const [cours, annees, enseignants, source, sallesDistinctes] = await Promise.all([
+  const [cours, annees, enseignants, source, salles] = await Promise.all([
     prisma.cours.findMany({ orderBy: { nom: "asc" } }),
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
     enseignantsActifsAvecSections(),
@@ -31,16 +31,7 @@ export default async function NouvelleClassePage({
           include: { cours: true },
         })
       : Promise.resolve(null),
-    // Salles déjà utilisées, proposées via un <datalist> dans le formulaire :
-    // pas de référentiel Salle séparé, mais un typo casse le rapprochement du
-    // QR de salle (voir src/lib/qr.ts) — réduit ce risque sans bloquer la
-    // saisie d'une salle réellement nouvelle.
-    prisma.classe.findMany({
-      where: { salle: { not: null } },
-      distinct: ["salle"],
-      select: { salle: true },
-      orderBy: { salle: "asc" },
-    }),
+    prisma.salle.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
   ]);
 
   const anneeParDefaut = source?.anneeScolaireId ?? annees.find((a) => a.active)?.id ?? annees[0]?.id;
@@ -73,7 +64,7 @@ export default async function NouvelleClassePage({
           enseignants={enseignants}
           source={source}
           anneeParDefaut={anneeParDefaut}
-          salles={sallesDistinctes.flatMap((s) => (s.salle ? [s.salle] : []))}
+          salles={salles}
         />
       )}
     </div>

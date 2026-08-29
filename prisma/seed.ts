@@ -6,11 +6,13 @@
 // Charge .env pour l'exécution locale (`npm run db:seed`) ; en conteneur les
 // variables sont déjà dans l'environnement et dotenv ne les écrase pas.
 import "dotenv/config";
+import path from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { Role, Module, NiveauAcces } from "../src/generated/prisma/enums";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword } from "../src/lib/password";
-import { SECTIONS_REFERENCE } from "./sections-reference";
+import { SECTIONS_REFERENCE, CRENEAUX_REFERENCE } from "./sections-reference";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -140,10 +142,68 @@ async function seedPermissions() {
   console.log(`[seed] ${creees} permission(s) créée(s) (${MATRICE_INITIALE.length} au total).`);
 }
 
+// Catalogue des créneaux affichés sur le dossier d'inscription (voir
+// CreneauSection) : n'ajoute que pour les sections qui n'en ont encore
+// aucun, pour ne jamais écraser un ajustement fait depuis Administration →
+// Sections.
+async function seedCreneaux() {
+  let creees = 0;
+  for (const [nomSection, creneaux] of Object.entries(CRENEAUX_REFERENCE)) {
+    const section = await prisma.section.findUnique({ where: { nom: nomSection } });
+    if (!section) continue;
+    const count = await prisma.creneauSection.count({ where: { sectionId: section.id } });
+    if (count > 0) continue;
+    await prisma.creneauSection.createMany({
+      data: creneaux.map((c) => ({ ...c, sectionId: section.id })),
+    });
+    creees += creneaux.length;
+  }
+  console.log(`[seed] ${creees} créneau(x) de section créé(s).`);
+}
+
+// Identité de l'association (voir modèle Organisation) : une seule ligne,
+// jamais recréée ni écrasée une fois présente — les coordonnées réelles
+// (adresse, SIRET, NAF, téléphone, email) restent à saisir par le Bureau
+// depuis Administration → Organisation, faute de les connaître ici. Le logo
+// de démarrage reprend le fichier déjà utilisé par l'application
+// (public/logo-loree-du-savoir.png), copié dans DOCUMENTS_DIR pour rester
+// remplaçable sans toucher au code (voir SPEC-dossiers.md §2).
+async function seedOrganisation() {
+  const count = await prisma.organisation.count();
+  if (count > 0) {
+    console.log("[seed] Organisation déjà présente — inchangé.");
+    return;
+  }
+
+  const documentsDir = process.env.DOCUMENTS_DIR;
+  if (!documentsDir) {
+    throw new Error("DOCUMENTS_DIR n'est pas défini.");
+  }
+
+  const cheminRelatif = path.join("organisation", "logo.png");
+  const cheminAbsolu = path.join(path.resolve(documentsDir), cheminRelatif);
+  await mkdir(path.dirname(cheminAbsolu), { recursive: true });
+  const logoSource = await readFile(
+    path.join(process.cwd(), "public", "logo-loree-du-savoir.png"),
+  );
+  await writeFile(cheminAbsolu, logoSource);
+
+  await prisma.organisation.create({
+    data: {
+      nom: "L'Orée du Savoir",
+      ville: "Créteil",
+      logoCheminRelatif: cheminRelatif,
+    },
+  });
+  console.log("[seed] Organisation créée (identité à compléter depuis Administration → Organisation).");
+}
+
 async function main() {
   await seedAdmin();
   await seedAnneeScolaire();
   await seedSections();
+  await seedCreneaux();
+  await seedOrganisation();
   await seedPermissions();
 }
 

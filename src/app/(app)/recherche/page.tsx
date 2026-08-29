@@ -59,10 +59,10 @@ export default async function RecherchePage({
             OR: [
               { cours: { nom: { contains: recherche, mode: "insensitive" } } },
               { niveau: { contains: recherche, mode: "insensitive" } },
-              { salle: { contains: recherche, mode: "insensitive" } },
+              { salle: { nom: { contains: recherche, mode: "insensitive" } } },
             ],
           },
-          include: { cours: true, anneeScolaire: true },
+          include: { cours: true, anneeScolaire: true, salle: true },
           orderBy: { jour: "asc" },
           take: 20,
         })
@@ -128,7 +128,7 @@ export default async function RecherchePage({
                 </Link>
                 <span className="ml-2 text-xs text-ink-muted">
                   {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
-                  {c.salle && ` · ${c.salle}`} · {c.anneeScolaire.libelle}
+                  {c.salle && ` · ${c.salle.nom}`} · {c.anneeScolaire.libelle}
                 </span>
               </li>
             ))}

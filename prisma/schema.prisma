@@ -14,6 +14,10 @@
 // fichiers sous DOCUMENTS_DIR), génération du dossier officiel en PDF.
 // Réinscription multi-années : réutilise DossierAnnuel (une ligne par
 // étudiant × année, déjà unique) sans modèle dédié.
+// Phase 7 : Organisation (identité de l'association, sortie du code en dur)
+// et modèles maîtres de dossier d'inscription (2 gabarits HTML/PDF —
+// ADULTES/JEUNES — pilotés par Organisation + Section + CreneauSection +
+// Etudiant, remplaçant les 4 gabarits .docx historiques par section).
 
 generator client {
   provider = "prisma-client"
@@ -80,6 +84,40 @@ model PermissionRole {
   @@map("permissions_role")
 }
 
+// Identité de l'association, jusqu'ici éparpillée en constantes codées en
+// dur (ex. NOM_ASSOCIATION dans lib/pdf-documents.tsx, logo statique sous
+// public/) : nom, coordonnées et logo utilisés par les dossiers
+// d'inscription générés (voir src/lib/dossier/) et, à terme, par les autres
+// documents émis par l'application. Une seule ligne existe aujourd'hui
+// (l'association) — lue via `findFirst()` (voir src/lib/organisation.ts) —
+// et aucune autre table ne porte de organisationId : l'app reste mono-
+// organisation pour l'instant, cette table ne fait que sortir l'identité du
+// code en dur, sans introduire de vrai multi-tenant (voir CLAUDE.md /
+// analyse de conversation pour le détail des tables qui devraient recevoir
+// un organisationId le jour où une deuxième organisation est nécessaire).
+model Organisation {
+  id                String   @id @default(cuid())
+  nom               String
+  // Sous-titre affiché sous le nom sur la page 1 du dossier (ex. "Institut
+  // des cultures et des savoirs · Créteil") — jamais en dur dans le
+  // template.
+  sousTitre         String?
+  adresse           String?
+  codePostal        String?
+  ville             String?
+  telephone         String?
+  email             String?
+  siret             String?
+  naf               String?
+  // Fichier stocké comme les autres documents (jamais en base — voir
+  // lib/documents.ts) ; remplacer le fichier suffit à changer de logo, sans
+  // toucher aux templates (voir SPEC-dossiers.md §2 "Logo — interchangeable").
+  logoCheminRelatif String?
+  misAJourLe        DateTime @updatedAt
+
+  @@map("organisation")
+}
+
 model Utilisateur {
   id             String    @id @default(cuid())
   email          String    @unique
@@ -91,19 +129,19 @@ model Utilisateur {
   creeLe         DateTime  @default(now())
   dernierLogin   DateTime?
 
-  sessions             Session[]
-  journalAudit         JournalAudit[]
-  classesEnseignees    ClasseEnseignant[]
-  seancesValidees      Seance[]
-  documentsAjoutes     Document[]
-  activitesCreees      Activite[]
-  activitesResponsable ActiviteResponsable[]
+  sessions                    Session[]
+  journalAudit                JournalAudit[]
+  classesEnseignees           ClasseEnseignant[]
+  seancesValidees             Seance[]
+  documentsAjoutes            Document[]
+  activitesCreees             Activite[]
+  activitesResponsable        ActiviteResponsable[]
   documentsAssociationAjoutes DocumentAssociation[]
   // Spécialités déclarées d'un enseignant (Section dans laquelle il peut
   // intervenir), affectées à la création/modification du compte — sert à
   // filtrer les enseignants proposés lors de la création d'une classe (voir
   // lib/enseignants.ts), indépendamment de tout historique d'affectation.
-  specialites          Section[]             @relation("EnseignantSpecialites")
+  specialites                 Section[]             @relation("EnseignantSpecialites")
 
   @@map("utilisateurs")
 }
@@ -237,6 +275,11 @@ enum Civilite {
   MME
 }
 
+enum Sexe {
+  F
+  M
+}
+
 // PREINSCRIT : créé via le formulaire public de préinscription, en attente
 // du contrôle sur place (signature, documents, paiement). VALIDE : dossier
 // confirmé par le staff, ou créé directement en interne (valeur par défaut).
@@ -253,25 +296,25 @@ enum StatutInscription {
 // signification doit être confirmée avec l'association avant intégration
 // (voir Projet/03_Analyse_existant_Excel.md, section 3.3). Ne pas deviner.
 model Etudiant {
-  id                 String            @id @default(cuid())
-  civilite           Civilite?
-  nom                String
-  prenom             String
-  dateNaissance      DateTime?
-  villeNaissance     String?
-  telephoneMobile    String?
-  telephoneFixe      String?
-  email              String?
-  adresse            String?
-  complementAdresse  String?
-  codePostal         String?
-  ville              String?
-  contactUrgence     String?
-  profession         String?
-  niveauEtudes       String?
-  dernierDiplome     String?
-  remarque           String?
-  statutInscription  StatutInscription @default(VALIDE)
+  id                             String            @id @default(cuid())
+  civilite                       Civilite?
+  nom                            String
+  prenom                         String
+  dateNaissance                  DateTime?
+  villeNaissance                 String?
+  telephoneMobile                String?
+  telephoneFixe                  String?
+  email                          String?
+  adresse                        String?
+  complementAdresse              String?
+  codePostal                     String?
+  ville                          String?
+  contactUrgence                 String?
+  profession                     String?
+  niveauEtudes                   String?
+  dernierDiplome                 String?
+  remarque                       String?
+  statutInscription              StatutInscription @default(VALIDE)
   // Marqueur d'idempotence pour l'automatisation n8n (hors app, voir
   // CLAUDE.md section n8n) qui envoie l'email de bienvenue + dossier rempli
   // quand statutInscription bascule PREINSCRIT → VALIDE : le workflow filtre
@@ -284,14 +327,19 @@ model Etudiant {
   // preinscription/actions.ts) : reste affichée comme « à assigner » sur la
   // fiche jusqu'à ce que le staff inscrive effectivement l'étudiant à une
   // classe (voir inscrireEtudiantAction, qui l'efface alors).
-  sectionSouhaiteeId String?
-  sectionSouhaitee   Section?          @relation(fields: [sectionSouhaiteeId], references: [id], onDelete: SetNull)
+  sectionSouhaiteeId             String?
+  sectionSouhaitee               Section?          @relation(fields: [sectionSouhaiteeId], references: [id], onDelete: SetNull)
   // Renseigné quand le Bureau anonymise manuellement un dossier inactif
   // depuis longtemps (RGPD — voir src/lib/rgpd.ts). Volontairement pas de
   // purge/tâche automatique : le CA n'a pas encore validé de politique de
   // rétention formelle, donc l'anonymisation reste un geste manuel par
   // dossier, déclenché depuis Administration > RGPD.
-  anonymiseLe        DateTime?
+  anonymiseLe                    DateTime?
+  // Utilisés uniquement par le dossier d'inscription du modèle Jeunes (voir
+  // Section.modeleDossier) : sexe de l'élève et niveau scolaire suivi hors
+  // association. Laissés vides pour un étudiant du modèle Adultes.
+  sexe                           Sexe?
+  niveauScolaire                 String?
   // Doublon potentiel détecté automatiquement à la préinscription publique
   // (clé nom + prénom + date de naissance, ou nom + prénom + téléphone/email
   // d'un responsable — voir preinscription/actions.ts#trouverDoublonEtudiant)
@@ -300,17 +348,18 @@ model Etudiant {
   // etudiants/[id]/actions.ts#fusionnerDoublonAction) ou confirmation qu'il
   // s'agit d'un homonyme distinct (#confirmerHomonymeAction), qui efface
   // simplement ce champ.
-  doublonPotentielId String?
-  doublonPotentiel   Etudiant?         @relation("DoublonPotentiel", fields: [doublonPotentielId], references: [id], onDelete: SetNull)
-  doublonsDetectes   Etudiant[]        @relation("DoublonPotentiel")
-  creeLe             DateTime          @default(now())
-  misAJourLe         DateTime          @updatedAt
+  doublonPotentielId             String?
+  doublonPotentiel               Etudiant?         @relation("DoublonPotentiel", fields: [doublonPotentielId], references: [id], onDelete: SetNull)
+  doublonsDetectes               Etudiant[]        @relation("DoublonPotentiel")
+  creeLe                         DateTime          @default(now())
+  misAJourLe                     DateTime          @updatedAt
 
   responsables    ResponsableLegal[]
   dossiersAnnuels DossierAnnuel[]
   inscriptions    InscriptionClasse[]
   presences       Presence[]
   documents       Document[]
+  cohortes        CohorteEtudiant[]
 
   @@index([nom, prenom])
   @@index([doublonPotentielId])
@@ -321,17 +370,23 @@ model Etudiant {
 // responsable entre plusieurs étudiants (fratrie) n'est pas géré en Phase 1,
 // faute de besoin confirmé — à revisiter si nécessaire.
 model ResponsableLegal {
-  id         String    @id @default(cuid())
-  etudiantId String
-  etudiant   Etudiant  @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
-  civilite   Civilite?
-  nom        String
-  prenom     String
-  lien       String // ex. "Père", "Mère", "Tuteur"
-  telephone  String?
-  email      String?
-  adresse    String?
-  creeLe     DateTime  @default(now())
+  id                     String    @id @default(cuid())
+  etudiantId             String
+  etudiant               Etudiant  @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  civilite               Civilite?
+  nom                    String
+  prenom                 String
+  lien                   String // ex. "Père", "Mère", "Tuteur" — sert aussi à dériver la
+  // case cochée (Père/Mère/Autre) et rl_relation_autre du dossier Jeunes,
+  // sans champ dédié (voir src/lib/dossier/context.ts).
+  telephone              String?
+  telephoneProfessionnel String?
+  email                  String?
+  adresse                String?
+  codePostal             String?
+  ville                  String?
+  profession             String?
+  creeLe                 DateTime  @default(now())
 
   @@index([etudiantId])
   @@map("responsables_legaux")
@@ -347,23 +402,47 @@ enum TypeDocument {
   AUTRE
 }
 
+// Pièces d'identité acceptées — liste fixe, cohérente avec les autres enums
+// de référence de l'appli plutôt qu'un texte libre.
+enum TypePieceIdentite {
+  CARTE_IDENTITE
+  PASSEPORT
+  TITRE_SEJOUR
+  PERMIS_CONDUIRE
+  AUTRE
+}
+
 // Fichiers stockés séparément de la base (DOCUMENTS_DIR, jamais en base —
 // règle non négociable). Cette table ne porte que les métadonnées et le
 // chemin relatif ; le fichier réel vit sur le disque/NAS.
 model Document {
-  id            String       @id @default(cuid())
-  etudiantId    String
-  etudiant      Etudiant     @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
-  type          TypeDocument
-  nomFichier    String
-  cheminRelatif String // relatif à DOCUMENTS_DIR
-  mimeType      String
-  tailleOctets  Int
-  creeLe        DateTime     @default(now())
-  creeParId     String?
-  creePar       Utilisateur? @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+  id                String             @id @default(cuid())
+  etudiantId        String
+  etudiant          Etudiant           @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  type              TypeDocument
+  // Renseignés uniquement quand type = PIECE_IDENTITE : nature de la pièce et
+  // date d'expiration, pour savoir si elle reste valide sans redemander à la
+  // famille (voir lib/documents.ts#statutDocumentsRequis et la fusion de
+  // doublons dans etudiants/[id]/actions.ts).
+  typePieceIdentite TypePieceIdentite?
+  dateExpiration    DateTime?          @db.Date
+  nomFichier        String
+  cheminRelatif     String // relatif à DOCUMENTS_DIR
+  mimeType          String
+  tailleOctets      Int
+  creeLe            DateTime           @default(now())
+  creeParId         String?
+  creePar           Utilisateur?       @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+  // Non nul uniquement pour la pièce d'identité du TITULAIRE d'un chèque
+  // quand celui-ci n'est pas l'étudiant (voir Cheque.titulaireEstEtudiant) :
+  // même modèle Document/DOCUMENTS_DIR réutilisé plutôt qu'un système à
+  // part, distingué par ce champ pour ne pas fausser le dossier documentaire
+  // de l'étudiant (toujours filtré à chequeId = null pour ce calcul).
+  chequeId          String?
+  cheque            Cheque?            @relation(fields: [chequeId], references: [id], onDelete: Cascade)
 
   @@index([etudiantId])
+  @@index([chequeId])
   @@map("documents")
 }
 
@@ -379,21 +458,61 @@ model Document {
 // - entre le 1er et le 15e jour après le début : remboursementAvant15Jours ;
 // - entre le 15e et le 29e jour après le début : remboursementAvant29Jours ;
 // - après le 29e jour : 0% (implicite).
+// Modèle maître de dossier d'inscription utilisé par la section (voir
+// src/lib/dossier/templates/) : ADULTES pour Études Coraniques/Islamiques/
+// Langue Arabe et toute future formation adulte, JEUNES pour la Formation
+// Jeunes et ses futurs équivalents. Un seul gabarit par modèle, jamais
+// dupliqué par section (voir CLAUDE.md et Projet/Dossiers-inscriptions).
+enum ModeleDossier {
+  ADULTES
+  JEUNES
+}
+
 model Section {
-  id                        String   @id @default(cuid())
-  nom                       String   @unique
-  fraisFormation            Decimal  @db.Decimal(10, 2)
-  fraisDossier              Decimal  @db.Decimal(10, 2)
+  id                        String        @id @default(cuid())
+  nom                       String        @unique
+  fraisFormation            Decimal       @db.Decimal(10, 2)
+  fraisDossier              Decimal       @db.Decimal(10, 2)
   volumeHoraireAnnuel       Int? // heures indicatives par an, ex. 120
   remboursementAvant15Jours Int // % des frais de formation remboursé
   remboursementAvant29Jours Int // % des frais de formation remboursé
-  creeLe                    DateTime @default(now())
+  modeleDossier             ModeleDossier @default(ADULTES)
+  // Dispositions propres à la section affichées dans le règlement du
+  // dossier généré (bloc "Dispositions propres à la section", visible
+  // seulement si non vide) — donnée éditable par l'association, jamais une
+  // règle écrite en dur dans le template (voir CLAUDE.md, règles non
+  // négociables).
+  reglesSpecifiques         String[]      @default([])
+  creeLe                    DateTime      @default(now())
 
   cours                   Cours[]
   souhaitsPreinscription  Etudiant[]
-  enseignantsSpecialistes Utilisateur[] @relation("EnseignantSpecialites")
+  enseignantsSpecialistes Utilisateur[]    @relation("EnseignantSpecialites")
+  creneaux                CreneauSection[]
 
   @@map("sections")
+}
+
+// Catalogue des créneaux proposés à l'inscription pour une section (ex. "CS"
+// cours du soir, "S" samedi, "D" dimanche pour les Adultes ; un seul créneau
+// pour Jeunes) — reproduit les "cartes de créneau" du dossier papier/PDF.
+// Distinct du créneau réel d'une Classe (Classe.jour/heureDebut/heureFin) :
+// celui-ci est une donnée de catalogue affichée sur le dossier, pas un
+// planning. La carte correspondant à la Classe réellement suivie par
+// l'étudiant est cochée au mieux à la génération (voir
+// src/lib/dossier/context.ts), sans garantie de correspondance stricte.
+model CreneauSection {
+  id          String  @id @default(cuid())
+  sectionId   String
+  section     Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  code        String // "CS", "S", "D"...
+  jour        String // "Dimanche", "mardi et jeudi"...
+  horaire     String // "09h00 – 13h00"
+  restriction String? // ex. "Seulement 1ʳᵉ année"
+  ordre       Int     @default(0)
+
+  @@index([sectionId])
+  @@map("creneaux_section")
 }
 
 // Un cours peut être enseigné par plusieurs classes/groupes (ex. plusieurs
@@ -423,13 +542,36 @@ enum JourSemaine {
   DIMANCHE
 }
 
+// Salle physique où se déroulent les cours — entité propre plutôt qu'un
+// champ texte libre sur Classe, car elle porte désormais le QR permanent
+// affiché en salle (voir Classe.salle ci-dessous et /qr/[token]) : un texte
+// libre aurait cassé le rapprochement du QR au moindre typo/renommage entre
+// deux classes de la même salle réelle. Le QR est fixe pour la salle, ne
+// contient aucune donnée personnelle, et n'est qu'un raccourci d'accès :
+// jamais une authentification (règle non négociable).
+model Salle {
+  id      String   @id @default(cuid())
+  nom     String   @unique
+  qrToken String   @unique @default(cuid())
+  creeLe  DateTime @default(now())
+
+  classes Classe[]
+
+  @@map("salles")
+}
+
 // Groupe concret relié au planning (voir 03_Analyse_existant_Excel.md §3.5 :
 // ne jamais stocker la classe comme simple texte sur l'étudiant).
 //
 // Décisions MVP validées avec l'association :
 // - niveau = attribut texte simple sur la classe (pas de référentiel séparé) ;
 // - un seul créneau hebdomadaire par classe (jour + heure début/fin) ;
-// - plusieurs enseignants possibles par classe (table de liaison).
+// - plusieurs enseignants possibles par classe (table de liaison) ;
+// - une salle accueille plusieurs classes au fil d'une journée : le QR
+//   d'accès rapide est donc porté par la Salle (permanent, un seul code
+//   affiché quels que soient les cours qui s'y succèdent), pas par la
+//   Classe — voir /qr/[token] et src/lib/qr.ts pour la résolution de la
+//   séance du jour au moment du scan.
 model Classe {
   id              String        @id @default(cuid())
   coursId         String
@@ -441,20 +583,52 @@ model Classe {
   jour            JourSemaine
   heureDebut      String // "HH:MM"
   heureFin        String // "HH:MM"
-  salle           String?
-  // Jeton du QR affiché en salle : raccourci d'accès vers la séance du jour,
-  // jamais une authentification (règle non négociable). L'enseignant doit
-  // être connecté ; le QR ne fait que lui éviter de chercher sa séance.
-  qrToken         String        @unique @default(cuid())
+  salleId         String?
+  salle           Salle?        @relation(fields: [salleId], references: [id], onDelete: SetNull)
   creeLe          DateTime      @default(now())
 
   enseignants  ClasseEnseignant[]
   inscriptions InscriptionClasse[]
   seances      Seance[]
+  cohortes     Cohorte[]
 
   @@index([anneeScolaireId])
   @@index([coursId])
+  @@index([salleId])
   @@map("classes")
+}
+
+// Groupe nommé d'étudiants déjà rattaché à une classe (ex. "Groupe A" de
+// "Science niveau 2"), pour affecter plusieurs étudiants d'un coup à une
+// autre classe au lieu de les sélectionner un par un (voir
+// classes/[id]/actions.ts#affecterCohorteAction). Ne remplace ni Classe ni
+// Cours : une cohorte n'est qu'un raccourci de sélection, elle n'empêche pas
+// un étudiant d'être par ailleurs inscrit à d'autres classes (pas de lien
+// direct avec InscriptionClasse, juste une liste de membres).
+model Cohorte {
+  id       String   @id @default(cuid())
+  nom      String
+  classeId String
+  classe   Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  creeLe   DateTime @default(now())
+
+  membres CohorteEtudiant[]
+
+  @@unique([classeId, nom])
+  @@index([classeId])
+  @@map("cohortes")
+}
+
+model CohorteEtudiant {
+  cohorteId  String
+  cohorte    Cohorte  @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+  etudiantId String
+  etudiant   Etudiant @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  ajouteLe   DateTime @default(now())
+
+  @@id([cohorteId, etudiantId])
+  @@index([etudiantId])
+  @@map("cohorte_etudiants")
 }
 
 // « Participation à un cours » du modèle métier, en version minimale : le
@@ -569,6 +743,10 @@ model DossierAnnuel {
   // impayé) pour l'affichage, sans toucher aux échéances/paiements déjà
   // enregistrés (traçabilité conservée).
   rembourse       Boolean       @default(false)
+  // Renseigné à la main par l'administration pour le dossier Jeunes (case
+  // "Réservé à l'administration — Niveau d'admission"), sans équivalent côté
+  // Adultes. Reste vide tant que non saisi.
+  niveauAdmission String?
   creeLe          DateTime      @default(now())
 
   echeances Echeance[]
@@ -618,16 +796,24 @@ enum StatutCheque {
 // Détails spécifiques au chèque, en 1-1 avec le paiement (uniquement quand
 // Paiement.moyen = CHEQUE).
 model Cheque {
-  id               String       @id @default(cuid())
-  paiementId       String       @unique
-  paiement         Paiement     @relation(fields: [paiementId], references: [id], onDelete: Cascade)
-  banque           String?
-  numero           String?
-  titulaire        String?
-  statut           StatutCheque @default(RECU)
-  dateDepot        DateTime?
-  dateEncaissement DateTime?
-  motifRejet       String?
+  id                   String       @id @default(cuid())
+  paiementId           String       @unique
+  paiement             Paiement     @relation(fields: [paiementId], references: [id], onDelete: Cascade)
+  banque               String?
+  numero               String?
+  titulaireNom         String?
+  titulairePrenom      String?
+  // true = le titulaire est l'étudiant lui-même (cas par défaut) : dans ce
+  // cas on ne redemande pas une seconde pièce d'identité, celle du dossier
+  // étudiant suffit. false = tiers payeur (ex. grand-parent) : nom/prénom
+  // distincts + pièce d'identité dédiée (voir Document.chequeId).
+  titulaireEstEtudiant Boolean      @default(true)
+  statut               StatutCheque @default(RECU)
+  dateDepot            DateTime?
+  dateEncaissement     DateTime?
+  motifRejet           String?
+
+  documents Document[]
 
   @@map("cheques")
 }

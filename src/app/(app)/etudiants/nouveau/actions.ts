@@ -44,6 +44,37 @@ function responsableDepuisFormulaire(formData: FormData, index: 1 | 2) {
 // un aller-retour serveur indépendant, plutôt qu'un état de useActionState,
 // pour ne pas déclencher le reset automatique des champs non contrôlés que
 // React applique après l'exécution d'une action de formulaire.
+// Recherche proactive avant même de commencer à remplir le formulaire (voir
+// EtudiantForm) : nom OU prénom, correspondance partielle — contrairement à
+// rechercherDoublonsAction (nom ET prénom exacts, appelée juste avant la
+// création pour confirmer qu'il ne s'agit pas d'un doublon). Sert à retrouver
+// et rouvrir une fiche existante plutôt que d'en recréer une, pour un ancien
+// étudiant qui se réinscrit une nouvelle année.
+export async function rechercherEtudiantsAction(recherche: string): Promise<Doublon[]> {
+  await requireModule(Module.ETUDIANTS, "LECTURE");
+  const nettoyee = recherche.trim();
+  if (nettoyee.length < 2) return [];
+
+  const trouves = await prisma.etudiant.findMany({
+    where: {
+      OR: [
+        { nom: { contains: nettoyee, mode: "insensitive" } },
+        { prenom: { contains: nettoyee, mode: "insensitive" } },
+      ],
+    },
+    select: { id: true, nom: true, prenom: true, dateNaissance: true },
+    orderBy: [{ nom: "asc" }, { prenom: "asc" }],
+    take: 8,
+  });
+
+  return trouves.map((d) => ({
+    id: d.id,
+    nom: d.nom,
+    prenom: d.prenom,
+    dateNaissance: d.dateNaissance ? d.dateNaissance.toISOString() : null,
+  }));
+}
+
 export async function rechercherDoublonsAction(
   nom: string,
   prenom: string,

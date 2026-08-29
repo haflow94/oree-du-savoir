@@ -53,7 +53,7 @@ export default async function SeancePage({
           {JOUR_LABELS[seance.classe.jour]}{" "}
           {new Date(seance.date).toLocaleDateString("fr-FR")} ·{" "}
           {seance.classe.heureDebut}–{seance.classe.heureFin}
-          {seance.classe.salle && ` · ${seance.classe.salle}`}
+          {seance.classe.salle && ` · ${seance.classe.salle.nom}`}
         </p>
       </div>
 
