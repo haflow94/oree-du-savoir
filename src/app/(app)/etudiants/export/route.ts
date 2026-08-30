@@ -74,7 +74,10 @@ export async function GET(request: NextRequest) {
       responsables: true,
       inscriptions: anneeSelectionneeId
         ? inclureInscriptionsActives(anneeSelectionneeId)
-        : { where: { id: "" }, include: { classe: { include: { cours: { include: { section: true } } } } } },
+        : {
+            where: { id: "" },
+            include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+          },
       dossiersAnnuels: anneeSelectionneeId
         ? inclureDossierAnnuelActif(anneeSelectionneeId)
         : { where: { id: "" } },

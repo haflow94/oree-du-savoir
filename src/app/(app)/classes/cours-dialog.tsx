@@ -10,7 +10,7 @@ import { CONTROL_CLASSES, CONTROL_SM_CLASSES } from "@/components/ui/champ";
 
 const LABEL_SM_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
-type Cours = { id: string; nom: string; section: { id: string; nom: string }; _count: { classes: number } };
+type Cours = { id: string; nom: string; section: { id: string; nom: string }; _count: { cohortes: number } };
 type Section = { id: string; nom: string };
 
 // La liste des cours (avec édition/suppression pour les gestionnaires)
@@ -82,10 +82,10 @@ export function CoursDialog({
                     <input type="hidden" name="coursId" value={c.id} />
                     <button
                       type="submit"
-                      disabled={c._count.classes > 0}
+                      disabled={c._count.cohortes > 0}
                       title={
-                        c._count.classes > 0
-                          ? "Des classes sont rattachées à ce cours : impossible de le supprimer."
+                        c._count.cohortes > 0
+                          ? "Des cohortes sont rattachées à ce cours : impossible de le supprimer."
                           : undefined
                       }
                       className="text-xs font-medium text-rust hover:underline disabled:cursor-not-allowed disabled:text-ink-faint disabled:no-underline"

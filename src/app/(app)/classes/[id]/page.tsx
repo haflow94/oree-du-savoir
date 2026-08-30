@@ -5,7 +5,7 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { estAdministratif } from "@/lib/acces-presence";
-import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
+import { JOUR_LABELS } from "@/lib/planning";
 import { enseignantsActifsAvecSections } from "@/lib/enseignants";
 import { filtreParSection } from "@/lib/sections-etudiant";
 import {
@@ -16,10 +16,10 @@ import {
 import {
   modifierClasseAction,
   supprimerClasseAction,
-  creerCohorteAction,
-  supprimerCohorteAction,
-  modifierMembresCohorteAction,
-  affecterCohorteAction,
+  creerGroupeEtudiantsAction,
+  supprimerGroupeEtudiantsAction,
+  modifierMembresGroupeEtudiantsAction,
+  affecterGroupeEtudiantsAction,
 } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -34,18 +34,18 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 const LABEL_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const MESSAGES: Record<string, string> = {
-  CHAMPS_MANQUANTS: "Jour et horaires sont obligatoires.",
+  CHAMPS_MANQUANTS: "Cohorte et horaires sont obligatoires.",
   CLASSE_UTILISEE:
     "Impossible de supprimer : des séances ou des inscriptions existent déjà pour cette classe.",
   CLASSE_INTROUVABLE: "Cette classe n'existe plus.",
   INSCRIPTION_INVALIDE: "Sélectionnez un étudiant à inscrire.",
   CLASSE_DEJA_EXISTANTE:
-    "Une classe identique (même cours, niveau et session) existe déjà pour cette année scolaire.",
-  COHORTE_NOM_MANQUANT: "Donnez un nom à la cohorte.",
-  COHORTE_DEJA_EXISTANTE: "Une cohorte porte déjà ce nom pour cette classe.",
-  COHORTE_INTROUVABLE: "Cette cohorte n'existe plus.",
-  COHORTE_VIDE: "Ajoutez au moins un étudiant à la cohorte avant de l'affecter.",
-  CLASSE_CIBLE_INVALIDE: "Sélectionnez une classe à laquelle affecter la cohorte.",
+    "Une classe identique (même cohorte et session) existe déjà pour cette année scolaire.",
+  GROUPE_NOM_MANQUANT: "Donnez un nom au groupe.",
+  GROUPE_DEJA_EXISTANT: "Un groupe porte déjà ce nom pour cette classe.",
+  GROUPE_INTROUVABLE: "Ce groupe n'existe plus.",
+  GROUPE_VIDE: "Ajoutez au moins un étudiant au groupe avant de l'affecter.",
+  CLASSE_CIBLE_INVALIDE: "Sélectionnez une classe à laquelle affecter le groupe.",
 };
 
 export default async function ClasseDetailPage({
@@ -69,7 +69,7 @@ export default async function ClasseDetailPage({
   const classe = await prisma.classe.findUnique({
     where: { id },
     include: {
-      cours: true,
+      cohorte: { include: { cours: true } },
       anneeScolaire: true,
       salle: true,
       enseignants: { include: { utilisateur: true } },
@@ -90,14 +90,22 @@ export default async function ClasseDetailPage({
     select: { id: true, nom: true },
   });
 
+  const cohortesDisponibles = peutGerer
+    ? await prisma.cohorte.findMany({
+        include: { cours: true },
+        orderBy: [{ cours: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
+      })
+    : [];
+
   const administratif = estAdministratif(session.role);
   const peutInscrire = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
 
-  // Cohortes de cette classe : raccourci pour affecter plusieurs étudiants
-  // d'un coup à une autre classe (voir actions.ts#affecterCohorteAction),
-  // sans confondre avec les inscriptions individuelles ci-dessous.
-  const cohortes = peutInscrire
-    ? await prisma.cohorte.findMany({
+  // Groupes d'étudiants de cette classe : raccourci pour affecter plusieurs
+  // étudiants d'un coup à une autre classe (voir
+  // actions.ts#affecterGroupeEtudiantsAction), sans confondre avec les
+  // inscriptions individuelles ci-dessous.
+  const groupes = peutInscrire
+    ? await prisma.groupeEtudiants.findMany({
         where: { classeId: id },
         include: { membres: { include: { etudiant: true }, orderBy: { ajouteLe: "asc" } } },
         orderBy: { creeLe: "asc" },
@@ -109,11 +117,11 @@ export default async function ClasseDetailPage({
   // aucune restriction de section ici (contrairement à l'inscription
   // individuelle ci-dessous, filtrée par section pour rester lisible).
   const classesCibles =
-    peutInscrire && cohortes.length > 0
+    peutInscrire && groupes.length > 0
       ? await prisma.classe.findMany({
           where: { anneeScolaireId: classe.anneeScolaireId, id: { not: classe.id } },
-          include: { cours: true },
-          orderBy: [{ cours: { nom: "asc" } }, { niveau: "asc" }],
+          include: { cohorte: { include: { cours: true } } },
+          orderBy: [{ cohorte: { cours: { nom: "asc" } } }, { cohorte: { niveau: "asc" } }],
         })
       : [];
 
@@ -128,7 +136,7 @@ export default async function ClasseDetailPage({
         (e) =>
           enseignantsAssignes.has(e.id) ||
           e.sectionIds.length === 0 ||
-          e.sectionIds.includes(classe.cours.sectionId),
+          e.sectionIds.includes(classe.cohorte.cours.sectionId),
       )
     : [];
   const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
@@ -141,8 +149,8 @@ export default async function ClasseDetailPage({
   // confondues (voir filtreParSection dans lib/sections-etudiant.ts).
   const filtreSection = {
     OR: [
-      filtreParSection(classe.anneeScolaireId, classe.cours.sectionId),
-      { sectionSouhaiteeId: classe.cours.sectionId },
+      filtreParSection(classe.anneeScolaireId, classe.cohorte.cours.sectionId),
+      { sectionSouhaiteeId: classe.cohorte.cours.sectionId },
     ],
   };
   const etudiantsDisponibles = peutInscrire
@@ -190,11 +198,11 @@ export default async function ClasseDetailPage({
       <div>
         <BackLink href="/classes" label="Classes" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
-          {classe.cours.nom}
-          {classe.niveau && ` — ${classe.niveau}`}
+          {classe.cohorte.cours.nom}
+          {classe.cohorte.niveau && ` — ${classe.cohorte.niveau}`}
         </h1>
         <p className="text-sm text-ink-muted">
-          {JOUR_LABELS[classe.jour]} {classe.heureDebut}–{classe.heureFin}
+          {JOUR_LABELS[classe.cohorte.jour]} {classe.heureDebut}–{classe.heureFin}
           {classe.salle && ` · ${classe.salle.nom}`}
           {` · ${classe.anneeScolaire.libelle}`}
           {classe.semestre && ` · semestre ${classe.semestre}`}
@@ -240,7 +248,14 @@ export default async function ClasseDetailPage({
           <form action={modifierClasseAction} className="space-y-4">
             <input type="hidden" name="classeId" value={classe.id} />
             <div className="grid gap-4 sm:grid-cols-3">
-              <Champ label="Niveau" name="niveau" defaultValue={classe.niveau ?? ""} />
+              <ChampSelect label="Cohorte" name="cohorteId" required defaultValue={classe.cohorteId}>
+                {cohortesDisponibles.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.cours.nom}
+                    {c.niveau ? ` — ${c.niveau}` : ""} · {JOUR_LABELS[c.jour]}
+                  </option>
+                ))}
+              </ChampSelect>
               <ChampSelect label="Semestre (optionnel)" name="semestre" defaultValue={classe.semestre ?? ""}>
                 <option value="">Toute l&apos;année</option>
                 <option value="1">Semestre 1</option>
@@ -251,13 +266,6 @@ export default async function ClasseDetailPage({
                 {salles.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.nom}
-                  </option>
-                ))}
-              </ChampSelect>
-              <ChampSelect label="Jour" name="jour" required defaultValue={classe.jour}>
-                {JOURS_ORDONNES.map((j) => (
-                  <option key={j} value={j}>
-                    {JOUR_LABELS[j]}
                   </option>
                 ))}
               </ChampSelect>
@@ -439,7 +447,7 @@ export default async function ClasseDetailPage({
 
       {peutInscrire && (
         <Card>
-          <CardTitle>Cohortes</CardTitle>
+          <CardTitle>Groupes d&apos;étudiants</CardTitle>
           <p className="mt-1 text-xs text-ink-faint">
             Un groupe nommé d&apos;étudiants de cette classe, pour les affecter
             d&apos;un coup à un autre cours au lieu de les sélectionner un par
@@ -447,54 +455,54 @@ export default async function ClasseDetailPage({
             depuis la fiche de la classe cible.
           </p>
 
-          <form action={creerCohorteAction} className="mt-3 flex flex-wrap gap-2">
+          <form action={creerGroupeEtudiantsAction} className="mt-3 flex flex-wrap gap-2">
             <input type="hidden" name="classeId" value={classe.id} />
             <input
               type="text"
               name="nom"
-              placeholder="Nom de la cohorte (ex. Groupe A)"
+              placeholder="Nom du groupe (ex. Groupe A)"
               required
               className={`w-64 ${CONTROL_CLASSES}`}
             />
             <SubmitButton variant="secondary">
-              Créer la cohorte
+              Créer le groupe
             </SubmitButton>
           </form>
 
-          {cohortes.length === 0 ? (
+          {groupes.length === 0 ? (
             <div className="mt-3">
-              <EmptyState message="Aucune cohorte pour cette classe." />
+              <EmptyState message="Aucun groupe pour cette classe." />
             </div>
           ) : (
             <ul className="mt-4 space-y-4">
-              {cohortes.map((cohorte) => {
-                const membresIds = new Set(cohorte.membres.map((m) => m.etudiantId));
+              {groupes.map((groupe) => {
+                const membresIds = new Set(groupe.membres.map((m) => m.etudiantId));
                 return (
-                  <li key={cohorte.id} className="rounded-xl border border-border p-3">
+                  <li key={groupe.id} className="rounded-xl border border-border p-3">
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
-                        <span className="text-sm font-semibold text-ink">{cohorte.nom}</span>
+                        <span className="text-sm font-semibold text-ink">{groupe.nom}</span>
                         <span className="ml-2 text-xs text-ink-faint">
-                          {cohorte.membres.length} étudiant{cohorte.membres.length > 1 ? "s" : ""}
+                          {groupe.membres.length} étudiant{groupe.membres.length > 1 ? "s" : ""}
                         </span>
-                        {cohorte.membres.length > 0 && (
+                        {groupe.membres.length > 0 && (
                           <p className="mt-1 text-xs text-ink-muted">
-                            {cohorte.membres
+                            {groupe.membres
                               .map((m) => `${m.etudiant.prenom} ${m.etudiant.nom}`)
                               .join(", ")}
                           </p>
                         )}
                       </div>
                       <div>
-                        <form id={`supprimer-cohorte-${cohorte.id}`} action={supprimerCohorteAction}>
+                        <form id={`supprimer-groupe-${groupe.id}`} action={supprimerGroupeEtudiantsAction}>
                           <input type="hidden" name="classeId" value={classe.id} />
-                          <input type="hidden" name="cohorteId" value={cohorte.id} />
+                          <input type="hidden" name="groupeId" value={groupe.id} />
                         </form>
                         <ConfirmDialog
-                          formId={`supprimer-cohorte-${cohorte.id}`}
+                          formId={`supprimer-groupe-${groupe.id}`}
                           triggerLabel="Supprimer"
-                          title="Supprimer cette cohorte ?"
-                          description="Les étudiants déjà affectés via cette cohorte restent inscrits : seul le groupe est supprimé."
+                          title="Supprimer ce groupe ?"
+                          description="Les étudiants déjà affectés via ce groupe restent inscrits : seul le groupe est supprimé."
                           confirmLabel="Supprimer"
                         />
                       </div>
@@ -509,9 +517,9 @@ export default async function ClasseDetailPage({
                           Inscrivez d&apos;abord des étudiants à cette classe.
                         </p>
                       ) : (
-                        <form action={modifierMembresCohorteAction} className="mt-2 space-y-2">
+                        <form action={modifierMembresGroupeEtudiantsAction} className="mt-2 space-y-2">
                           <input type="hidden" name="classeId" value={classe.id} />
-                          <input type="hidden" name="cohorteId" value={cohorte.id} />
+                          <input type="hidden" name="groupeId" value={groupe.id} />
                           <div className="flex flex-wrap gap-2">
                             {classe.inscriptions.map((i) => (
                               <label
@@ -537,11 +545,11 @@ export default async function ClasseDetailPage({
 
                     {classesCibles.length > 0 && (
                       <form
-                        action={affecterCohorteAction}
+                        action={affecterGroupeEtudiantsAction}
                         className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3"
                       >
                         <input type="hidden" name="classeId" value={classe.id} />
-                        <input type="hidden" name="cohorteId" value={cohorte.id} />
+                        <input type="hidden" name="groupeId" value={groupe.id} />
                         <select
                           name="classeCibleId"
                           required
@@ -550,13 +558,13 @@ export default async function ClasseDetailPage({
                           <option value="">Affecter à…</option>
                           {classesCibles.map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.cours.nom}
-                              {c.niveau ? ` — ${c.niveau}` : ""} ({JOUR_LABELS[c.jour]} {c.heureDebut})
+                              {c.cohorte.cours.nom}
+                              {c.cohorte.niveau ? ` — ${c.cohorte.niveau}` : ""} ({JOUR_LABELS[c.cohorte.jour]} {c.heureDebut})
                             </option>
                           ))}
                         </select>
                         <SubmitButton variant="primary" size="sm">
-                          Affecter la cohorte
+                          Affecter le groupe
                         </SubmitButton>
                       </form>
                     )}

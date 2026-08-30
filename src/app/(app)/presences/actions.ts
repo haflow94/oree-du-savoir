@@ -58,13 +58,14 @@ export async function genererSeancesAction(formData: FormData): Promise<void> {
   const classe = await prisma.classe.findUnique({
     where: { id: classeId },
     include: {
+      cohorte: true,
       anneeScolaire: { include: { periodesFermeture: true } },
     },
   });
   if (!classe) retourClasse(classeId, "CLASSE_INTROUVABLE");
 
   const dates = datesDesSeances(
-    classe.jour,
+    classe.cohorte.jour,
     classe.anneeScolaire.dateDebut,
     classe.anneeScolaire.dateFin,
     classe.anneeScolaire.periodesFermeture,

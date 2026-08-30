@@ -25,13 +25,13 @@ export async function GET(
 
   const inscriptions = await prisma.inscriptionClasse.findMany({
     where: { etudiantId, classe: { anneeScolaireId: dossier.anneeScolaireId } },
-    include: { classe: { include: { cours: true } } },
+    include: { classe: { include: { cohorte: { include: { cours: true } } } } },
   });
 
   const classesSuivies = inscriptions.map(
     (i) =>
-      `${i.classe.cours.nom}${i.classe.niveau ? ` (${i.classe.niveau})` : ""} — ${
-        JOUR_LABELS[i.classe.jour]
+      `${i.classe.cohorte.cours.nom}${i.classe.cohorte.niveau ? ` (${i.classe.cohorte.niveau})` : ""} — ${
+        JOUR_LABELS[i.classe.cohorte.jour]
       } ${i.classe.heureDebut}-${i.classe.heureFin}`,
   );
 

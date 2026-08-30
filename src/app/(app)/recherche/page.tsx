@@ -57,13 +57,13 @@ export default async function RecherchePage({
       ? prisma.classe.findMany({
           where: {
             OR: [
-              { cours: { nom: { contains: recherche, mode: "insensitive" } } },
-              { niveau: { contains: recherche, mode: "insensitive" } },
+              { cohorte: { cours: { nom: { contains: recherche, mode: "insensitive" } } } },
+              { cohorte: { niveau: { contains: recherche, mode: "insensitive" } } },
               { salle: { nom: { contains: recherche, mode: "insensitive" } } },
             ],
           },
-          include: { cours: true, anneeScolaire: true, salle: true },
-          orderBy: { jour: "asc" },
+          include: { cohorte: { include: { cours: true } }, anneeScolaire: true, salle: true },
+          orderBy: { cohorte: { jour: "asc" } },
           take: 20,
         })
       : Promise.resolve([]),
@@ -123,11 +123,11 @@ export default async function RecherchePage({
             {classes.map((c) => (
               <li key={c.id} className="py-2">
                 <Link href={`/classes/${c.id}`} className="text-sm font-medium text-ink hover:underline">
-                  {c.cours.nom}
-                  {c.niveau && ` — ${c.niveau}`}
+                  {c.cohorte.cours.nom}
+                  {c.cohorte.niveau && ` — ${c.cohorte.niveau}`}
                 </Link>
                 <span className="ml-2 text-xs text-ink-muted">
-                  {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
+                  {JOUR_LABELS[c.cohorte.jour]} {c.heureDebut}–{c.heureFin}
                   {c.salle && ` · ${c.salle.nom}`} · {c.anneeScolaire.libelle}
                 </span>
               </li>

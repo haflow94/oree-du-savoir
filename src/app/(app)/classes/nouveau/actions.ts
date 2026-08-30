@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { JourSemaine } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
 
 function champTexte(formData: FormData, nom: string): string | null {
@@ -12,32 +11,25 @@ function champTexte(formData: FormData, nom: string): string | null {
   return nettoye.length > 0 ? nettoye : null;
 }
 
-function estJourValide(valeur: string | null): valeur is JourSemaine {
-  return !!valeur && valeur in JourSemaine;
-}
-
 export async function creerClasseAction(formData: FormData): Promise<void> {
   await requireModule(Module.CLASSES, "ECRITURE");
 
-  const coursId = champTexte(formData, "coursId");
+  const cohorteId = champTexte(formData, "cohorteId");
   const anneeScolaireId = champTexte(formData, "anneeScolaireId");
-  const jour = champTexte(formData, "jour");
   const heureDebut = champTexte(formData, "heureDebut");
   const heureFin = champTexte(formData, "heureFin");
 
-  if (!coursId || !anneeScolaireId || !estJourValide(jour) || !heureDebut || !heureFin) {
+  if (!cohorteId || !anneeScolaireId || !heureDebut || !heureFin) {
     redirect("/classes/nouveau?error=CHAMPS_MANQUANTS");
   }
 
-  const niveau = champTexte(formData, "niveau");
   const semestre = champTexte(formData, "semestre");
 
-  // Clé d'unicité métier : cours + niveau (le nom de la classe tel
-  // qu'affiché, voir /classes) + année scolaire + session. Empêche de créer
-  // deux fois la « même » classe sur la même période — un créneau différent
-  // pour ce même cours/niveau/session reste, lui, une classe légitime.
+  // Clé d'unicité métier : cohorte (cours + niveau + jour, voir
+  // Cohorte dans prisma/schema.prisma) + année scolaire + session. Empêche de
+  // créer deux fois la « même » classe sur la même période.
   const classeExistante = await prisma.classe.findFirst({
-    where: { coursId, anneeScolaireId, niveau, semestre },
+    where: { cohorteId, anneeScolaireId, semestre },
   });
   if (classeExistante) {
     redirect("/classes/nouveau?error=CLASSE_DEJA_EXISTANTE");
@@ -49,12 +41,10 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
 
   const classe = await prisma.classe.create({
     data: {
-      coursId,
+      cohorteId,
       anneeScolaireId,
-      jour,
       heureDebut,
       heureFin,
-      niveau,
       semestre,
       salleId: champTexte(formData, "salleId"),
       enseignants: {

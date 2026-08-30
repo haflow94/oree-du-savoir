@@ -368,7 +368,7 @@ model Etudiant {
   inscriptions    InscriptionClasse[]
   presences       Presence[]
   documents       Document[]
-  cohortes        CohorteEtudiant[]
+  groupesEtudiants GroupeEtudiantsMembre[]
 
   @@index([nom, prenom])
   @@index([doublonPotentielId])
@@ -537,7 +537,7 @@ model Cours {
   description String?
   creeLe      DateTime @default(now())
 
-  classes Classe[]
+  cohortes Cohorte[]
 
   @@index([sectionId])
   @@map("cours")
@@ -571,12 +571,37 @@ model Salle {
   @@map("salles")
 }
 
+// Catalogue amont Cours + Niveau + Jour (ex. "Étude Islamique Niveau 1
+// Samedi"), créé une fois et réutilisé d'année en année : Classe (ci-dessous)
+// n'est que l'instanciation annuelle concrète (horaire précis, salle,
+// enseignants, semestre) d'une Cohorte. Pas de champ nom stocké : le libellé
+// est calculé partout à l'affichage à partir de cours.nom + niveau +
+// JOUR_LABELS[jour], comme pour Classe/Cours ailleurs dans l'app. Pas de
+// contrainte d'unicité SQL sur (coursId, niveau, jour) : le dédoublonnage
+// suit la même convention que Classe, en application (findFirst + code
+// d'erreur), voir classes/actions.ts.
+model Cohorte {
+  id      String      @id @default(cuid())
+  coursId String
+  cours   Cours       @relation(fields: [coursId], references: [id], onDelete: Restrict)
+  niveau  String?
+  jour    JourSemaine
+  creeLe  DateTime    @default(now())
+
+  classes Classe[]
+
+  @@index([coursId])
+  @@map("cohortes")
+}
+
 // Groupe concret relié au planning (voir 03_Analyse_existant_Excel.md §3.5 :
 // ne jamais stocker la classe comme simple texte sur l'étudiant).
 //
 // Décisions MVP validées avec l'association :
-// - niveau = attribut texte simple sur la classe (pas de référentiel séparé) ;
-// - un seul créneau hebdomadaire par classe (jour + heure début/fin) ;
+// - niveau = attribut texte simple, porté par la Cohorte (pas de référentiel
+//   séparé) ;
+// - un seul créneau hebdomadaire par classe (jour porté par la Cohorte,
+//   heure début/fin propres à la Classe) ;
 // - plusieurs enseignants possibles par classe (table de liaison) ;
 // - une salle accueille plusieurs classes au fil d'une journée : le QR
 //   d'accès rapide est donc porté par la Salle (permanent, un seul code
@@ -585,26 +610,24 @@ model Salle {
 //   séance du jour au moment du scan.
 model Classe {
   id              String        @id @default(cuid())
-  coursId         String
-  cours           Cours         @relation(fields: [coursId], references: [id], onDelete: Restrict)
+  cohorteId       String
+  cohorte         Cohorte       @relation(fields: [cohorteId], references: [id], onDelete: Restrict)
   anneeScolaireId String
   anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
-  niveau          String?
   semestre        String? // ex. "1", "2" ; null = classe valable toute l'année
-  jour            JourSemaine
   heureDebut      String // "HH:MM"
   heureFin        String // "HH:MM"
   salleId         String?
   salle           Salle?        @relation(fields: [salleId], references: [id], onDelete: SetNull)
   creeLe          DateTime      @default(now())
 
-  enseignants  ClasseEnseignant[]
-  inscriptions InscriptionClasse[]
-  seances      Seance[]
-  cohortes     Cohorte[]
+  enseignants      ClasseEnseignant[]
+  inscriptions     InscriptionClasse[]
+  seances          Seance[]
+  groupesEtudiants GroupeEtudiants[]
 
   @@index([anneeScolaireId])
-  @@index([coursId])
+  @@index([cohorteId])
   @@index([salleId])
   @@map("classes")
 }
@@ -612,34 +635,34 @@ model Classe {
 // Groupe nommé d'étudiants déjà rattaché à une classe (ex. "Groupe A" de
 // "Science niveau 2"), pour affecter plusieurs étudiants d'un coup à une
 // autre classe au lieu de les sélectionner un par un (voir
-// classes/[id]/actions.ts#affecterCohorteAction). Ne remplace ni Classe ni
-// Cours : une cohorte n'est qu'un raccourci de sélection, elle n'empêche pas
-// un étudiant d'être par ailleurs inscrit à d'autres classes (pas de lien
+// classes/[id]/actions.ts#affecterGroupeEtudiantsAction). Ne remplace ni
+// Classe ni Cours : un groupe n'est qu'un raccourci de sélection, il n'empêche
+// pas un étudiant d'être par ailleurs inscrit à d'autres classes (pas de lien
 // direct avec InscriptionClasse, juste une liste de membres).
-model Cohorte {
+model GroupeEtudiants {
   id       String   @id @default(cuid())
   nom      String
   classeId String
   classe   Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
   creeLe   DateTime @default(now())
 
-  membres CohorteEtudiant[]
+  membres GroupeEtudiantsMembre[]
 
   @@unique([classeId, nom])
   @@index([classeId])
-  @@map("cohortes")
+  @@map("groupes_etudiants")
 }
 
-model CohorteEtudiant {
-  cohorteId  String
-  cohorte    Cohorte  @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
-  etudiantId String
-  etudiant   Etudiant @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
-  ajouteLe   DateTime @default(now())
+model GroupeEtudiantsMembre {
+  groupeEtudiantsId String
+  groupeEtudiants   GroupeEtudiants @relation(fields: [groupeEtudiantsId], references: [id], onDelete: Cascade)
+  etudiantId        String
+  etudiant          Etudiant        @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  ajouteLe          DateTime        @default(now())
 
-  @@id([cohorteId, etudiantId])
+  @@id([groupeEtudiantsId, etudiantId])
   @@index([etudiantId])
-  @@map("cohorte_etudiants")
+  @@map("groupes_etudiants_membres")
 }
 
 // « Participation à un cours » du modèle métier, en version minimale : le

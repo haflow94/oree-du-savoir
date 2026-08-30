@@ -39,7 +39,9 @@ export async function GET(request: NextRequest) {
           // du dossier varie d'une ligne à l'autre) : toutes les inscriptions
           // sont chargées, puis filtrées en mémoire sur `d.anneeScolaireId`
           // (même approche que (app)/etudiants/[id]/page.tsx).
-          inscriptions: { include: { classe: { include: { cours: { include: { section: true } } } } } },
+          inscriptions: {
+            include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+          },
         },
       },
       anneeScolaire: true,
@@ -71,11 +73,11 @@ export async function GET(request: NextRequest) {
     // ici section par section plutôt qu'agrégée.
     const sectionsParId = new Map<
       string,
-      (typeof d.etudiant.inscriptions)[number]["classe"]["cours"]["section"]
+      (typeof d.etudiant.inscriptions)[number]["classe"]["cohorte"]["cours"]["section"]
     >();
     for (const i of d.etudiant.inscriptions) {
       if (i.classe.anneeScolaireId === d.anneeScolaireId) {
-        sectionsParId.set(i.classe.cours.section.id, i.classe.cours.section);
+        sectionsParId.set(i.classe.cohorte.cours.section.id, i.classe.cohorte.cours.section);
       }
     }
     const sectionsTexte = [...sectionsParId.values()]

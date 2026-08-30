@@ -56,11 +56,11 @@ export default async function AppelPage({
         <div className="mx-auto max-w-3xl space-y-6">
           <div>
             <h1 className="font-display text-3xl font-semibold text-pine-strong">
-              {seance.classe.cours.nom}
-              {seance.classe.niveau && ` — ${seance.classe.niveau}`}
+              {seance.classe.cohorte.cours.nom}
+              {seance.classe.cohorte.niveau && ` — ${seance.classe.cohorte.niveau}`}
             </h1>
             <p className="text-sm text-ink-muted">
-              {JOUR_LABELS[seance.classe.jour]}{" "}
+              {JOUR_LABELS[seance.classe.cohorte.jour]}{" "}
               {new Date(seance.date).toLocaleDateString("fr-FR")} ·{" "}
               {seance.classe.heureDebut}–{seance.classe.heureFin}
               {seance.classe.salle && ` · ${seance.classe.salle.nom}`}

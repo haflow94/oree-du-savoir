@@ -44,7 +44,7 @@ export default async function PresencesPage({
     include: {
       classe: {
         include: {
-          cours: true,
+          cohorte: { include: { cours: true } },
           salle: true,
           _count: { select: { inscriptions: true } },
         },
@@ -102,15 +102,15 @@ export default async function PresencesPage({
             <Card key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <div className="font-medium text-ink">
-                  {s.classe.cours.nom}
-                  {s.classe.niveau && (
+                  {s.classe.cohorte.cours.nom}
+                  {s.classe.cohorte.niveau && (
                     <span className="ml-2 text-sm font-normal text-ink-muted">
-                      {s.classe.niveau}
+                      {s.classe.cohorte.niveau}
                     </span>
                   )}
                 </div>
                 <div className="text-sm text-ink-muted">
-                  {JOUR_LABELS[s.classe.jour]} {s.classe.heureDebut}–
+                  {JOUR_LABELS[s.classe.cohorte.jour]} {s.classe.heureDebut}–
                   {s.classe.heureFin}
                   {s.classe.salle && ` · ${s.classe.salle.nom}`}
                   {` · ${s.classe._count.inscriptions} inscrit(s)`}

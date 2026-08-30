@@ -97,6 +97,7 @@ async function viderDonneesMetier() {
   await prisma.inscriptionClasse.deleteMany();
   await prisma.classeEnseignant.deleteMany();
   await prisma.classe.deleteMany();
+  await prisma.cohorte.deleteMany();
   await prisma.cours.deleteMany();
   await prisma.cheque.deleteMany();
   await prisma.paiement.deleteMany();
@@ -213,12 +214,13 @@ async function main() {
     for (const c of def.classes) {
       const titulaire = enseignants[indexEnseignant % enseignants.length];
       indexEnseignant += 1;
+      const cohorte = await prisma.cohorte.create({
+        data: { coursId: cours.id, niveau: c.niveau, jour: c.jour },
+      });
       const classe = await prisma.classe.create({
         data: {
-          coursId: cours.id,
+          cohorteId: cohorte.id,
           anneeScolaireId: annee.id,
-          niveau: c.niveau,
-          jour: c.jour,
           heureDebut: c.debut,
           heureFin: c.fin,
           salleId: salleIdParNom.get(c.salle),

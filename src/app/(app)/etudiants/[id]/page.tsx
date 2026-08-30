@@ -184,7 +184,12 @@ export default async function EtudiantDetailPage({
         doublonPotentiel: { select: { id: true, nom: true, prenom: true, dateNaissance: true, creeLe: true } },
         inscriptions: {
           include: {
-            classe: { include: { cours: { include: { section: true } }, anneeScolaire: true } },
+            classe: {
+              include: {
+                cohorte: { include: { cours: { include: { section: true } } } },
+                anneeScolaire: true,
+              },
+            },
           },
           orderBy: { classe: { anneeScolaire: { libelle: "desc" } } },
         },
@@ -220,10 +225,13 @@ export default async function EtudiantDetailPage({
   // Administration → Sections — voir aussi `montantSuggereDossier`, qui
   // fait la même somme pour préremplir le dossier annuel). Affiché à titre
   // indicatif : le montant dû réel reste saisi à la main sur le dossier.
-  const sectionsParId = new Map<string, (typeof etudiant.inscriptions)[number]["classe"]["cours"]["section"]>();
+  const sectionsParId = new Map<
+    string,
+    (typeof etudiant.inscriptions)[number]["classe"]["cohorte"]["cours"]["section"]
+  >();
   for (const i of etudiant.inscriptions) {
     if (i.classe.anneeScolaireId === anneeActive?.id) {
-      sectionsParId.set(i.classe.cours.section.id, i.classe.cours.section);
+      sectionsParId.set(i.classe.cohorte.cours.section.id, i.classe.cohorte.cours.section);
     }
   }
   const sectionsAvecTarif = [...sectionsParId.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
@@ -252,10 +260,10 @@ export default async function EtudiantDetailPage({
           await prisma.classe.findMany({
             where: {
               anneeScolaireId: anneeActiveId,
-              ...(classeSectionId ? { cours: { sectionId: classeSectionId } } : {}),
+              ...(classeSectionId ? { cohorte: { cours: { sectionId: classeSectionId } } } : {}),
             },
-            include: { cours: { include: { section: true } } },
-            orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+            include: { cohorte: { include: { cours: { include: { section: true } } } } },
+            orderBy: [{ cohorte: { jour: "asc" } }, { heureDebut: "asc" }],
           })
         ).filter((c) => !dejaInscritClasseIds.has(c.id))
       : [];
@@ -817,12 +825,12 @@ export default async function EtudiantDetailPage({
                       href={`/classes/${i.classe.id}`}
                       className="text-sm font-medium text-ink hover:underline"
                     >
-                      {i.classe.cours.section.nom} · {i.classe.cours.nom}
-                      {i.classe.niveau && ` — ${i.classe.niveau}`}
+                      {i.classe.cohorte.cours.section.nom} · {i.classe.cohorte.cours.nom}
+                      {i.classe.cohorte.niveau && ` — ${i.classe.cohorte.niveau}`}
                     </Link>
                   </div>
                   <p className="text-xs text-ink-faint">
-                    {JOUR_LABELS[i.classe.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}
+                    {JOUR_LABELS[i.classe.cohorte.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}
                     {i.classe.anneeScolaire.libelle}
                   </p>
                 </div>
@@ -886,8 +894,8 @@ export default async function EtudiantDetailPage({
                 <ChampSelect label="Classe" name="classeId" required className="w-full max-w-sm">
                   {classesDisponibles.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.cours.section.nom} · {c.cours.nom}
-                      {c.niveau && ` — ${c.niveau}`} · {JOUR_LABELS[c.jour]} {c.heureDebut}-
+                      {c.cohorte.cours.section.nom} · {c.cohorte.cours.nom}
+                      {c.cohorte.niveau && ` — ${c.cohorte.niveau}`} · {JOUR_LABELS[c.cohorte.jour]} {c.heureDebut}-
                       {c.heureFin}
                     </option>
                   ))}

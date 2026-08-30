@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
+import { JourSemaine } from "@/generated/prisma/enums";
 
 function retour(erreur?: string): never {
   redirect(erreur ? `/classes?error=${erreur}` : "/classes?ok=1");
+}
+
+function estJourValide(valeur: string): valeur is JourSemaine {
+  return valeur in JourSemaine;
 }
 
 export async function creerCoursAction(formData: FormData): Promise<void> {
@@ -55,10 +60,10 @@ export async function modifierCoursAction(formData: FormData): Promise<void> {
 }
 
 // Copie en une fois toutes les classes d'une année source vers l'année
-// active (cours, niveau, créneau, salle, enseignants) : évite de
-// tout resaisir à la main à chaque rentrée pour des matières qui reviennent
-// à l'identique. Idempotent par (cours, niveau, jour, heure de début) : ne
-// duplique jamais une classe déjà présente sur l'année active.
+// active (cohorte, créneau, salle, enseignants) : évite de tout resaisir à la
+// main à chaque rentrée pour des matières qui reviennent à l'identique.
+// Idempotent par (cohorte, semestre) : ne duplique jamais une classe déjà
+// présente sur l'année active.
 export async function dupliquerClassesAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.CLASSES, "ECRITURE");
   const anneeSourceId = String(formData.get("anneeSourceId") ?? "").trim();
@@ -75,29 +80,21 @@ export async function dupliquerClassesAction(formData: FormData): Promise<void> 
     }),
     prisma.classe.findMany({
       where: { anneeScolaireId: anneeActive.id },
-      select: { coursId: true, niveau: true, jour: true, heureDebut: true },
+      select: { cohorteId: true, semestre: true },
     }),
   ]);
 
   const dejaPresente = (c: (typeof classesSource)[number]) =>
-    classesActives.some(
-      (e) =>
-        e.coursId === c.coursId &&
-        e.niveau === c.niveau &&
-        e.jour === c.jour &&
-        e.heureDebut === c.heureDebut,
-    );
+    classesActives.some((e) => e.cohorteId === c.cohorteId && e.semestre === c.semestre);
   const aCreer = classesSource.filter((c) => !dejaPresente(c));
 
   await prisma.$transaction([
     ...aCreer.map((c) =>
       prisma.classe.create({
         data: {
-          coursId: c.coursId,
+          cohorteId: c.cohorteId,
           anneeScolaireId: anneeActive.id,
-          niveau: c.niveau,
           semestre: c.semestre,
-          jour: c.jour,
           heureDebut: c.heureDebut,
           heureFin: c.heureFin,
           salleId: c.salleId,
@@ -129,14 +126,14 @@ export async function supprimerCoursAction(formData: FormData): Promise<void> {
 
   const cible = await prisma.cours.findUnique({
     where: { id: coursId },
-    include: { _count: { select: { classes: true } } },
+    include: { _count: { select: { cohortes: true } } },
   });
   if (!cible) retour("INTROUVABLE");
 
-  // Une classe pointe vers son cours (onDelete: Restrict) : la suppression
+  // Une cohorte pointe vers son cours (onDelete: Restrict) : la suppression
   // échouerait de toute façon, mais on donne un message clair plutôt que
   // de laisser remonter l'erreur de contrainte SQL.
-  if (cible._count.classes > 0) retour("COURS_UTILISE");
+  if (cible._count.cohortes > 0) retour("COURS_UTILISE");
 
   await prisma.$transaction([
     prisma.cours.delete({ where: { id: coursId } }),
@@ -147,6 +144,88 @@ export async function supprimerCoursAction(formData: FormData): Promise<void> {
         entite: "Cours",
         entiteId: coursId,
         details: { nom: cible.nom },
+      },
+    }),
+  ]);
+
+  revalidatePath("/classes");
+  retour();
+}
+
+// CRUD du catalogue amont Cohorte (Cours + Niveau + Jour), créé une fois et
+// réutilisé chaque année scolaire pour instancier une ou plusieurs Classe —
+// calqué sur creerCoursAction/modifierCoursAction/supprimerCoursAction
+// ci-dessus.
+export async function creerCohorteAction(formData: FormData): Promise<void> {
+  await requireModule(Module.CLASSES, "ECRITURE");
+  const coursId = String(formData.get("coursId") ?? "").trim();
+  const jour = String(formData.get("jour") ?? "").trim();
+  const niveau = String(formData.get("niveau") ?? "").trim() || null;
+  if (!coursId || !estJourValide(jour)) retour("COHORTE_CHAMPS_MANQUANTS");
+
+  const doublon = await prisma.cohorte.findFirst({ where: { coursId, jour, niveau } });
+  if (doublon) retour("COHORTE_DEJA_EXISTANTE");
+
+  await prisma.cohorte.create({ data: { coursId, jour, niveau } });
+  revalidatePath("/classes");
+  revalidatePath("/classes/nouveau");
+  retour();
+}
+
+export async function modifierCohorteAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
+  const cohorteId = String(formData.get("cohorteId") ?? "").trim();
+  const coursId = String(formData.get("coursId") ?? "").trim();
+  const jour = String(formData.get("jour") ?? "").trim();
+  const niveau = String(formData.get("niveau") ?? "").trim() || null;
+  if (!cohorteId || !coursId || !estJourValide(jour)) retour("COHORTE_CHAMPS_MANQUANTS");
+
+  const cible = await prisma.cohorte.findUnique({ where: { id: cohorteId } });
+  if (!cible) retour("COHORTE_INTROUVABLE");
+
+  const doublon = await prisma.cohorte.findFirst({ where: { coursId, jour, niveau } });
+  if (doublon && doublon.id !== cohorteId) retour("COHORTE_DEJA_EXISTANTE");
+
+  await prisma.$transaction([
+    prisma.cohorte.update({ where: { id: cohorteId }, data: { coursId, jour, niveau } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_cohorte",
+        entite: "Cohorte",
+        entiteId: cohorteId,
+      },
+    }),
+  ]);
+
+  revalidatePath("/classes");
+  retour();
+}
+
+export async function supprimerCohorteAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.CLASSES, "ECRITURE");
+  const cohorteId = String(formData.get("cohorteId") ?? "").trim();
+  if (!cohorteId) retour("COHORTE_CHAMPS_MANQUANTS");
+
+  const cible = await prisma.cohorte.findUnique({
+    where: { id: cohorteId },
+    include: { _count: { select: { classes: true } } },
+  });
+  if (!cible) retour("COHORTE_INTROUVABLE");
+
+  // Une classe pointe vers sa cohorte (onDelete: Restrict) : la suppression
+  // échouerait de toute façon, mais on donne un message clair plutôt que
+  // de laisser remonter l'erreur de contrainte SQL.
+  if (cible._count.classes > 0) retour("COHORTE_UTILISEE");
+
+  await prisma.$transaction([
+    prisma.cohorte.delete({ where: { id: cohorteId } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "suppression_cohorte",
+        entite: "Cohorte",
+        entiteId: cohorteId,
       },
     }),
   ]);

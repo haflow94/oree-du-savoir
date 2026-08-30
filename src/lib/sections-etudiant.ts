@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 export type SectionResume = { id: string; nom: string };
 
 type InscriptionAvecSection = {
-  classe: { cours: { section: SectionResume } };
+  classe: { cohorte: { cours: { section: SectionResume } } };
 };
 
 export async function anneeScolaireActiveId(): Promise<string | null> {
@@ -21,7 +21,7 @@ export async function anneeScolaireActiveId(): Promise<string | null> {
 export function inclureInscriptionsActives(anneeScolaireId: string) {
   return {
     where: { classe: { anneeScolaireId } },
-    include: { classe: { include: { cours: { include: { section: true } } } } },
+    include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
   } as const;
 }
 
@@ -30,7 +30,7 @@ export function sectionsDInscriptions(
 ): SectionResume[] {
   const parId = new Map<string, SectionResume>();
   for (const i of inscriptions) {
-    const section = i.classe.cours.section;
+    const section = i.classe.cohorte.cours.section;
     parId.set(section.id, { id: section.id, nom: section.nom });
   }
   return [...parId.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
@@ -41,7 +41,7 @@ export function sectionsDInscriptions(
 export function filtreParSection(anneeScolaireId: string, sectionId: string) {
   return {
     inscriptions: {
-      some: { classe: { anneeScolaireId, cours: { sectionId } } },
+      some: { classe: { anneeScolaireId, cohorte: { cours: { sectionId } } } },
     },
   } as const;
 }
@@ -131,7 +131,7 @@ export async function montantSuggereDossier(
 ): Promise<number | null> {
   const inscriptions = await prisma.inscriptionClasse.findMany({
     where: { etudiantId, classe: { anneeScolaireId } },
-    include: { classe: { include: { cours: { include: { section: true } } } } },
+    include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
   });
   const sections = sectionsDInscriptions(inscriptions);
   if (sections.length === 0) return null;

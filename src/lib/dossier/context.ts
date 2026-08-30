@@ -82,18 +82,18 @@ async function contexteInscription(
   if (!anneeActive) return { cours: "", classe: "", horaires: "", classes: [] };
 
   const inscriptions = await prisma.inscriptionClasse.findMany({
-    where: { etudiantId, classe: { anneeScolaireId: anneeActive.id, cours: { sectionId } } },
-    include: { classe: { include: { cours: true } } },
+    where: { etudiantId, classe: { anneeScolaireId: anneeActive.id, cohorte: { cours: { sectionId } } } },
+    include: { classe: { include: { cohorte: { include: { cours: true } } } } },
   });
 
   return {
-    cours: [...new Set(inscriptions.map((i) => i.classe.cours.nom))].join(" ; "),
-    classe: [...new Set(inscriptions.map((i) => i.classe.niveau).filter((n): n is string => !!n))].join(" ; "),
+    cours: [...new Set(inscriptions.map((i) => i.classe.cohorte.cours.nom))].join(" ; "),
+    classe: [...new Set(inscriptions.map((i) => i.classe.cohorte.niveau).filter((n): n is string => !!n))].join(" ; "),
     horaires: inscriptions
-      .map((i) => `${JOUR_LABELS[i.classe.jour]} ${i.classe.heureDebut}-${i.classe.heureFin}`)
+      .map((i) => `${JOUR_LABELS[i.classe.cohorte.jour]} ${i.classe.heureDebut}-${i.classe.heureFin}`)
       .join(" ; "),
     classes: inscriptions.map((i) => ({
-      jour: i.classe.jour,
+      jour: i.classe.cohorte.jour,
       heureDebut: i.classe.heureDebut,
       heureFin: i.classe.heureFin,
     })),

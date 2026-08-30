@@ -24,7 +24,7 @@ export default async function FeuillePapierPage({
     include: {
       classe: {
         include: {
-          cours: true,
+          cohorte: { include: { cours: true } },
           salle: true,
           enseignants: { include: { utilisateur: true } },
           // Même filtre que la feuille en ligne (voir presences/[id]/page.tsx) :
@@ -65,11 +65,11 @@ export default async function FeuillePapierPage({
 
       <div className="rounded-xl border border-border bg-bg-elevated p-6 print:rounded-none print:border-0 print:p-0">
         <h1 className="font-display text-lg font-bold text-pine-strong">
-          Feuille de présence — {seance.classe.cours.nom}
-          {seance.classe.niveau && ` (${seance.classe.niveau})`}
+          Feuille de présence — {seance.classe.cohorte.cours.nom}
+          {seance.classe.cohorte.niveau && ` (${seance.classe.cohorte.niveau})`}
         </h1>
         <p className="mt-1 text-sm text-ink-muted">
-          {JOUR_LABELS[seance.classe.jour]}{" "}
+          {JOUR_LABELS[seance.classe.cohorte.jour]}{" "}
           {new Date(seance.date).toLocaleDateString("fr-FR")} ·{" "}
           {seance.classe.heureDebut}–{seance.classe.heureFin}
           {seance.classe.salle && ` · Salle ${seance.classe.salle.nom}`}

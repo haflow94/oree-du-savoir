@@ -47,11 +47,11 @@ export default async function SeancePage({
       <div>
         <BackLink href="/presences" label="Présences" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
-          {seance.classe.cours.nom}
-          {seance.classe.niveau && ` — ${seance.classe.niveau}`}
+          {seance.classe.cohorte.cours.nom}
+          {seance.classe.cohorte.niveau && ` — ${seance.classe.cohorte.niveau}`}
         </h1>
         <p className="text-sm text-ink-muted">
-          {JOUR_LABELS[seance.classe.jour]}{" "}
+          {JOUR_LABELS[seance.classe.cohorte.jour]}{" "}
           {new Date(seance.date).toLocaleDateString("fr-FR")} ·{" "}
           {seance.classe.heureDebut}–{seance.classe.heureFin}
           {seance.classe.salle && ` · ${seance.classe.salle.nom}`}

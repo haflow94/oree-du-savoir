@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { creerClasseAction } from "./actions";
 import type { JourSemaine } from "@/lib/planning";
-import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
+import { JOUR_LABELS } from "@/lib/planning";
 import type { EnseignantAvecSections } from "@/lib/enseignants-section";
 import { filtrerParSection } from "@/lib/enseignants-section";
 import { Champ, ChampSelect } from "@/components/ui/champ";
@@ -14,58 +14,62 @@ import { SubmitButton } from "@/components/ui/submit-button";
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
-type Cours = { id: string; nom: string; sectionId: string };
+type Cohorte = {
+  id: string;
+  niveau: string | null;
+  jour: JourSemaine;
+  cours: { id: string; nom: string; sectionId: string };
+};
 type Annee = { id: string; libelle: string; active: boolean };
 type Salle = { id: string; nom: string };
 type Source = {
-  coursId: string;
-  niveau: string | null;
+  cohorteId: string;
   semestre: string | null;
-  jour: JourSemaine;
   heureDebut: string;
   heureFin: string;
   salleId: string | null;
 } | null;
 
-// Client component : le choix du cours détermine sa section, qui filtre la
-// liste des enseignants proposés juste en dessous (voir
+// Client component : le choix de la cohorte détermine la section de son
+// cours, qui filtre la liste des enseignants proposés juste en dessous (voir
 // lib/enseignants.ts#filtrerParSection) — nécessite un état partagé entre
 // les deux champs, impossible en composant serveur pur sans recharger la
 // page (et perdre le reste du formulaire déjà rempli).
 export function NouvelleClasseForm({
-  cours,
+  cohortes,
   annees,
   enseignants,
   source,
   anneeParDefaut,
   salles,
 }: {
-  cours: Cours[];
+  cohortes: Cohorte[];
   annees: Annee[];
   enseignants: EnseignantAvecSections[];
   source: Source;
   anneeParDefaut: string | undefined;
   salles: Salle[];
 }) {
-  const [coursId, setCoursId] = useState(source?.coursId ?? cours[0]?.id ?? "");
-  const sectionId = cours.find((c) => c.id === coursId)?.sectionId;
+  const [cohorteId, setCohorteId] = useState(source?.cohorteId ?? cohortes[0]?.id ?? "");
+  const sectionId = cohortes.find((c) => c.id === cohorteId)?.cours.sectionId;
   const enseignantsVisibles = filtrerParSection(enseignants, sectionId);
 
   return (
     <form action={creerClasseAction} className="space-y-6">
       <fieldset className={FIELDSET_CLASSES}>
-        <legend className={LEGEND_CLASSES}>Cours et niveau</legend>
+        <legend className={LEGEND_CLASSES}>Cohorte</legend>
         <div className="grid gap-4 sm:grid-cols-2">
           <ChampSelect
-            label="Cours"
-            name="coursId"
+            label="Cohorte"
+            name="cohorteId"
             required
-            value={coursId}
-            onChange={(e) => setCoursId(e.target.value)}
+            value={cohorteId}
+            onChange={(e) => setCohorteId(e.target.value)}
           >
-            {cours.map((c) => (
+            {cohortes.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.nom}
+                {c.cours.nom}
+                {c.niveau ? ` — ${c.niveau}` : ""} · {JOUR_LABELS[c.jour]}
               </option>
             ))}
           </ChampSelect>
@@ -82,12 +86,6 @@ export function NouvelleClasseForm({
               </option>
             ))}
           </ChampSelect>
-          <Champ
-            label="Niveau"
-            name="niveau"
-            placeholder="ex. Débutant, CM1…"
-            defaultValue={source?.niveau ?? ""}
-          />
           <ChampSelect label="Semestre (optionnel)" name="semestre" defaultValue={source?.semestre ?? ""}>
             <option value="">Toute l&apos;année</option>
             <option value="1">Semestre 1</option>
@@ -98,14 +96,7 @@ export function NouvelleClasseForm({
 
       <fieldset className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Créneau</legend>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <ChampSelect label="Jour" name="jour" required defaultValue={source?.jour}>
-            {JOURS_ORDONNES.map((j) => (
-              <option key={j} value={j}>
-                {JOUR_LABELS[j]}
-              </option>
-            ))}
-          </ChampSelect>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Champ
             label="Heure de début"
             name="heureDebut"

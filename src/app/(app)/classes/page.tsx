@@ -5,6 +5,7 @@ import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { supprimerClasseAction } from "./[id]/actions";
 import { CoursDialog } from "./cours-dialog";
+import { CohorteDialog } from "./cohorte-dialog";
 import { DupliquerClassesDialog } from "./dupliquer-classes-dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconChip } from "@/components/ui/icon-chip";
 
 const ERREURS_COURS = ["CHAMPS_INVALIDES", "NOM_DEJA_UTILISE", "INTROUVABLE", "COURS_UTILISE"];
+const ERREURS_COHORTE = ["COHORTE_CHAMPS_MANQUANTS", "COHORTE_DEJA_EXISTANTE", "COHORTE_INTROUVABLE", "COHORTE_UTILISEE"];
 const ERREURS_DUPLICATION = ["ANNEE_SOURCE_MANQUANTE", "AUCUNE_ANNEE_ACTIVE", "MEME_ANNEE"];
 
 const MESSAGES: Record<string, string> = {
@@ -23,7 +25,12 @@ const MESSAGES: Record<string, string> = {
   NOM_DEJA_UTILISE: "Un cours porte déjà ce nom.",
   INTROUVABLE: "Ce cours n'existe plus.",
   COURS_UTILISE:
-    "Impossible de supprimer : des classes sont rattachées à ce cours.",
+    "Impossible de supprimer : des cohortes sont rattachées à ce cours.",
+  COHORTE_CHAMPS_MANQUANTS: "Cours et jour sont obligatoires.",
+  COHORTE_DEJA_EXISTANTE: "Une cohorte identique (même cours, niveau et jour) existe déjà.",
+  COHORTE_INTROUVABLE: "Cette cohorte n'existe plus.",
+  COHORTE_UTILISEE:
+    "Impossible de supprimer : des classes sont rattachées à cette cohorte.",
   ANNEE_SOURCE_MANQUANTE: "Choisissez une année source à dupliquer.",
   AUCUNE_ANNEE_ACTIVE: "Aucune année scolaire active : impossible de dupliquer.",
   MEME_ANNEE: "Choisissez une année différente de l'année active.",
@@ -50,10 +57,14 @@ export default async function ClassesPage({
   const recherche = q?.trim() ?? "";
   const voirArchives = archives === "1";
 
-  const [cours, sections, salles, annees, anneeActive] = await Promise.all([
+  const [cours, cohortes, sections, salles, annees, anneeActive] = await Promise.all([
     prisma.cours.findMany({
       orderBy: { nom: "asc" },
-      include: { section: { select: { id: true, nom: true } }, _count: { select: { classes: true } } },
+      include: { section: { select: { id: true, nom: true } }, _count: { select: { cohortes: true } } },
+    }),
+    prisma.cohorte.findMany({
+      orderBy: [{ cours: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
+      include: { cours: { select: { id: true, nom: true } }, _count: { select: { classes: true } } },
     }),
     prisma.section.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
     prisma.salle.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
@@ -69,8 +80,8 @@ export default async function ClassesPage({
 
   const classes = await prisma.classe.findMany({
     where: {
-      ...(sectionId ? { cours: { sectionId } } : {}),
-      ...(jour ? { jour: jour as (typeof JOURS_ORDONNES)[number] } : {}),
+      ...(sectionId ? { cohorte: { cours: { sectionId } } } : {}),
+      ...(jour ? { cohorte: { jour: jour as (typeof JOURS_ORDONNES)[number] } } : {}),
       ...(salleId ? { salleId } : {}),
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
       // Une année précisément choisie reste visible quel que soit son statut
@@ -80,8 +91,8 @@ export default async function ClassesPage({
       ...(recherche
         ? {
             OR: [
-              { cours: { nom: { contains: recherche, mode: "insensitive" } } },
-              { niveau: { contains: recherche, mode: "insensitive" } },
+              { cohorte: { cours: { nom: { contains: recherche, mode: "insensitive" } } } },
+              { cohorte: { niveau: { contains: recherche, mode: "insensitive" } } },
               { salle: { nom: { contains: recherche, mode: "insensitive" } } },
               {
                 enseignants: {
@@ -99,9 +110,9 @@ export default async function ClassesPage({
           }
         : {}),
     },
-    orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
+    orderBy: [{ cohorte: { jour: "asc" } }, { heureDebut: "asc" }],
     include: {
-      cours: { include: { section: true } },
+      cohorte: { include: { cours: { include: { section: true } } } },
       anneeScolaire: true,
       salle: true,
       enseignants: { include: { utilisateur: true } },
@@ -144,6 +155,12 @@ export default async function ClassesPage({
           sections={sections}
           peutGerer={peutGerer}
           ouvrirAuChargement={!!error && ERREURS_COURS.includes(error)}
+        />
+        <CohorteDialog
+          cohortes={cohortes}
+          cours={cours}
+          peutGerer={peutGerer}
+          ouvrirAuChargement={!!error && ERREURS_COHORTE.includes(error)}
         />
         {peutGerer && anneeActive && annees.some((a) => a.id !== anneeActive.id) && (
           <DupliquerClassesDialog
@@ -230,16 +247,16 @@ export default async function ClassesPage({
             <tr key={c.id} className="hover:bg-bg-sunken/40">
               <td className="px-4 py-3 font-medium text-ink">
                 <Link href={`/classes/${c.id}`} className="hover:underline">
-                  {c.cours.nom}
+                  {c.cohorte.cours.nom}
                 </Link>
-                <div className="text-xs font-normal text-ink-faint">{c.cours.section.nom}</div>
+                <div className="text-xs font-normal text-ink-faint">{c.cohorte.cours.section.nom}</div>
               </td>
               <td className="px-4 py-3 text-ink-muted">
-                {c.niveau ?? "—"}
+                {c.cohorte.niveau ?? "—"}
                 {c.semestre && <span className="ml-1 text-xs text-ink-faint">(S{c.semestre})</span>}
               </td>
               <td className="px-4 py-3 text-ink-muted">
-                {JOUR_LABELS[c.jour]} {c.heureDebut}–{c.heureFin}
+                {JOUR_LABELS[c.cohorte.jour]} {c.heureDebut}–{c.heureFin}
               </td>
               <td className="px-4 py-3 text-ink-muted">{c.salle?.nom ?? "—"}</td>
               <td className="px-4 py-3 text-ink-muted">
