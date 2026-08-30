@@ -87,9 +87,15 @@ const EMAIL_CONTACT_RGPD = "";
 export function PreinscriptionForm({
   sections,
   creneaux,
+  catalogueCreneaux,
 }: {
   sections: Section[];
   creneaux: Creneau[];
+  // Catalogue CS/S/D (voir Administration → Sections) : proposé à la place
+  // du sélecteur de classe réelle quand aucune classe n'existe encore pour
+  // la section choisie, pour ne jamais perdre le créneau souhaité par la
+  // famille (voir preinscrireAction).
+  catalogueCreneaux: Creneau[];
 }) {
   // Une même personne peut vouloir suivre plusieurs cours/sections en une
   // seule préinscription (ex. Jeunes + Études Coraniques pour le même
@@ -191,6 +197,7 @@ export function PreinscriptionForm({
         <p className="text-sm font-medium text-ink">Cours souhaités</p>
         {lignes.map((ligne, index) => {
           const creneauxLigne = creneaux.filter((c) => c.sectionId === ligne.sectionId);
+          const catalogueLigne = catalogueCreneaux.filter((c) => c.sectionId === ligne.sectionId);
           return (
             <div key={ligne.id} className="space-y-3 rounded-lg border border-border p-3">
               <input type="hidden" name="ligneId" value={ligne.id} />
@@ -221,32 +228,57 @@ export function PreinscriptionForm({
                 ))}
               </ChampSelect>
 
-              <ChampSelect
-                key={ligne.sectionId}
-                id={`classeId-${ligne.id}`}
-                label="Créneau souhaité"
-                name={`classeId-${ligne.id}`}
-                required={creneauxLigne.length > 0}
-                disabled={creneauxLigne.length === 0}
-                defaultValue=""
-                onChange={(e) => modifierLigne(ligne.id, { classeId: e.target.value })}
-                hint={
-                  creneauxLigne.length === 0
-                    ? "Aucun créneau n'est encore ouvert pour cette section : l'association vous en proposera un."
-                    : undefined
-                }
-              >
-                <option value="" disabled={creneauxLigne.length > 0}>
-                  {creneauxLigne.length > 0
-                    ? "Choisir un créneau…"
-                    : "Aucun créneau disponible pour le moment"}
-                </option>
-                {creneauxLigne.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
+              {creneauxLigne.length > 0 ? (
+                <ChampSelect
+                  key={ligne.sectionId}
+                  id={`classeId-${ligne.id}`}
+                  label="Créneau souhaité"
+                  name={`classeId-${ligne.id}`}
+                  required
+                  defaultValue=""
+                  onChange={(e) => modifierLigne(ligne.id, { classeId: e.target.value })}
+                >
+                  <option value="" disabled>
+                    Choisir un créneau…
                   </option>
-                ))}
-              </ChampSelect>
+                  {creneauxLigne.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </ChampSelect>
+              ) : catalogueLigne.length > 0 ? (
+                <ChampSelect
+                  key={ligne.sectionId}
+                  id={`creneauSouhaiteId-${ligne.id}`}
+                  label="Créneau souhaité"
+                  name={`creneauSouhaiteId-${ligne.id}`}
+                  required
+                  defaultValue=""
+                  hint="Aucune classe n'est encore ouverte pour cette section : votre choix sera pris en compte par l'association à son ouverture."
+                >
+                  <option value="" disabled>
+                    Choisir un créneau…
+                  </option>
+                  {catalogueLigne.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </ChampSelect>
+              ) : (
+                <ChampSelect
+                  key={ligne.sectionId}
+                  id={`classeId-${ligne.id}`}
+                  label="Créneau souhaité"
+                  name={`classeId-${ligne.id}`}
+                  disabled
+                  defaultValue=""
+                  hint="Aucun créneau n'est encore ouvert pour cette section : l'association vous en proposera un."
+                >
+                  <option value="">Aucun créneau disponible pour le moment</option>
+                </ChampSelect>
+              )}
             </div>
           );
         })}

@@ -237,6 +237,25 @@ export async function ajouterCreneauAction(formData: FormData): Promise<void> {
   retour();
 }
 
+export async function modifierCreneauAction(formData: FormData): Promise<void> {
+  await requireModule(Module.ADMINISTRATION, "ECRITURE");
+
+  const creneauId = champTexte(formData, "creneauId");
+  const code = champTexte(formData, "code");
+  const jour = champTexte(formData, "jour");
+  const horaire = champTexte(formData, "horaire");
+  const restriction = champTexte(formData, "restriction");
+
+  if (!creneauId || !code || !jour || !horaire) retour("CHAMPS_INVALIDES");
+
+  await prisma.creneauSection
+    .update({ where: { id: creneauId }, data: { code, jour, horaire, restriction } })
+    .catch(() => null);
+
+  revalidatePath("/administration/sections");
+  retour();
+}
+
 export async function supprimerCreneauAction(formData: FormData): Promise<void> {
   await requireModule(Module.ADMINISTRATION, "ECRITURE");
 

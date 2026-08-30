@@ -97,12 +97,12 @@ export async function inscrireEtudiantAction(formData: FormData): Promise<void> 
       data: [{ classeId, etudiantId }],
       skipDuplicates: true,
     }),
-    // Le souhait de section exprimé à la préinscription (voir
+    // Le souhait de section/créneau exprimé à la préinscription (voir
     // preinscription/actions.ts) est satisfait dès que l'étudiant est
     // effectivement inscrit à une classe, quelle qu'elle soit.
     prisma.etudiant.update({
       where: { id: etudiantId },
-      data: { sectionSouhaiteeId: null },
+      data: { sectionSouhaiteeId: null, creneauSouhaiteId: null },
     }),
   ]);
 

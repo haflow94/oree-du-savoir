@@ -5,6 +5,7 @@ import {
   modifierSectionAction,
   supprimerSectionAction,
   ajouterCreneauAction,
+  modifierCreneauAction,
   supprimerCreneauAction,
 } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
@@ -123,20 +124,60 @@ export default async function SectionsPage({
               ) : (
                 <ul className="mb-3 space-y-1">
                   {s.creneaux.map((c) => (
-                    <li key={c.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span>
-                        <span className="font-mono text-xs text-ochre">{c.code}</span> — {c.jour},{" "}
-                        {c.horaire}
-                        {c.restriction && (
-                          <span className="text-ink-faint"> ({c.restriction})</span>
-                        )}
-                      </span>
-                      <form action={supprimerCreneauAction}>
-                        <input type="hidden" name="creneauId" value={c.id} />
-                        <SubmitButton variant="ghost" size="sm" pendingLabel="…">
-                          Retirer
-                        </SubmitButton>
-                      </form>
+                    <li key={c.id} className="text-sm">
+                      <details>
+                        <summary className="flex cursor-pointer items-center justify-between gap-2 py-1">
+                          <span>
+                            <span className="font-mono text-xs text-ochre">{c.code}</span> — {c.jour},{" "}
+                            {c.horaire}
+                            {c.restriction && (
+                              <span className="text-ink-faint"> ({c.restriction})</span>
+                            )}
+                          </span>
+                          <span className="text-xs font-medium text-pine">Modifier</span>
+                        </summary>
+                        <form action={modifierCreneauAction} className="mt-2 grid gap-2 sm:grid-cols-5">
+                          <input type="hidden" name="creneauId" value={c.id} />
+                          <Champ
+                            label="Code"
+                            name="code"
+                            id={`creneau-code-edit-${c.id}`}
+                            required
+                            defaultValue={c.code}
+                          />
+                          <Champ
+                            label="Jour"
+                            name="jour"
+                            id={`creneau-jour-edit-${c.id}`}
+                            required
+                            defaultValue={c.jour}
+                          />
+                          <Champ
+                            label="Horaire"
+                            name="horaire"
+                            id={`creneau-horaire-edit-${c.id}`}
+                            required
+                            defaultValue={c.horaire}
+                          />
+                          <Champ
+                            label="Restriction (optionnel)"
+                            name="restriction"
+                            id={`creneau-restriction-edit-${c.id}`}
+                            defaultValue={c.restriction ?? ""}
+                          />
+                          <div className="flex items-end">
+                            <SubmitButton variant="secondary" size="sm" pendingLabel="Enregistrement…">
+                              Enregistrer
+                            </SubmitButton>
+                          </div>
+                        </form>
+                        <form action={supprimerCreneauAction} className="mt-2">
+                          <input type="hidden" name="creneauId" value={c.id} />
+                          <SubmitButton variant="ghost" size="sm" pendingLabel="…">
+                            Retirer ce créneau
+                          </SubmitButton>
+                        </form>
+                      </details>
                     </li>
                   ))}
                 </ul>

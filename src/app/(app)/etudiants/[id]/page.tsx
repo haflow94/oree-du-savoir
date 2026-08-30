@@ -180,6 +180,7 @@ export default async function EtudiantDetailPage({
       include: {
         responsables: true,
         sectionSouhaitee: true,
+        creneauSouhaite: true,
         doublonPotentiel: { select: { id: true, nom: true, prenom: true, dateNaissance: true, creeLe: true } },
         inscriptions: {
           include: {
@@ -787,8 +788,18 @@ export default async function EtudiantDetailPage({
           <div className="mt-3">
             <Alert variant="info">
               Section souhaitée à la préinscription :{" "}
-              <strong>{etudiant.sectionSouhaitee.nom}</strong> — choisissez une
-              classe ci-dessous pour l&apos;assigner.
+              <strong>{etudiant.sectionSouhaitee.nom}</strong>
+              {etudiant.creneauSouhaite && (
+                <>
+                  {" "}— créneau souhaité :{" "}
+                  <strong>
+                    {etudiant.creneauSouhaite.code} ({etudiant.creneauSouhaite.jour},{" "}
+                    {etudiant.creneauSouhaite.horaire})
+                  </strong>
+                  {etudiant.creneauSouhaite.restriction && ` — ${etudiant.creneauSouhaite.restriction}`}
+                </>
+              )}
+              {" "}— choisissez une classe ci-dessous pour l&apos;assigner.
             </Alert>
           </div>
         )}

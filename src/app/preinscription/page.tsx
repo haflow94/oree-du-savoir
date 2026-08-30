@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function PreinscriptionPage() {
   const anneeActiveId = await anneeScolaireActiveId();
 
-  const [sections, classes] = await Promise.all([
+  const [sections, classes, catalogue] = await Promise.all([
     prisma.section.findMany({ orderBy: { nom: "asc" } }),
     anneeActiveId
       ? prisma.classe.findMany({
@@ -22,6 +22,7 @@ export default async function PreinscriptionPage() {
           orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
         })
       : Promise.resolve([]),
+    prisma.creneauSection.findMany({ orderBy: [{ sectionId: "asc" }, { ordre: "asc" }] }),
   ]);
 
   const creneaux = classes.map((c) => ({
@@ -29,6 +30,16 @@ export default async function PreinscriptionPage() {
     sectionId: c.cours.sectionId,
     label:
       `${c.cours.nom}${c.niveau ? ` — ${c.niveau}` : ""} · ${JOUR_LABELS[c.jour]} ${c.heureDebut}-${c.heureFin}`,
+  }));
+
+  // Catalogue des créneaux (voir Administration → Sections) : utilisé quand
+  // aucune Classe réelle n'existe encore pour la section choisie — sans lui,
+  // le choix CS/S/D/restriction de la famille serait perdu à la
+  // préinscription (voir preinscription-form.tsx et actions.ts).
+  const catalogueCreneaux = catalogue.map((c) => ({
+    id: c.id,
+    sectionId: c.sectionId,
+    label: `${c.code} — ${c.jour}, ${c.horaire}${c.restriction ? ` (${c.restriction})` : ""}`,
   }));
 
   return (
@@ -48,6 +59,7 @@ export default async function PreinscriptionPage() {
           <PreinscriptionForm
             sections={sections.map((s) => ({ id: s.id, nom: s.nom }))}
             creneaux={creneaux}
+            catalogueCreneaux={catalogueCreneaux}
           />
         )}
 

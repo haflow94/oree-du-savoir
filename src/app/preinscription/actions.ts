@@ -102,8 +102,15 @@ export async function preinscrireAction(
     .map((ligneId) => ({
       sectionId: champTexte(formData, `sectionId-${ligneId}`),
       classeId: champTexte(formData, `classeId-${ligneId}`),
+      // Choix de secours dans le catalogue CS/S/D (voir Administration →
+      // Sections) quand aucune classe réelle n'existe encore pour la
+      // section — voir preinscription-form.tsx.
+      creneauSouhaiteId: champTexte(formData, `creneauSouhaiteId-${ligneId}`),
     }))
-    .filter((l): l is { sectionId: string; classeId: string | null } => !!l.sectionId);
+    .filter(
+      (l): l is { sectionId: string; classeId: string | null; creneauSouhaiteId: string | null } =>
+        !!l.sectionId,
+    );
 
   if (!civilite || !nom || !prenom || !dateNaissanceBrute || !villeNaissance || lignes.length === 0) {
     return {
@@ -211,18 +218,46 @@ export async function preinscrireAction(
       : [];
   const classeParId = new Map(classesCandidates.map((c) => [c.id, c]));
 
+  const creneauSouhaiteIdsCandidats = [
+    ...new Set(lignes.map((l) => l.creneauSouhaiteId).filter((id): id is string => !!id)),
+  ];
+  const creneauxSouhaitesCandidats =
+    creneauSouhaiteIdsCandidats.length > 0
+      ? await prisma.creneauSection.findMany({ where: { id: { in: creneauSouhaiteIdsCandidats } } })
+      : [];
+  const creneauSouhaiteParId = new Map(creneauxSouhaitesCandidats.map((c) => [c.id, c]));
+
   // Une classe ne peut être ajoutée qu'une fois (contrainte d'unicité
   // etudiant+classe) : deux lignes pointant par erreur vers le même créneau
   // ne doivent pas produire deux InscriptionClasse.
   const classeIdsValides = new Set<string>();
-  const sectionsSansCreneau: { id: string; nom: string }[] = [];
+  const sectionsSansCreneau: {
+    id: string;
+    nom: string;
+    creneau: { id: string; code: string; jour: string; horaire: string } | null;
+  }[] = [];
   for (const ligne of lignes) {
     const classe = ligne.classeId ? classeParId.get(ligne.classeId) : undefined;
     if (classe && classe.cours.sectionId === ligne.sectionId) {
       classeIdsValides.add(classe.id);
     } else {
       const section = sectionParId.get(ligne.sectionId)!;
-      sectionsSansCreneau.push({ id: section.id, nom: section.nom });
+      const creneauSouhaite = ligne.creneauSouhaiteId
+        ? creneauSouhaiteParId.get(ligne.creneauSouhaiteId)
+        : undefined;
+      sectionsSansCreneau.push({
+        id: section.id,
+        nom: section.nom,
+        creneau:
+          creneauSouhaite && creneauSouhaite.sectionId === ligne.sectionId
+            ? {
+                id: creneauSouhaite.id,
+                code: creneauSouhaite.code,
+                jour: creneauSouhaite.jour,
+                horaire: creneauSouhaite.horaire,
+              }
+            : null,
+      });
     }
   }
 
@@ -245,7 +280,7 @@ export async function preinscrireAction(
     sectionsSansCreneau.length > 1
       ? `Autre(s) section(s) souhaitée(s) sans créneau disponible à la préinscription : ${sectionsSansCreneau
           .slice(1)
-          .map((s) => s.nom)
+          .map((s) => (s.creneau ? `${s.nom} (créneau souhaité : ${s.creneau.code} — ${s.creneau.jour}, ${s.creneau.horaire})` : s.nom))
           .join(", ")}.`
       : null;
 
@@ -272,6 +307,7 @@ export async function preinscrireAction(
       remarque: remarqueSectionsSupplementaires,
       statutInscription: "PREINSCRIT",
       sectionSouhaiteeId: sectionsSansCreneau[0]?.id ?? null,
+      creneauSouhaiteId: sectionsSansCreneau[0]?.creneau?.id ?? null,
       doublonPotentielId: doublon?.id,
       responsables: responsablesACreer.length > 0 ? { create: responsablesACreer } : undefined,
       inscriptions: inscriptionsACreer.length > 0 ? { create: inscriptionsACreer } : undefined,

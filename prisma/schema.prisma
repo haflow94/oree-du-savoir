@@ -329,6 +329,15 @@ model Etudiant {
   // classe (voir inscrireEtudiantAction, qui l'efface alors).
   sectionSouhaiteeId             String?
   sectionSouhaitee               Section?          @relation(fields: [sectionSouhaiteeId], references: [id], onDelete: SetNull)
+  // Carte de créneau (catalogue CreneauSection, ex. "S" samedi) choisie à la
+  // préinscription pour sectionSouhaiteeId quand aucune Classe réelle
+  // n'existait encore pour l'assigner directement (voir
+  // preinscription/actions.ts) : sinon perdue silencieusement, alors que le
+  // dossier papier demandait toujours ce choix. Affichée sur la fiche
+  // jusqu'à l'inscription effective à une classe, qui l'efface (voir
+  // inscrireEtudiantAction, même geste que sectionSouhaiteeId).
+  creneauSouhaiteId              String?
+  creneauSouhaite                CreneauSection?   @relation(fields: [creneauSouhaiteId], references: [id], onDelete: SetNull)
   // Renseigné quand le Bureau anonymise manuellement un dossier inactif
   // depuis longtemps (RGPD — voir src/lib/rgpd.ts). Volontairement pas de
   // purge/tâche automatique : le CA n'a pas encore validé de politique de
@@ -510,6 +519,8 @@ model CreneauSection {
   horaire     String // "09h00 – 13h00"
   restriction String? // ex. "Seulement 1ʳᵉ année"
   ordre       Int     @default(0)
+
+  etudiantsSouhaitant Etudiant[]
 
   @@index([sectionId])
   @@map("creneaux_section")
