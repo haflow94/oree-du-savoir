@@ -1,8 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { PreinscriptionForm } from "./preinscription-form";
 import { EmptyState } from "@/components/ui/empty-state";
-import { anneeScolaireActiveId } from "@/lib/sections-etudiant";
-import { JOUR_LABELS } from "@/lib/planning";
 
 // Sans ceci, Next préoptimiserait la page en statique (aucun cookie/searchParams
 // lu) : la liste des sections serait figée au moment du build Docker, pas
@@ -11,32 +9,17 @@ import { JOUR_LABELS } from "@/lib/planning";
 export const dynamic = "force-dynamic";
 
 export default async function PreinscriptionPage() {
-  const anneeActiveId = await anneeScolaireActiveId();
-
-  const [sections, classes, catalogue] = await Promise.all([
+  const [sections, catalogue] = await Promise.all([
     prisma.section.findMany({ orderBy: { nom: "asc" } }),
-    anneeActiveId
-      ? prisma.classe.findMany({
-          where: { anneeScolaireId: anneeActiveId },
-          include: { cours: true },
-          orderBy: [{ jour: "asc" }, { heureDebut: "asc" }],
-        })
-      : Promise.resolve([]),
     prisma.creneauSection.findMany({ orderBy: [{ sectionId: "asc" }, { ordre: "asc" }] }),
   ]);
 
-  const creneaux = classes.map((c) => ({
-    id: c.id,
-    sectionId: c.cours.sectionId,
-    label:
-      `${c.cours.nom}${c.niveau ? ` — ${c.niveau}` : ""} · ${JOUR_LABELS[c.jour]} ${c.heureDebut}-${c.heureFin}`,
-  }));
-
-  // Catalogue des créneaux (voir Administration → Sections) : utilisé quand
-  // aucune Classe réelle n'existe encore pour la section choisie — sans lui,
-  // le choix CS/S/D/restriction de la famille serait perdu à la
-  // préinscription (voir preinscription-form.tsx et actions.ts).
-  const catalogueCreneaux = catalogue.map((c) => ({
+  // Catalogue des créneaux (CS/S/D + restriction, voir Administration →
+  // Sections) : la préinscription propose toujours ce catalogue générique,
+  // jamais une Classe réelle (matière/niveau précis) — la classe exacte
+  // reste un choix du staff à la confirmation sur place, quelle que soit la
+  // section (voir preinscription-form.tsx et actions.ts).
+  const creneaux = catalogue.map((c) => ({
     id: c.id,
     sectionId: c.sectionId,
     label: `${c.code} — ${c.jour}, ${c.horaire}${c.restriction ? ` (${c.restriction})` : ""}`,
@@ -59,7 +42,6 @@ export default async function PreinscriptionPage() {
           <PreinscriptionForm
             sections={sections.map((s) => ({ id: s.id, nom: s.nom }))}
             creneaux={creneaux}
-            catalogueCreneaux={catalogueCreneaux}
           />
         )}
 

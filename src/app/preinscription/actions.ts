@@ -70,24 +70,23 @@ function responsableDepuisFormulaire(formData: FormData, index: 1 | 2) {
 //
 // Une même personne peut suivre plusieurs cours/sections (voir
 // preinscription-form.tsx) : chaque ligne du formulaire envoie sa section et
-// son créneau sous `sectionId-{ligneId}`/`classeId-{ligneId}`, reconstruites
-// ici via `ligneId` (répété, un par ligne) plutôt que par position — un
-// champ `classeId-*` désactivé (aucun créneau ouvert) est absent du
-// FormData, ce qui casserait un simple appariement par index.
+// son créneau souhaité sous `sectionId-{ligneId}`/`creneauSouhaiteId-{ligneId}`,
+// reconstruites ici via `ligneId` (répété, un par ligne) plutôt que par
+// position.
 //
-// Chaque créneau choisi devient tout de suite une InscriptionClasse (et non
-// un simple souhait en texte) : elle apparaît immédiatement dans « Cours
-// suivis » sur la fiche étudiant, et reste donc déjà présente quand le staff
-// valide le dossier — pas de ressaisie. Les champs ne sont pas fiables côté
-// client, d'où la revérification serveur (classe existante, bien dans la
-// section choisie sur sa ligne).
+// Le créneau souhaité vient toujours du catalogue de la section (CS/S/D +
+// restriction, voir CreneauSection et Administration → Sections) — jamais
+// d'une Classe réelle : la préinscription n'inscrit jamais directement à une
+// classe précise (matière/niveau), qui reste un choix du staff au moment de
+// la confirmation sur place (voir le texte d'intro de la page). Les champs
+// ne sont pas fiables côté client, d'où la revérification serveur (créneau
+// existant, bien rattaché à la section choisie sur sa ligne).
 //
-// Si aucun créneau n'était encore ouvert pour une section choisie (ou que le
-// classeId envoyé ne tient pas la revérification), la première de ces
-// sections est gardée sur `Etudiant.sectionSouhaiteeId` — affichée comme « à
-// assigner » dans Cours suivis. `Etudiant` ne porte qu'un seul champ de ce
-// type : une éventuelle section supplémentaire sans créneau est notée dans
-// `remarque` plutôt que silencieusement perdue (cas rare en pratique).
+// La première section choisie est gardée sur `Etudiant.sectionSouhaiteeId` +
+// `creneauSouhaiteId` — affichée comme « à assigner » dans Cours suivis.
+// `Etudiant` ne porte qu'un seul couple de champs de ce type : une éventuelle
+// section supplémentaire est notée dans `remarque` plutôt que silencieusement
+// perdue (cas rare en pratique).
 export async function preinscrireAction(
   formData: FormData,
 ): Promise<{ erreur: string } | { ok: true }> {
@@ -101,15 +100,12 @@ export async function preinscrireAction(
   const lignes = ligneIds
     .map((ligneId) => ({
       sectionId: champTexte(formData, `sectionId-${ligneId}`),
-      classeId: champTexte(formData, `classeId-${ligneId}`),
-      // Choix de secours dans le catalogue CS/S/D (voir Administration →
-      // Sections) quand aucune classe réelle n'existe encore pour la
-      // section — voir preinscription-form.tsx.
+      // Carte du catalogue CS/S/D de la section (voir Administration →
+      // Sections) — voir preinscription-form.tsx.
       creneauSouhaiteId: champTexte(formData, `creneauSouhaiteId-${ligneId}`),
     }))
     .filter(
-      (l): l is { sectionId: string; classeId: string | null; creneauSouhaiteId: string | null } =>
-        !!l.sectionId,
+      (l): l is { sectionId: string; creneauSouhaiteId: string | null } => !!l.sectionId,
     );
 
   if (!civilite || !nom || !prenom || !dateNaissanceBrute || !villeNaissance || lignes.length === 0) {
@@ -208,16 +204,6 @@ export async function preinscrireAction(
     }
   }
 
-  const classeIdsCandidats = [...new Set(lignes.map((l) => l.classeId).filter((id): id is string => !!id))];
-  const classesCandidates =
-    classeIdsCandidats.length > 0
-      ? await prisma.classe.findMany({
-          where: { id: { in: classeIdsCandidats } },
-          include: { cours: true },
-        })
-      : [];
-  const classeParId = new Map(classesCandidates.map((c) => [c.id, c]));
-
   const creneauSouhaiteIdsCandidats = [
     ...new Set(lignes.map((l) => l.creneauSouhaiteId).filter((id): id is string => !!id)),
   ];
@@ -227,39 +213,29 @@ export async function preinscrireAction(
       : [];
   const creneauSouhaiteParId = new Map(creneauxSouhaitesCandidats.map((c) => [c.id, c]));
 
-  // Une classe ne peut être ajoutée qu'une fois (contrainte d'unicité
-  // etudiant+classe) : deux lignes pointant par erreur vers le même créneau
-  // ne doivent pas produire deux InscriptionClasse.
-  const classeIdsValides = new Set<string>();
-  const sectionsSansCreneau: {
+  const sectionsSouhaitees: {
     id: string;
     nom: string;
     creneau: { id: string; code: string; jour: string; horaire: string } | null;
-  }[] = [];
-  for (const ligne of lignes) {
-    const classe = ligne.classeId ? classeParId.get(ligne.classeId) : undefined;
-    if (classe && classe.cours.sectionId === ligne.sectionId) {
-      classeIdsValides.add(classe.id);
-    } else {
-      const section = sectionParId.get(ligne.sectionId)!;
-      const creneauSouhaite = ligne.creneauSouhaiteId
-        ? creneauSouhaiteParId.get(ligne.creneauSouhaiteId)
-        : undefined;
-      sectionsSansCreneau.push({
-        id: section.id,
-        nom: section.nom,
-        creneau:
-          creneauSouhaite && creneauSouhaite.sectionId === ligne.sectionId
-            ? {
-                id: creneauSouhaite.id,
-                code: creneauSouhaite.code,
-                jour: creneauSouhaite.jour,
-                horaire: creneauSouhaite.horaire,
-              }
-            : null,
-      });
-    }
-  }
+  }[] = lignes.map((ligne) => {
+    const section = sectionParId.get(ligne.sectionId)!;
+    const creneauSouhaite = ligne.creneauSouhaiteId
+      ? creneauSouhaiteParId.get(ligne.creneauSouhaiteId)
+      : undefined;
+    return {
+      id: section.id,
+      nom: section.nom,
+      creneau:
+        creneauSouhaite && creneauSouhaite.sectionId === ligne.sectionId
+          ? {
+              id: creneauSouhaite.id,
+              code: creneauSouhaite.code,
+              jour: creneauSouhaite.jour,
+              horaire: creneauSouhaite.horaire,
+            }
+          : null,
+    };
+  });
 
   const dateNaissance = new Date(dateNaissanceBrute);
   const responsablesACreer = [responsable1, responsable2].filter(
@@ -274,11 +250,9 @@ export async function preinscrireAction(
     emailResponsable: responsable1?.email,
   });
 
-  const inscriptionsACreer = [...classeIdsValides].map((classeId) => ({ classeId }));
-
   const remarqueSectionsSupplementaires =
-    sectionsSansCreneau.length > 1
-      ? `Autre(s) section(s) souhaitée(s) sans créneau disponible à la préinscription : ${sectionsSansCreneau
+    sectionsSouhaitees.length > 1
+      ? `Autre(s) section(s) souhaitée(s) à la préinscription : ${sectionsSouhaitees
           .slice(1)
           .map((s) => (s.creneau ? `${s.nom} (créneau souhaité : ${s.creneau.code} — ${s.creneau.jour}, ${s.creneau.horaire})` : s.nom))
           .join(", ")}.`
@@ -306,11 +280,10 @@ export async function preinscrireAction(
       dernierDiplome: champTexte(formData, "dernierDiplome"),
       remarque: remarqueSectionsSupplementaires,
       statutInscription: "PREINSCRIT",
-      sectionSouhaiteeId: sectionsSansCreneau[0]?.id ?? null,
-      creneauSouhaiteId: sectionsSansCreneau[0]?.creneau?.id ?? null,
+      sectionSouhaiteeId: sectionsSouhaitees[0]?.id ?? null,
+      creneauSouhaiteId: sectionsSouhaitees[0]?.creneau?.id ?? null,
       doublonPotentielId: doublon?.id,
       responsables: responsablesACreer.length > 0 ? { create: responsablesACreer } : undefined,
-      inscriptions: inscriptionsACreer.length > 0 ? { create: inscriptionsACreer } : undefined,
     },
   });
 
