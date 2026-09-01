@@ -11,14 +11,14 @@ const REQUIRED_MARK = <span className="text-rust" aria-hidden="true"> *</span>;
 // géré par ce fichier ou construit à la main ailleurs (voir auto-submit.tsx
 // et les formulaires de filtre qui l'importent directement).
 export const CONTROL_CLASSES =
-  "w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+  "w-full rounded-md border border-field-border bg-field-bg px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 // Variante sans `w-full`, pour les contrôles alignés en ligne (barres de
 // filtres, formulaires inline) : sans elle, un <select> hérite de w-full et
 // réclame toute la largeur de son conteneur flex, ce qui force chaque
 // contrôle sur sa propre ligne dans une barre de filtres (voir TOOLBAR_CLASSES).
 export const CONTROL_SM_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+  "rounded-md border border-field-border bg-field-bg px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 // Barre de filtres compacte : les contrôles (avec CONTROL_SM_CLASSES) et
 // actions restent sur une seule ligne autant que possible au lieu de

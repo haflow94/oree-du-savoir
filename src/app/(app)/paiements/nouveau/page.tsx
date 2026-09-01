@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formaterMontant } from "@/lib/paiements";
-import { requireModule, Module } from "@/lib/permissions";
+import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { montantSuggereDossier } from "@/lib/sections-etudiant";
 import { creerDossierAction } from "./actions";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
@@ -25,10 +25,15 @@ export default async function NouveauDossierPage({
     q?: string;
   }>;
 }) {
-  await requireModule(Module.PAIEMENTS, "ECRITURE");
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
   const { error, etudiantId, anneeScolaireId, q } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
   const recherche = q?.trim() ?? "";
+  // Revient à la fiche d'origine quand on y a accès (voir même logique dans
+  // paiements/[id]/page.tsx) plutôt que toujours vers la liste générique.
+  const peutVoirEtudiant =
+    !!etudiantId && (await peutAccederModule(session.role, Module.ETUDIANTS, "LECTURE"));
+  const retourHref = peutVoirEtudiant ? `/etudiants/${etudiantId}` : "/paiements";
 
   const [etudiants, annees] = await Promise.all([
     // Recherche par nom/prénom : indispensable dès qu'il y a plus qu'une
@@ -60,7 +65,10 @@ export default async function NouveauDossierPage({
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <BackLink href="/paiements" label="Paiements" />
+        <BackLink
+          href={retourHref}
+          label={peutVoirEtudiant ? "Retour à la fiche" : "Paiements"}
+        />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Nouveau dossier de paiement
         </h1>
@@ -134,7 +142,7 @@ export default async function NouveauDossierPage({
             }
           />
           <div className="flex justify-end gap-3">
-            <Link href="/paiements" className={buttonVariants({ variant: "secondary" })}>
+            <Link href={retourHref} className={buttonVariants({ variant: "secondary" })}>
               Annuler
             </Link>
             <SubmitButton variant="primary" pendingLabel="Création…">

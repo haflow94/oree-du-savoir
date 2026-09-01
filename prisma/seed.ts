@@ -198,12 +198,30 @@ async function seedOrganisation() {
   console.log("[seed] Organisation créée (identité à compléter depuis Administration → Organisation).");
 }
 
+// Réglage du flux n8n de relance paiement/pièce d'identité (voir modèle
+// ParametresRelance) : une seule ligne, valeurs par défaut modifiables
+// ensuite depuis Administration → Relances, jamais réécrasées une fois
+// présentes.
+async function seedParametresRelance() {
+  const count = await prisma.parametresRelance.count();
+  if (count > 0) {
+    console.log("[seed] ParametresRelance déjà présent — inchangé.");
+    return;
+  }
+
+  await prisma.parametresRelance.create({ data: {} });
+  console.log(
+    "[seed] ParametresRelance créé (relance dossier : 2 max, délai 15j ; alerte chèque : 2 max, délai 7j).",
+  );
+}
+
 async function main() {
   await seedAdmin();
   await seedAnneeScolaire();
   await seedSections();
   await seedCreneaux();
   await seedOrganisation();
+  await seedParametresRelance();
   await seedPermissions();
 }
 

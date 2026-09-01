@@ -171,7 +171,7 @@ export default async function DashboardPage() {
       label: "Doublons potentiels",
       icon: UserSearch,
       valeur: nbDoublonsPotentiels,
-      href: "/inscriptions",
+      href: "/etudiants/doublons",
       accent: "rust",
     },
     {

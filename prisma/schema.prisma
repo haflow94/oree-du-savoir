@@ -317,10 +317,13 @@ model Etudiant {
   statutInscription              StatutInscription @default(VALIDE)
   // Marqueur d'idempotence pour l'automatisation n8n (hors app, voir
   // CLAUDE.md section n8n) qui envoie l'email de bienvenue + dossier rempli
-  // quand statutInscription bascule PREINSCRIT → VALIDE : le workflow filtre
-  // sur IS NULL puis met à jour ce champ après envoi, pour ne jamais
-  // renvoyer deux fois le même email à un poll suivant. Jamais lu/écrit par
-  // l'application elle-même — uniquement par n8n via la base.
+  // quand statutInscription bascule PREINSCRIT → VALIDE : n8n lit les
+  // candidats via GET /api/internal/n8n/inscriptions-a-notifier (filtré sur
+  // IS NULL) puis pose ce champ via POST
+  // /api/internal/n8n/etudiants/[id]/notification-bienvenue après envoi
+  // réussi, pour ne jamais renvoyer deux fois le même email. n8n ne touche
+  // jamais directement Postgres — uniquement via ces routes internes (voir
+  // lib/auth-n8n.ts).
   notificationBienvenueEnvoyeeLe DateTime?
   // Section demandée à la préinscription en ligne quand aucun créneau
   // n'était encore ouvert pour l'assigner directement à une classe (voir
@@ -759,6 +762,32 @@ enum MoyenPaiement {
   PRELEVEMENT
 }
 
+// Réglage éditable (Administration → Relances), une seule ligne, sur le même
+// principe que Organisation : jamais de constante en dur pour une décision
+// associative (voir CLAUDE.md — "ne jamais changer silencieusement une
+// règle métier"). Consommé par GET /api/internal/n8n/dossiers-a-relancer
+// (flux n8n de relance paiement/pièce d'identité, hors app).
+model ParametresRelance {
+  id               String   @id @default(cuid())
+  // Nombre maximum de relances automatiques envoyées par dossier annuel :
+  // au-delà, le flux n8n ne le remonte plus, le staff reprend la main
+  // manuellement depuis la fiche.
+  nombreMaxRelances Int     @default(2)
+  // Jours d'attente avant la première relance (depuis DossierAnnuel.creeLe)
+  // puis entre deux relances (depuis DossierAnnuel.derniereRelanceEnvoyeeLe).
+  delaiJours       Int      @default(15)
+  // Réglage d'un flux distinct (alerte interne Bureau quand un chèque reçu
+  // traîne non déposé, voir Cheque.nombreAlertesEnvoyees) : même mécanique
+  // que nombreMaxRelances/delaiJours ci-dessus mais volontairement des
+  // champs séparés — ce n'est pas la même règle métier (famille vs
+  // trésorerie interne), donc jamais couplés.
+  nombreMaxAlertesCheque Int @default(2)
+  delaiJoursCheque       Int @default(7)
+  misAJourLe       DateTime @updatedAt
+
+  @@map("parametres_relance")
+}
+
 // Ancrage minimal pour les paiements (montant dû global saisi à la main),
 // en attendant l'inscription complète (préinscription, cours suivis,
 // génération du dossier officiel — Phase 2, en attente du gabarit). La
@@ -782,6 +811,15 @@ model DossierAnnuel {
   // Adultes. Reste vide tant que non saisi.
   niveauAdmission String?
   creeLe          DateTime      @default(now())
+  // Idempotence + compteur du flux n8n de relance (voir ParametresRelance et
+  // GET/POST /api/internal/n8n/dossiers-a-relancer|.../relance-envoyee) :
+  // incrémenté seulement après l'envoi réussi d'une relance, jamais avant.
+  // Volontairement pas basé sur le statut Soldé/Partiel/Impayé (voir
+  // lib/paiements.ts#statutCotisation, qui reflète l'encaissement réel en
+  // trésorerie) : la relance ne regarde que si au moins un paiement a été
+  // apporté, peu importe son état de traitement.
+  nombreRelancesEnvoyees   Int      @default(0)
+  derniereRelanceEnvoyeeLe DateTime?
 
   echeances Echeance[]
 
@@ -846,6 +884,15 @@ model Cheque {
   dateDepot            DateTime?
   dateEncaissement     DateTime?
   motifRejet           String?
+  // Idempotence + compteur du flux n8n d'alerte "chèque reçu non déposé"
+  // (voir ParametresRelance et GET/POST /api/internal/n8n/cheques-a-alerter
+  // |.../alerte-envoyee) : incrémenté seulement après l'envoi réussi d'une
+  // alerte, jamais avant. N'a de sens que tant que statut = RECU — dès que
+  // le chèque passe à DEPOSE/ENCAISSE/REJETE, il sort du champ de la requête
+  // du flux, ces compteurs restent alors figés (traçabilité, jamais remis à
+  // zéro).
+  nombreAlertesEnvoyees   Int      @default(0)
+  derniereAlerteEnvoyeeLe DateTime?
 
   documents Document[]
 

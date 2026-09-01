@@ -18,6 +18,13 @@
   --color-sage-bg: #dce8d3;
   --color-sage-border: #b9cca9;
 
+  /* Fond des champs saisissables (input/select/textarea), distinct du crème
+     des Card en lecture seule et volontairement plus pâle que --color-sage-bg
+     (déjà pris par le badge/l'alerte "succès") pour ne pas se confondre avec
+     ce statut ailleurs sur la même page. */
+  --color-field-bg: #eef2e6;
+  --color-field-border: #c3d4b4;
+
   --color-ochre: #a86423;
   --color-ochre-bg: #f1e0bf;
   --color-ochre-border: #dcc190;

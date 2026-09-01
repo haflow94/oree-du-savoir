@@ -37,7 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/etudiants", label: "Étudiants", icon: Users, module: Module.ETUDIANTS },
   { href: "/inscriptions", label: "Inscriptions", icon: ClipboardList, module: Module.INSCRIPTIONS },
   { href: "/classes", label: "Classes", icon: GraduationCap, module: Module.CLASSES },
-  { href: "/calendrier", label: "Calendrier", icon: CalendarDays, module: Module.CALENDRIER },
+  { href: "/calendrier", label: "Planning", icon: CalendarDays, module: Module.CALENDRIER },
   { href: "/activites", label: "Activités", icon: PartyPopper, module: Module.ACTIVITES },
   { href: "/presences", label: "Présences", icon: CheckSquare, module: Module.PRESENCES },
   { href: "/paiements", label: "Paiements", icon: CreditCard, module: Module.PAIEMENTS },

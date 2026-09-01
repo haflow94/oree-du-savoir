@@ -114,7 +114,7 @@ export default async function ActivitesPage({
             <p className="text-sm text-ink-muted">
               Sorties, fêtes, réunions... Visibles sur le{" "}
               <Link href="/calendrier" className="underline">
-                calendrier
+                planning
               </Link>
               , avec un rappel {RAPPEL_JOURS} jours avant la date.
             </p>

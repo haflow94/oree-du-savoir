@@ -7,6 +7,9 @@ import { Civilite, Sexe, TypeDocument, TypePieceIdentite } from "@/generated/pri
 import { enregistrerDocumentEtudiant, supprimerFichierDocument } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
+import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
+import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
+import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -33,6 +36,15 @@ function retour(etudiantId: string, erreur?: string): never {
       ? `/etudiants/${etudiantId}?error=${erreur}`
       : `/etudiants/${etudiantId}?ok=1`,
   );
+}
+
+// Après résolution d'un doublon, revient sur la page où le staff a ouvert
+// la popup (fiche étudiant ou liste centralisée /etudiants/doublons) plutôt
+// que de toujours rouvrir la fiche — voir doublon-popup.tsx, qui pose ce
+// champ caché quand il est monté depuis la liste.
+function retourDoublon(formData: FormData, defaut: string): never {
+  const cible = champTexte(formData, "redirectTo");
+  redirect(`${cible && cible.startsWith("/") ? cible : defaut}?ok=1`);
 }
 
 export async function modifierEtudiantAction(formData: FormData): Promise<void> {
@@ -109,9 +121,15 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
       },
     }),
   ]);
+  // Une correction de nom/prénom/date de naissance après coup (faute de
+  // frappe qui masquait un vrai doublon à la création) peut faire apparaître
+  // une correspondance qui n'existait pas encore au moment de la
+  // préinscription — voir redetecterDoublonApresModification.
+  await redetecterDoublonApresModification(etudiantId);
 
   revalidatePath(`/etudiants/${etudiantId}`);
   revalidatePath("/etudiants");
+  revalidatePath("/etudiants/doublons");
   retour(etudiantId);
 }
 
@@ -120,6 +138,9 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
 
   const etudiantId = champTexte(formData, "etudiantId");
   if (!etudiantId) redirect("/etudiants");
+
+  const etudiant = await prisma.etudiant.findUnique({ where: { id: etudiantId } });
+  if (!etudiant) redirect("/etudiants");
 
   await prisma.$transaction([
     prisma.etudiant.update({
@@ -135,6 +156,40 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
       },
     }),
   ]);
+
+  // Génère et persiste tout de suite le dossier rempli pour la section
+  // demandée à la préinscription (voir Etudiant.sectionSouhaiteeId), pour
+  // qu'il soit déjà disponible en pièce jointe de l'email de bienvenue
+  // (workflow n8n qui lit les Document DOSSIER_GENERE existants — jamais
+  // l'inverse, l'app ne dépend d'aucun appel n8n, voir CLAUDE.md). Best
+  // effort : une erreur de génération ne doit jamais faire échouer la
+  // validation elle-même, le staff peut toujours la régénérer à la main
+  // depuis la fiche étudiant.
+  if (etudiant.sectionSouhaiteeId) {
+    try {
+      const { modeleDossier, contexte, sectionNom } = await construireContexteDossierEtudiant({
+        etudiantId,
+        sectionId: etudiant.sectionSouhaiteeId,
+      });
+      const html = await rendreDossierHtml(modeleDossier, contexte);
+      const pdf = await rendreDossierPdf(html);
+      const nomFichier = `dossier-${sectionNom}-${etudiant.nom}-${etudiant.prenom}.pdf`;
+      const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, nomFichier, pdf);
+      await prisma.document.create({
+        data: {
+          etudiantId,
+          type: "DOSSIER_GENERE",
+          nomFichier,
+          cheminRelatif,
+          mimeType: "application/pdf",
+          tailleOctets: pdf.length,
+          creeParId: session.id,
+        },
+      });
+    } catch (erreur) {
+      console.error("Génération automatique du dossier à la validation :", erreur);
+    }
+  }
 
   revalidatePath(`/etudiants/${etudiantId}`);
   revalidatePath("/etudiants");
@@ -266,8 +321,9 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
 
   revalidatePath(`/etudiants/${existantId}`);
   revalidatePath("/etudiants");
+  revalidatePath("/etudiants/doublons");
   revalidatePath("/inscriptions");
-  redirect(`/etudiants/${existantId}?ok=1`);
+  retourDoublon(formData, `/etudiants/${existantId}`);
 }
 
 // Le staff a vérifié qu'il s'agit bien de deux personnes distinctes
@@ -295,8 +351,9 @@ export async function confirmerHomonymeAction(formData: FormData): Promise<void>
   ]);
 
   revalidatePath(`/etudiants/${etudiantId}`);
+  revalidatePath("/etudiants/doublons");
   revalidatePath("/inscriptions");
-  retour(etudiantId);
+  retourDoublon(formData, `/etudiants/${etudiantId}`);
 }
 
 function estTypeDocument(valeur: string | null): valeur is TypeDocument {
@@ -316,6 +373,14 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
   if (!etudiantId) redirect("/etudiants");
   if (!estTypeDocument(type) || !(fichier instanceof File) || fichier.size === 0) {
     retour(etudiantId, "FICHIER_MANQUANT");
+  }
+  // DOSSIER_GENERE est réservé au PDF produit par le moteur de dossier
+  // (voir etudiants/[id]/dossier/route.ts et validerInscriptionAction
+  // ci-dessus) : l'exclure de la liste affichée côté client (page.tsx) ne
+  // suffit pas, formulaire ou pas, l'action serveur doit refuser ce type
+  // pour tout fichier arbitraire téléversé à la main.
+  if (type === "DOSSIER_GENERE") {
+    retour(etudiantId, "TYPE_RESERVE");
   }
 
   // Type de pièce + date d'expiration ne sont pertinents que pour

@@ -19,7 +19,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   ADMINISTRATION: "Administration (sections, année scolaire)",
   DOCUMENTS: "Documents",
   INSCRIPTIONS: "Inscriptions",
-  CALENDRIER: "Calendrier",
+  CALENDRIER: "Planning",
   GOUVERNANCE: "Gouvernance (CA/AG)",
 };
 

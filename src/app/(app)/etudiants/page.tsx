@@ -51,9 +51,10 @@ export default async function EtudiantsPage({
   // si ce filtre le demande explicitement.
   const statutFiltre = statut === "preinscrit" || statut === "tous" ? statut : "valide";
 
-  const [anneeScolaires, sections] = await Promise.all([
+  const [anneeScolaires, sections, nbDoublonsPotentiels] = await Promise.all([
     prisma.anneeScolaire.findMany({ orderBy: { dateDebut: "desc" } }),
     prisma.section.findMany({ orderBy: { nom: "asc" } }),
+    prisma.etudiant.count({ where: { doublonPotentielId: { not: null } } }),
   ]);
   const anneeActive = anneeScolaires.find((a) => a.active) ?? null;
   // Année pour laquelle on regarde sections/réinscription : sélectionnable
@@ -142,11 +143,19 @@ export default async function EtudiantsPage({
             </p>
           </div>
         </div>
-        {peutCreer && (
-          <Link href="/etudiants/nouveau" className={buttonVariants({ variant: "primary" })}>
-            + Nouvel étudiant
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {nbDoublonsPotentiels > 0 && (
+            <Link href="/etudiants/doublons" className={buttonVariants({ variant: "secondary" })}>
+              {nbDoublonsPotentiels} doublon{nbDoublonsPotentiels > 1 ? "s" : ""} potentiel
+              {nbDoublonsPotentiels > 1 ? "s" : ""}
+            </Link>
+          )}
+          {peutCreer && (
+            <Link href="/etudiants/nouveau" className={buttonVariants({ variant: "primary" })}>
+              + Nouvel étudiant
+            </Link>
+          )}
+        </div>
       </div>
 
       {supprime && <Alert variant="success">Fiche supprimée.</Alert>}

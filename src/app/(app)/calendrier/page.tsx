@@ -171,7 +171,7 @@ export default async function CalendrierPage({
         <div className="flex items-center gap-3">
           <IconChip icon={CalendarDays} accent="sky" />
           <div>
-            <h1 className="font-display text-3xl font-semibold text-pine-strong">Calendrier</h1>
+            <h1 className="font-display text-3xl font-semibold text-pine-strong">Planning</h1>
             <p className="text-sm capitalize text-ink-muted">{libellePeriode}</p>
           </div>
         </div>

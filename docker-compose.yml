@@ -6,10 +6,14 @@
 #   cp .env.example .env   # puis éditer les valeurs (mots de passe, secret)
 #   docker compose up -d --build
 #
-# Deux volumes nommés séparés, conformément à la règle "fichiers séparés de
-# la base" :
-#   - db_data   : données PostgreSQL
-#   - app_data  : documents/justificatifs uploadés (jamais en base)
+# Stockage, conformément à la règle "fichiers séparés de la base" :
+#   - db_data              : volume nommé, données PostgreSQL
+#   - ./data/documents     : bind mount hôte (service app), documents/
+#     justificatifs uploadés (jamais en base) — même dossier physique qu'en
+#     `npm run dev` (voir DOCUMENTS_DIR dans .env), pour ne jamais avoir deux
+#     stockages divergents selon le mode d'exécution. Migration vers un NAS
+#     plus tard = changer uniquement ce chemin source.
+#   - n8n_data              : volume nommé, données internes n8n
 
 services:
   db:
@@ -34,6 +38,12 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    # uid/gid de l'utilisateur hôte qui lance `npm run dev` (voir .env,
+    # DOCUMENTS_DIR=./data/documents) : l'image officielle node fournit déjà
+    # un user "node" à ce même uid/gid, donc les fichiers créés par le
+    # conteneur (dossiers PDF générés, uploads) restent modifiables sans
+    # sudo côté hôte, sur le même dossier que le mode dev.
+    user: "1000:1000"
     depends_on:
       db:
         condition: service_healthy
@@ -47,6 +57,10 @@ services:
       DOCUMENTS_DIR: /data/documents
       NODE_ENV: production
       PORT: "3000"
+      # Bearer token des routes /api/internal/n8n/* (voir lib/auth-n8n.ts) :
+      # optionnel, ces routes refusent tout tant qu'il n'est pas défini, sans
+      # empêcher l'app de démarrer ni de fonctionner normalement.
+      N8N_INTERNAL_API_SECRET: ${N8N_INTERNAL_API_SECRET:-}
       # Optionnel : IP/nom réellement joignable depuis un téléphone en salle
       # pour l'URL encodée dans le QR d'accès (voir .env.example). Vide par
       # défaut : le fallback détecté depuis la requête HTTP est utilisé.
@@ -58,9 +72,29 @@ services:
       TZ: ${TZ:-Europe/Paris}
     ports:
       - "3000:3000"
+    # Bind mount plutôt que volume nommé : même dossier physique qu'en
+    # `npm run dev` (DOCUMENTS_DIR=./data/documents), pour ne plus avoir deux
+    # stockages de documents divergents selon le mode d'exécution (voir audit
+    # du 2026-08-31). Migration vers un NAS plus tard = changer uniquement ce
+    # chemin source, sans toucher au code. L'ancien volume nommé app_data
+    # reste déclaré plus bas (non supprimé, simplement plus utilisé).
     volumes:
-      - app_data:/data
+      - ./data/documents:/data/documents
+
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - TZ=${TZ:-Europe/Paris}
+      # Même valeur que côté app : les workflows appellent l'app via
+      # /api/internal/n8n/* avec ce Bearer token (header Authorization),
+      # jamais un accès direct à Postgres ni au volume app_data.
+      - N8N_INTERNAL_API_SECRET=${N8N_INTERNAL_API_SECRET:-}
+    volumes:
+      - n8n_data:/home/node/.n8n
 
 volumes:
   db_data:
-  app_data:
+  n8n_data:

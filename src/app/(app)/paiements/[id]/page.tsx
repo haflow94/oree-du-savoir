@@ -60,6 +60,11 @@ export default async function DossierPaiementPage({
   // la même capacité, plus de distinction fine par rôle comme auparavant.
   const peutSaisir = await peutAccederModule(session.role, Module.PAIEMENTS, "ECRITURE");
   const peutGererCheque = peutSaisir;
+  // Un dossier appartient toujours à un seul étudiant : revenir à sa fiche
+  // est plus utile que la liste générique "Paiements" — mais seulement si le
+  // rôle courant a accès au module Étudiants (pas garanti, ex. Trésorier),
+  // sans quoi le lien retomberait sur /acces-refuse.
+  const peutVoirEtudiant = await peutAccederModule(session.role, Module.ETUDIANTS, "LECTURE");
   const { id } = await params;
   const { error, ok } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
@@ -97,7 +102,10 @@ export default async function DossierPaiementPage({
     <div className="max-w-5xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <BackLink href="/paiements" label="Paiements" />
+          <BackLink
+            href={peutVoirEtudiant ? `/etudiants/${dossier.etudiantId}` : "/paiements"}
+            label={peutVoirEtudiant ? `${dossier.etudiant.prenom} ${dossier.etudiant.nom}` : "Paiements"}
+          />
           <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold text-pine-strong">
             {dossier.etudiant.prenom} {dossier.etudiant.nom} — {dossier.anneeScolaire.libelle}
             <Badge variant={STATUT_COTISATION_VARIANTS[statut]}>{statut}</Badge>
@@ -277,6 +285,13 @@ export default async function DossierPaiementPage({
                         <span>{new Date(p.datePaiement).toLocaleDateString("fr-FR")}</span>
                         {p.cheque && (
                           <Badge variant="neutral">{STATUT_CHEQUE_LABELS[p.cheque.statut]}</Badge>
+                        )}
+                        {p.cheque && p.cheque.nombreAlertesEnvoyees > 0 && (
+                          <Badge variant="warning">
+                            Alerte envoyée le{" "}
+                            {new Date(p.cheque.derniereAlerteEnvoyeeLe!).toLocaleDateString("fr-FR")} (
+                            {p.cheque.nombreAlertesEnvoyees})
+                          </Badge>
                         )}
                         {p.prelevement && (
                           <Badge variant="neutral">

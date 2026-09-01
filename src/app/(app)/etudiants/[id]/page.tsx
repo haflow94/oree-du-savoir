@@ -17,10 +17,13 @@ import {
   type StatutDocumentRequis,
 } from "@/lib/documents";
 import { TypeDocument } from "@/generated/prisma/enums";
+import { champsComparaisonDoublon } from "@/lib/doublons-etudiant";
+import { PopupDoublon } from "../doublon-popup";
 import { ChampsTeleversementDocument } from "./champs-televersement-document";
 import { estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { BackLink } from "@/components/ui/back-link";
 import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
+import { creerDossierAction } from "../../paiements/nouveau/actions";
 import {
   modifierEtudiantAction,
   ajouterResponsableAction,
@@ -53,6 +56,7 @@ const MESSAGES: Record<string, string> = {
   EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
   CODE_POSTAL_INVALIDE: "Le code postal doit comporter 5 chiffres.",
   FICHIER_MANQUANT: "Choisissez un fichier et un type de document.",
+  TYPE_RESERVE: "Ce type de document est réservé au dossier généré automatiquement par l'application.",
   PIECE_IDENTITE_INCOMPLETE: "Le type de pièce et sa date d'expiration sont obligatoires pour une pièce d'identité.",
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
@@ -181,7 +185,13 @@ export default async function EtudiantDetailPage({
         responsables: true,
         sectionSouhaitee: true,
         creneauSouhaite: true,
-        doublonPotentiel: { select: { id: true, nom: true, prenom: true, dateNaissance: true, creeLe: true } },
+        doublonPotentiel: { select: champsComparaisonDoublon },
+        doublonsDetectes: {
+          select: {
+            ...champsComparaisonDoublon,
+            _count: { select: { dossiersAnnuels: true, presences: true } },
+          },
+        },
         inscriptions: {
           include: {
             classe: {
@@ -268,6 +278,15 @@ export default async function EtudiantDetailPage({
         ).filter((c) => !dejaInscritClasseIds.has(c.id))
       : [];
 
+  // Formation Jeunes (sexe, niveau scolaire) ne sert qu'au template de
+  // dossier Jeunes (voir lib/dossier/templates/jeunes.hbs) : on ne l'affiche
+  // que si on sait que ça s'applique. Fiche venue d'une préinscription
+  // (sectionSouhaiteeId renseigné) → seulement si la section souhaitée est
+  // du modèle Jeunes. Fiche créée directement par le staff → aucun signal
+  // encore disponible, donc affiché par défaut plutôt que deviné à tort.
+  const afficherFormationJeunes =
+    !etudiant.sectionSouhaiteeId || etudiant.sectionSouhaitee?.modeleDossier === "JEUNES";
+
   const etudiantSupprimable =
     etudiant.dossiersAnnuels.length === 0 &&
     etudiant.inscriptions.length === 0 &&
@@ -308,7 +327,7 @@ export default async function EtudiantDetailPage({
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-4xl space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <IconChip icon={Users} accent="sage" />
@@ -370,38 +389,49 @@ export default async function EtudiantDetailPage({
           <p>
             Doublon potentiel : cette préinscription ressemble à une fiche
             existante — même nom, prénom et date de naissance, ou mêmes
-            coordonnées de responsable. Ouvrez-la pour comparer avant de
-            choisir : vérifiez notamment la date de naissance et les
-            coordonnées.
-          </p>
-          <p className="mt-1 text-xs">
-            Fiche existante : {etudiant.doublonPotentiel.prenom} {etudiant.doublonPotentiel.nom}
-            {etudiant.doublonPotentiel.dateNaissance &&
-              ` · né(e) le ${new Date(etudiant.doublonPotentiel.dateNaissance).toLocaleDateString("fr-FR")}`}
-            {" · créée le "}
-            {new Date(etudiant.doublonPotentiel.creeLe).toLocaleDateString("fr-FR")}
+            coordonnées de responsable.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            <PopupDoublon
+              doublon={etudiant}
+              existant={etudiant.doublonPotentiel}
+              fusionBloquee={etudiant.dossiersAnnuels.length > 0 || etudiant._count.presences > 0}
+              fusionnerAction={fusionnerDoublonAction}
+              confirmerHomonymeAction={confirmerHomonymeAction}
+            />
             <Link
               href={`/etudiants/${etudiant.doublonPotentiel.id}`}
               target="_blank"
               rel="noreferrer"
-              className={buttonVariants({ variant: "primary", size: "sm" })}
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
             >
-              Voir la fiche existante (nouvel onglet)
+              Ouvrir la fiche conservée (nouvel onglet)
             </Link>
-            <form action={fusionnerDoublonAction}>
-              <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <SubmitButton variant="secondary" size="sm">
-                Mettre à jour la fiche existante
-              </SubmitButton>
-            </form>
-            <form action={confirmerHomonymeAction}>
-              <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <SubmitButton variant="secondary" size="sm">
-                Ce n&apos;est pas un doublon (homonymie)
-              </SubmitButton>
-            </form>
+          </div>
+        </Alert>
+      )}
+
+      {peutModifier && etudiant.doublonsDetectes.length > 0 && (
+        <Alert variant="warning">
+          <p>
+            {etudiant.doublonsDetectes.length === 1
+              ? "Une fiche en double pointe vers celle-ci."
+              : `${etudiant.doublonsDetectes.length} fiches en double pointent vers celle-ci.`}{" "}
+            Comparez chacune avant de fusionner ou de confirmer une
+            homonymie.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {etudiant.doublonsDetectes.map((d) => (
+              <PopupDoublon
+                key={d.id}
+                doublon={d}
+                existant={etudiant}
+                fusionBloquee={d._count.dossiersAnnuels > 0 || d._count.presences > 0}
+                fusionnerAction={fusionnerDoublonAction}
+                confirmerHomonymeAction={confirmerHomonymeAction}
+                triggerLabel={`Comparer avec ${d.prenom} ${d.nom}`}
+              />
+            ))}
           </div>
         </Alert>
       )}
@@ -437,6 +467,13 @@ export default async function EtudiantDetailPage({
                 Reste <strong className="font-mono text-ink">{formaterMontant(reste)}</strong>
               </span>
               <Badge variant={STATUT_COTISATION_VARIANTS[statut]}>{statut}</Badge>
+              {dossierAnneeActive.nombreRelancesEnvoyees > 0 && (
+                <Badge variant="warning">
+                  Relance envoyée le{" "}
+                  {new Date(dossierAnneeActive.derniereRelanceEnvoyeeLe!).toLocaleDateString("fr-FR")} (
+                  {dossierAnneeActive.nombreRelancesEnvoyees})
+                </Badge>
+              )}
             </Link>
           );
         })()}
@@ -464,6 +501,7 @@ export default async function EtudiantDetailPage({
         <form action={modifierEtudiantAction} className="space-y-6">
           <input type="hidden" name="etudiantId" value={etudiant.id} />
 
+          <div className="grid gap-6 lg:grid-cols-2">
           <fieldset className={FIELDSET_CLASSES}>
             <legend className={LEGEND_CLASSES}>Identité</legend>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -584,22 +622,25 @@ export default async function EtudiantDetailPage({
             </div>
           </fieldset>
 
-          <fieldset className={FIELDSET_CLASSES}>
-            <legend className={LEGEND_CLASSES}>Formation Jeunes (optionnel)</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ChampSelect label="Sexe" name="sexe" defaultValue={etudiant.sexe ?? ""}>
-                <option value="">—</option>
-                <option value="F">F</option>
-                <option value="M">M</option>
-              </ChampSelect>
-              <Champ
-                label="Niveau scolaire"
-                name="niveauScolaire"
-                defaultValue={etudiant.niveauScolaire ?? ""}
-                placeholder="ex. CM2"
-              />
-            </div>
-          </fieldset>
+          {afficherFormationJeunes && (
+            <fieldset className={FIELDSET_CLASSES}>
+              <legend className={LEGEND_CLASSES}>Formation Jeunes (optionnel)</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ChampSelect label="Sexe" name="sexe" defaultValue={etudiant.sexe ?? ""}>
+                  <option value="">—</option>
+                  <option value="F">F</option>
+                  <option value="M">M</option>
+                </ChampSelect>
+                <Champ
+                  label="Niveau scolaire"
+                  name="niveauScolaire"
+                  defaultValue={etudiant.niveauScolaire ?? ""}
+                  placeholder="ex. CM2"
+                />
+              </div>
+            </fieldset>
+          )}
+          </div>
 
           <div className="flex justify-end">
             <SubmitButton variant="primary">
@@ -608,7 +649,7 @@ export default async function EtudiantDetailPage({
           </div>
         </form>
       ) : (
-        <>
+        <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <CardTitle>Identité</CardTitle>
             <dl className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -651,7 +692,7 @@ export default async function EtudiantDetailPage({
               </div>
             </dl>
           </Card>
-        </>
+        </div>
       )}
 
       <Card>
@@ -922,17 +963,32 @@ export default async function EtudiantDetailPage({
       <p className={ZONE_TITLE_CLASSES}>Situation financière</p>
 
       {peutCreerDossier && anneeActive && etudiant.statutInscription === "VALIDE" && !dossierAnneeActive && (
-        <div className="rounded-lg border border-dashed border-border-strong bg-bg-sunken/40 p-4 text-center">
-          <p className="text-sm text-ink-muted">
-            Aucun dossier pour l&apos;année <strong>{anneeActive.libelle}</strong>.
-          </p>
-          <Link
-            href={`/paiements/nouveau?etudiantId=${etudiant.id}&anneeScolaireId=${anneeActive.id}`}
-            className={`mt-2 inline-flex ${buttonVariants({ variant: "primary", size: "sm" })}`}
-          >
-            Créer le dossier {anneeActive.libelle}
-          </Link>
-        </div>
+        <Card>
+          <CardTitle>Dossier {anneeActive.libelle}</CardTitle>
+          <p className="mt-1 text-sm text-ink-muted">Aucun dossier pour cette année pour l&apos;instant.</p>
+          <form action={creerDossierAction} className="mt-3 flex flex-wrap items-end gap-2">
+            <input type="hidden" name="etudiantId" value={etudiant.id} />
+            <input type="hidden" name="anneeScolaireId" value={anneeActive.id} />
+            <Champ
+              label="Montant dû (€)"
+              name="montantDu"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              className="w-48"
+              defaultValue={totalTarifSections > 0 ? totalTarifSections : undefined}
+              hint={
+                totalTarifSections > 0
+                  ? `Suggéré depuis les sections suivies (${formaterMontant(totalTarifSections)}) — modifiable.`
+                  : undefined
+              }
+            />
+            <SubmitButton variant="primary" pendingLabel="Création…">
+              Créer le dossier
+            </SubmitButton>
+          </form>
+        </Card>
       )}
 
       <Card>
@@ -1003,31 +1059,6 @@ export default async function EtudiantDetailPage({
       <section id="zone-documents" className={ZONE_CLASSES}>
       <p className={ZONE_TITLE_CLASSES}>Documents</p>
         <Card>
-          <div className="flex items-center justify-between">
-            <CardTitle>Dossier</CardTitle>
-            <Badge variant={dossierComplet ? "success" : "danger"}>
-              {dossierComplet ? "Complet" : "Incomplet"}
-            </Badge>
-          </div>
-          <p className="mb-1 mt-1 text-xs text-ink-faint">
-            Pièces administratives à fournir par la famille — distinct de la
-            situation financière ci-dessus.
-          </p>
-          <dl className="mt-3 divide-y divide-border">
-            {TYPES_DOCUMENTS_REQUIS.map((type) => (
-              <div key={type} className="flex items-center justify-between py-1.5 text-sm">
-                <dt className="text-ink">{TYPE_DOCUMENT_LABELS[type]}</dt>
-                <dd>
-                  <Badge variant={STATUT_DOCUMENT_VARIANTS[statutDossier[type]]}>
-                    {STATUT_DOCUMENT_LABELS[statutDossier[type]]}
-                  </Badge>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
-
-        <Card>
           <CardTitle>Dossier d&apos;inscription</CardTitle>
           <p className="mb-3 mt-1 text-xs text-ink-faint">
             Génère le dossier d&apos;inscription en PDF (modèle Adultes ou
@@ -1068,13 +1099,30 @@ export default async function EtudiantDetailPage({
         </Card>
 
         <Card>
-          <CardTitle>Documents</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Documents</CardTitle>
+            <Badge variant={dossierComplet ? "success" : "danger"}>
+              {dossierComplet ? "Complet" : "Incomplet"}
+            </Badge>
+          </div>
+          <dl className="mt-3 divide-y divide-border">
+            {TYPES_DOCUMENTS_REQUIS.map((type) => (
+              <div key={type} className="flex items-center justify-between py-1.5 text-sm">
+                <dt className="text-ink">{TYPE_DOCUMENT_LABELS[type]}</dt>
+                <dd>
+                  <Badge variant={STATUT_DOCUMENT_VARIANTS[statutDossier[type]]}>
+                    {STATUT_DOCUMENT_LABELS[statutDossier[type]]}
+                  </Badge>
+                </dd>
+              </div>
+            ))}
+          </dl>
           {etudiant.documents.length === 0 ? (
-            <div className="mt-4">
+            <div className="mt-4 border-t border-border pt-4">
               <EmptyState message="Aucun document pour l'instant." />
             </div>
           ) : (
-            <div className="mb-4 mt-4 space-y-5">
+            <div className="mb-4 mt-4 space-y-5 border-t border-border pt-4">
               <div>
                 <p className={ZONE_TITLE_CLASSES}>Documents fournis</p>
                 {documentsFournis.length === 0 ? (
@@ -1111,7 +1159,7 @@ export default async function EtudiantDetailPage({
                 type="file"
                 name="fichier"
                 required
-                className="rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
+                className="rounded-md border border-field-border bg-field-bg px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
               />
             </div>
             <SubmitButton variant="secondary" size="sm">
