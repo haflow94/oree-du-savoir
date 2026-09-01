@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { headers } from "next/headers";
+import QRCode from "qrcode";
 import { ClipboardList } from "lucide-react";
 import { requireModule, Module } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +19,18 @@ export default async function InscriptionsPage({
   await requireModule(Module.INSCRIPTIONS, "LECTURE");
   const { q } = await searchParams;
   const recherche = q?.trim() ?? "";
+
+  // Même logique que le QR permanent de salle (voir
+  // (app)/classes/[id]/page.tsx) : un scanner de téléphone n'ouvre un lien
+  // que si le contenu est une URL absolue. PUBLIC_HOST permet de forcer
+  // l'IP/le nom réellement accessible depuis l'accueil si l'appli est
+  // servie en interne via "localhost" ou un nom non joignable par un
+  // téléphone (voir .env.example).
+  const enTetes = await headers();
+  const hote = process.env.PUBLIC_HOST || enTetes.get("host") || "localhost:3000";
+  const protocole = enTetes.get("x-forwarded-proto") ?? "http";
+  const urlPreinscription = `${protocole}://${hote}/preinscription`;
+  const qrSvg = await QRCode.toString(urlPreinscription, { type: "svg", margin: 1, width: 160 });
 
   const preinscrits = await prisma.etudiant.findMany({
     where: {
@@ -53,6 +67,24 @@ export default async function InscriptionsPage({
           depuis{" "}
           <code className="rounded bg-bg-sunken px-1.5 py-0.5 text-xs">/preinscription</code>.
         </p>
+        <div className="mt-4 flex flex-wrap items-start gap-4 border-t border-border pt-4">
+          <div
+            className="inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
+            // SVG produit côté serveur par la bibliothèque qrcode à partir
+            // d'un chemin interne : aucune donnée utilisateur n'y transite.
+            dangerouslySetInnerHTML={{ __html: qrSvg }}
+          />
+          <div className="max-w-xs">
+            <p className="text-sm font-medium text-ink">QR d&apos;accueil</p>
+            <p className="mt-1 text-xs text-ink-faint">
+              À afficher ou imprimer à l&apos;accueil : un futur étudiant sur
+              place peut le scanner pour ouvrir directement le formulaire de
+              préinscription sur son téléphone, sans que le staff ait à le
+              saisir à sa place.
+            </p>
+            <p className="mt-2 break-all font-mono text-xs text-ink-faint">{urlPreinscription}</p>
+          </div>
+        </div>
       </Card>
 
       <form className={TOOLBAR_CLASSES} action="/inscriptions" method="GET">
