@@ -44,6 +44,7 @@ const ACTION_LABELS: Record<string, string> = {
   suppression_classe: "Suppression de classe",
   modification_fermeture: "Modification d'une fermeture",
   suppression_fermeture: "Suppression d'une fermeture",
+  creation_dossier_annuel: "Création d'un dossier annuel",
   modification_montant_du: "Modification du montant dû",
   modification_paiement: "Modification d'un paiement",
   modification_mouvement: "Modification d'un mouvement de trésorerie",

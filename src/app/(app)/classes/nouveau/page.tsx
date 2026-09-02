@@ -7,9 +7,10 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  CHAMPS_MANQUANTS: "Cohorte, année et horaires sont obligatoires.",
+  CHAMPS_MANQUANTS: "Cohorte, cours, année et horaires sont obligatoires.",
   CLASSE_DEJA_EXISTANTE:
-    "Une classe identique (même cohorte et session) existe déjà pour cette année scolaire.",
+    "Une classe identique (même cohorte, cours et session) existe déjà pour cette année scolaire.",
+  COURS_HORS_COHORTE: "Ce cours n'appartient pas à la cohorte choisie.",
 };
 
 export default async function NouvelleClassePage({
@@ -21,21 +22,35 @@ export default async function NouvelleClassePage({
   const { error, depuis } = await searchParams;
   const errorMessage = error ? ERROR_MESSAGES[error] : undefined;
 
-  const [cohortes, annees, enseignants, source, salles] = await Promise.all([
+  const [cohortesBrutes, annees, enseignants, source, salles] = await Promise.all([
     prisma.cohorte.findMany({
-      include: { cours: { select: { id: true, nom: true, sectionId: true } } },
-      orderBy: [{ cours: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
+      include: {
+        section: { select: { id: true, nom: true } },
+        coursLies: {
+          include: { cours: { select: { id: true, nom: true, sectionId: true } } },
+          orderBy: { ordre: "asc" },
+        },
+      },
+      orderBy: [{ section: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
     }),
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
     enseignantsActifsAvecSections(),
     depuis
       ? prisma.classe.findUnique({
           where: { id: depuis },
-          include: { cohorte: { include: { cours: true } } },
+          include: { cohorte: true, cours: true },
         })
       : Promise.resolve(null),
     prisma.salle.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
   ]);
+
+  const cohortes = cohortesBrutes.map((c) => ({
+    id: c.id,
+    section: c.section,
+    niveau: c.niveau,
+    jour: c.jour,
+    cours: c.coursLies.map((cl) => cl.cours),
+  }));
 
   const anneeParDefaut = source?.anneeScolaireId ?? annees.find((a) => a.active)?.id ?? annees[0]?.id;
 
@@ -48,7 +63,7 @@ export default async function NouvelleClassePage({
         </h1>
         <p className="text-sm text-ink-muted">
           {source
-            ? `Copie de « ${source.cohorte.cours.nom}${source.cohorte.niveau ? ` — ${source.cohorte.niveau}` : ""} ». Aucun étudiant ni enseignant n'est repris : modifiez ce qui change (créneau, salle…), choisissez l'enseignant, puis validez.`
+            ? `Copie de « ${source.cours.nom}${source.cohorte.niveau ? ` — ${source.cohorte.niveau}` : ""} ». Aucun étudiant ni enseignant n'est repris : modifiez ce qui change (créneau, salle…), choisissez l'enseignant, puis validez.`
             : "Une cohorte doit exister au préalable (voir la page Classes)."}
         </p>
       </div>
@@ -68,6 +83,7 @@ export default async function NouvelleClassePage({
           source={
             source && {
               cohorteId: source.cohorteId,
+              coursId: source.coursId,
               semestre: source.semestre,
               heureDebut: source.heureDebut,
               heureFin: source.heureFin,

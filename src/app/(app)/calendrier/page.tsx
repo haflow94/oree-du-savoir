@@ -112,7 +112,8 @@ export default async function CalendrierPage({
           include: {
             classe: {
               include: {
-                cohorte: { include: { cours: { include: { section: true } } } },
+                cohorte: true,
+                cours: { include: { section: true } },
                 salle: true,
                 enseignants: { include: { utilisateur: true } },
               },
@@ -134,7 +135,8 @@ export default async function CalendrierPage({
       ? await prisma.classe.findMany({
           where: anneeActive ? { anneeScolaireId: anneeActive.id } : {},
           include: {
-            cohorte: { include: { cours: true } },
+            cohorte: true,
+            cours: true,
             salle: true,
             enseignants: { include: { utilisateur: true } },
           },
@@ -283,7 +285,7 @@ export default async function CalendrierPage({
                                       className="block rounded-md bg-bg-sunken px-1.5 py-1 text-xs text-ink hover:bg-pine-soft"
                                     >
                                       <div className="font-medium">
-                                        {c.heureDebut}–{c.heureFin} {c.cohorte.cours.nom}
+                                        {c.heureDebut}–{c.heureFin} {c.cours.nom}
                                         {c.cohorte.niveau && ` (${c.cohorte.niveau})`}
                                       </div>
                                       {c.enseignants.length > 0 && (
@@ -334,13 +336,13 @@ export default async function CalendrierPage({
                       <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                         <div>
                           <div className="font-medium text-ink">
-                            {s.classe.cohorte.cours.nom}
+                            {s.classe.cours.nom}
                             {s.classe.cohorte.niveau && (
                               <span className="ml-1 text-xs text-ink-faint">({s.classe.cohorte.niveau})</span>
                             )}
                           </div>
                           <div className="text-xs text-ink-faint">
-                            {s.classe.cohorte.cours.section.nom}
+                            {s.classe.cours.section.nom}
                             {s.classe.salle && ` · ${s.classe.salle.nom}`}
                             {s.classe.enseignants.length > 0 &&
                               ` · ${s.classe.enseignants.map((e) => `${e.utilisateur.prenom} ${e.utilisateur.nom}`).join(", ")}`}
@@ -427,9 +429,9 @@ export default async function CalendrierPage({
                               ? "bg-rust-bg text-rust line-through"
                               : "bg-bg-sunken text-ink"
                           }`}
-                          title={`${s.classe.heureDebut} ${s.classe.cohorte.cours.nom}`}
+                          title={`${s.classe.heureDebut} ${s.classe.cours.nom}`}
                         >
-                          {s.classe.heureDebut} {s.classe.cohorte.cours.nom}
+                          {s.classe.heureDebut} {s.classe.cours.nom}
                         </div>
                       ))}
                       {activitesJour.map((a) => {

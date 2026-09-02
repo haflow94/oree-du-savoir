@@ -13,17 +13,11 @@ import {
   inscrireEtudiantAction,
   retirerEtudiantAction,
 } from "../../presences/actions";
-import {
-  modifierClasseAction,
-  supprimerClasseAction,
-  creerGroupeEtudiantsAction,
-  supprimerGroupeEtudiantsAction,
-  modifierMembresGroupeEtudiantsAction,
-  affecterGroupeEtudiantsAction,
-} from "./actions";
+import { supprimerClasseAction } from "./actions";
+import { ModifierClasseForm } from "./modifier-classe-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
-import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
+import { CONTROL_CLASSES } from "@/components/ui/champ";
 import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Badge } from "@/components/ui/badge";
@@ -31,21 +25,15 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-const LABEL_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
-
 const MESSAGES: Record<string, string> = {
-  CHAMPS_MANQUANTS: "Cohorte et horaires sont obligatoires.",
+  CHAMPS_MANQUANTS: "Cohorte, cours et horaires sont obligatoires.",
   CLASSE_UTILISEE:
     "Impossible de supprimer : des séances ou des inscriptions existent déjà pour cette classe.",
   CLASSE_INTROUVABLE: "Cette classe n'existe plus.",
   INSCRIPTION_INVALIDE: "Sélectionnez un étudiant à inscrire.",
   CLASSE_DEJA_EXISTANTE:
-    "Une classe identique (même cohorte et session) existe déjà pour cette année scolaire.",
-  GROUPE_NOM_MANQUANT: "Donnez un nom au groupe.",
-  GROUPE_DEJA_EXISTANT: "Un groupe porte déjà ce nom pour cette classe.",
-  GROUPE_INTROUVABLE: "Ce groupe n'existe plus.",
-  GROUPE_VIDE: "Ajoutez au moins un étudiant au groupe avant de l'affecter.",
-  CLASSE_CIBLE_INVALIDE: "Sélectionnez une classe à laquelle affecter le groupe.",
+    "Une classe identique (même cohorte, cours et session) existe déjà pour cette année scolaire.",
+  COURS_HORS_COHORTE: "Ce cours n'appartient pas à la cohorte choisie.",
 };
 
 export default async function ClasseDetailPage({
@@ -69,7 +57,8 @@ export default async function ClasseDetailPage({
   const classe = await prisma.classe.findUnique({
     where: { id },
     include: {
-      cohorte: { include: { cours: true } },
+      cohorte: true,
+      cours: true,
       anneeScolaire: true,
       salle: true,
       enseignants: { include: { utilisateur: true } },
@@ -90,55 +79,31 @@ export default async function ClasseDetailPage({
     select: { id: true, nom: true },
   });
 
-  const cohortesDisponibles = peutGerer
+  const cohortesDisponiblesBrutes = peutGerer
     ? await prisma.cohorte.findMany({
-        include: { cours: true },
-        orderBy: [{ cours: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
+        include: {
+          section: { select: { id: true, nom: true } },
+          coursLies: {
+            include: { cours: { select: { id: true, nom: true, sectionId: true } } },
+            orderBy: { ordre: "asc" },
+          },
+        },
+        orderBy: [{ section: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
       })
     : [];
+  const cohortesDisponibles = cohortesDisponiblesBrutes.map((c) => ({
+    id: c.id,
+    section: c.section,
+    niveau: c.niveau,
+    jour: c.jour,
+    cours: c.coursLies.map((cl) => cl.cours),
+  }));
 
   const administratif = estAdministratif(session.role);
   const peutInscrire = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
 
-  // Groupes d'étudiants de cette classe : raccourci pour affecter plusieurs
-  // étudiants d'un coup à une autre classe (voir
-  // actions.ts#affecterGroupeEtudiantsAction), sans confondre avec les
-  // inscriptions individuelles ci-dessous.
-  const groupes = peutInscrire
-    ? await prisma.groupeEtudiants.findMany({
-        where: { classeId: id },
-        include: { membres: { include: { etudiant: true }, orderBy: { ajouteLe: "asc" } } },
-        orderBy: { creeLe: "asc" },
-      })
-    : [];
-  // Classes cibles proposées pour l'affectation en masse : la même année
-  // scolaire que la classe courante (portée la plus pertinente), à
-  // l'exclusion d'elle-même — un étudiant peut suivre plusieurs cours, donc
-  // aucune restriction de section ici (contrairement à l'inscription
-  // individuelle ci-dessous, filtrée par section pour rester lisible).
-  const classesCibles =
-    peutInscrire && groupes.length > 0
-      ? await prisma.classe.findMany({
-          where: { anneeScolaireId: classe.anneeScolaireId, id: { not: classe.id } },
-          include: { cohorte: { include: { cours: true } } },
-          orderBy: [{ cohorte: { cours: { nom: "asc" } } }, { cohorte: { niveau: "asc" } }],
-        })
-      : [];
-
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
-  // Ne proposer que les enseignants déjà rattachés à la section de ce cours
-  // (voir lib/enseignants.ts) — sans quoi la liste mélangeait tous les
-  // enseignants actifs, toutes sections confondues. Un enseignant déjà
-  // assigné à cette classe reste affiché même hors filtre, pour ne jamais
-  // perdre la possibilité de le décocher.
-  const enseignantsDisponibles = peutGerer
-    ? (await enseignantsActifsAvecSections()).filter(
-        (e) =>
-          enseignantsAssignes.has(e.id) ||
-          e.sectionIds.length === 0 ||
-          e.sectionIds.includes(classe.cohorte.cours.sectionId),
-      )
-    : [];
+  const enseignantsDisponibles = peutGerer ? await enseignantsActifsAvecSections() : [];
   const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
 
   const dejaInscrits = new Set(classe.inscriptions.map((i) => i.etudiantId));
@@ -149,8 +114,8 @@ export default async function ClasseDetailPage({
   // confondues (voir filtreParSection dans lib/sections-etudiant.ts).
   const filtreSection = {
     OR: [
-      filtreParSection(classe.anneeScolaireId, classe.cohorte.cours.sectionId),
-      { sectionSouhaiteeId: classe.cohorte.cours.sectionId },
+      filtreParSection(classe.anneeScolaireId, classe.cours.sectionId),
+      { sectionSouhaiteeId: classe.cours.sectionId },
     ],
   };
   const etudiantsDisponibles = peutInscrire
@@ -198,7 +163,7 @@ export default async function ClasseDetailPage({
       <div>
         <BackLink href="/classes" label="Classes" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
-          {classe.cohorte.cours.nom}
+          {classe.cours.nom}
           {classe.cohorte.niveau && ` — ${classe.cohorte.niveau}`}
         </h1>
         <p className="text-sm text-ink-muted">
@@ -245,76 +210,19 @@ export default async function ClasseDetailPage({
               />
             </div>
           </div>
-          <form action={modifierClasseAction} className="space-y-4">
-            <input type="hidden" name="classeId" value={classe.id} />
-            <div className="grid gap-4 sm:grid-cols-3">
-              <ChampSelect label="Cohorte" name="cohorteId" required defaultValue={classe.cohorteId}>
-                {cohortesDisponibles.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.cours.nom}
-                    {c.niveau ? ` — ${c.niveau}` : ""} · {JOUR_LABELS[c.jour]}
-                  </option>
-                ))}
-              </ChampSelect>
-              <ChampSelect label="Semestre (optionnel)" name="semestre" defaultValue={classe.semestre ?? ""}>
-                <option value="">Toute l&apos;année</option>
-                <option value="1">Semestre 1</option>
-                <option value="2">Semestre 2</option>
-              </ChampSelect>
-              <ChampSelect label="Salle (optionnel)" name="salleId" defaultValue={classe.salleId ?? ""}>
-                <option value="">Aucune salle</option>
-                {salles.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nom}
-                  </option>
-                ))}
-              </ChampSelect>
-              <Champ
-                label="Heure de début"
-                type="time"
-                name="heureDebut"
-                required
-                defaultValue={classe.heureDebut}
-              />
-              <Champ
-                label="Heure de fin"
-                type="time"
-                name="heureFin"
-                required
-                defaultValue={classe.heureFin}
-              />
-            </div>
-
-            <div>
-              <label className={LABEL_CLASSES}>Enseignant(s)</label>
-              {enseignantsDisponibles.length === 0 ? (
-                <p className="text-sm text-ink-faint">Aucun compte Enseignant actif.</p>
-              ) : (
-                <div className="flex flex-wrap gap-3">
-                  {enseignantsDisponibles.map((e) => (
-                    <label
-                      key={e.id}
-                      className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-ink-muted"
-                    >
-                      <input
-                        type="checkbox"
-                        name="enseignants"
-                        value={e.id}
-                        defaultChecked={enseignantsAssignes.has(e.id)}
-                      />
-                      {e.prenom} {e.nom}
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end">
-              <SubmitButton variant="primary">
-                Enregistrer
-              </SubmitButton>
-            </div>
-          </form>
+          <ModifierClasseForm
+            classeId={classe.id}
+            cohorteId={classe.cohorteId}
+            coursId={classe.coursId}
+            heureDebut={classe.heureDebut}
+            heureFin={classe.heureFin}
+            semestre={classe.semestre}
+            salleId={classe.salleId}
+            cohortes={cohortesDisponibles}
+            salles={salles}
+            enseignants={enseignantsDisponibles}
+            enseignantsAssignesIds={[...enseignantsAssignes]}
+          />
         </Card>
       )}
 
@@ -444,137 +352,6 @@ export default async function ClasseDetailPage({
           </ul>
         )}
       </Card>
-
-      {peutInscrire && (
-        <Card>
-          <CardTitle>Groupes d&apos;étudiants</CardTitle>
-          <p className="mt-1 text-xs text-ink-faint">
-            Un groupe nommé d&apos;étudiants de cette classe, pour les affecter
-            d&apos;un coup à un autre cours au lieu de les sélectionner un par
-            un. Chaque affectation reste ensuite modifiable individuellement
-            depuis la fiche de la classe cible.
-          </p>
-
-          <form action={creerGroupeEtudiantsAction} className="mt-3 flex flex-wrap gap-2">
-            <input type="hidden" name="classeId" value={classe.id} />
-            <input
-              type="text"
-              name="nom"
-              placeholder="Nom du groupe (ex. Groupe A)"
-              required
-              className={`w-64 ${CONTROL_CLASSES}`}
-            />
-            <SubmitButton variant="secondary">
-              Créer le groupe
-            </SubmitButton>
-          </form>
-
-          {groupes.length === 0 ? (
-            <div className="mt-3">
-              <EmptyState message="Aucun groupe pour cette classe." />
-            </div>
-          ) : (
-            <ul className="mt-4 space-y-4">
-              {groupes.map((groupe) => {
-                const membresIds = new Set(groupe.membres.map((m) => m.etudiantId));
-                return (
-                  <li key={groupe.id} className="rounded-xl border border-border p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <span className="text-sm font-semibold text-ink">{groupe.nom}</span>
-                        <span className="ml-2 text-xs text-ink-faint">
-                          {groupe.membres.length} étudiant{groupe.membres.length > 1 ? "s" : ""}
-                        </span>
-                        {groupe.membres.length > 0 && (
-                          <p className="mt-1 text-xs text-ink-muted">
-                            {groupe.membres
-                              .map((m) => `${m.etudiant.prenom} ${m.etudiant.nom}`)
-                              .join(", ")}
-                          </p>
-                        )}
-                      </div>
-                      <div>
-                        <form id={`supprimer-groupe-${groupe.id}`} action={supprimerGroupeEtudiantsAction}>
-                          <input type="hidden" name="classeId" value={classe.id} />
-                          <input type="hidden" name="groupeId" value={groupe.id} />
-                        </form>
-                        <ConfirmDialog
-                          formId={`supprimer-groupe-${groupe.id}`}
-                          triggerLabel="Supprimer"
-                          title="Supprimer ce groupe ?"
-                          description="Les étudiants déjà affectés via ce groupe restent inscrits : seul le groupe est supprimé."
-                          confirmLabel="Supprimer"
-                        />
-                      </div>
-                    </div>
-
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-xs font-medium text-pine">
-                        Gérer les membres
-                      </summary>
-                      {classe.inscriptions.length === 0 ? (
-                        <p className="mt-2 text-xs text-ink-faint">
-                          Inscrivez d&apos;abord des étudiants à cette classe.
-                        </p>
-                      ) : (
-                        <form action={modifierMembresGroupeEtudiantsAction} className="mt-2 space-y-2">
-                          <input type="hidden" name="classeId" value={classe.id} />
-                          <input type="hidden" name="groupeId" value={groupe.id} />
-                          <div className="flex flex-wrap gap-2">
-                            {classe.inscriptions.map((i) => (
-                              <label
-                                key={i.etudiantId}
-                                className="flex items-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs text-ink-muted"
-                              >
-                                <input
-                                  type="checkbox"
-                                  name="etudiants"
-                                  value={i.etudiantId}
-                                  defaultChecked={membresIds.has(i.etudiantId)}
-                                />
-                                {i.etudiant.prenom} {i.etudiant.nom}
-                              </label>
-                            ))}
-                          </div>
-                          <SubmitButton variant="secondary" size="sm">
-                            Enregistrer les membres
-                          </SubmitButton>
-                        </form>
-                      )}
-                    </details>
-
-                    {classesCibles.length > 0 && (
-                      <form
-                        action={affecterGroupeEtudiantsAction}
-                        className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3"
-                      >
-                        <input type="hidden" name="classeId" value={classe.id} />
-                        <input type="hidden" name="groupeId" value={groupe.id} />
-                        <select
-                          name="classeCibleId"
-                          required
-                          className={`w-full max-w-xs ${CONTROL_CLASSES}`}
-                        >
-                          <option value="">Affecter à…</option>
-                          {classesCibles.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.cohorte.cours.nom}
-                              {c.cohorte.niveau ? ` — ${c.cohorte.niveau}` : ""} ({JOUR_LABELS[c.cohorte.jour]} {c.heureDebut})
-                            </option>
-                          ))}
-                        </select>
-                        <SubmitButton variant="primary" size="sm">
-                          Affecter le groupe
-                        </SubmitButton>
-                      </form>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </Card>
-      )}
     </div>
   );
 }

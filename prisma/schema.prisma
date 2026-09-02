@@ -113,6 +113,13 @@ model Organisation {
   // lib/documents.ts) ; remplacer le fichier suffit à changer de logo, sans
   // toucher aux templates (voir SPEC-dossiers.md §2 "Logo — interchangeable").
   logoCheminRelatif String?
+  // Jours où l'association tient effectivement cours, utilisés pour limiter
+  // les sélecteurs de jour à la création/modification d'une Cohorte (voir
+  // Cohorte.jour) — donnée éditable depuis Administration → Organisation,
+  // jamais un sous-ensemble figé de l'enum JourSemaine dans le code : ça
+  // permet de rouvrir un jour plus tard sans migration (voir CLAUDE.md,
+  // règles non négociables sur les décisions métier éditables).
+  joursActifs       JourSemaine[] @default([MARDI, JEUDI, SAMEDI, DIMANCHE])
   misAJourLe        DateTime @updatedAt
 
   @@map("organisation")
@@ -183,9 +190,10 @@ model AnneeScolaire {
   // Administration > Années scolaires.
   archivee  Boolean  @default(false)
 
-  classes           Classe[]
-  dossiersAnnuels   DossierAnnuel[]
-  periodesFermeture PeriodeFermeture[]
+  classes             Classe[]
+  dossiersAnnuels     DossierAnnuel[]
+  periodesFermeture   PeriodeFermeture[]
+  affectationsCohorte AffectationCohorte[]
 
   @@map("annees_scolaires")
 }
@@ -366,12 +374,12 @@ model Etudiant {
   creeLe                         DateTime          @default(now())
   misAJourLe                     DateTime          @updatedAt
 
-  responsables    ResponsableLegal[]
-  dossiersAnnuels DossierAnnuel[]
-  inscriptions    InscriptionClasse[]
-  presences       Presence[]
-  documents       Document[]
-  groupesEtudiants GroupeEtudiantsMembre[]
+  responsables        ResponsableLegal[]
+  dossiersAnnuels     DossierAnnuel[]
+  inscriptions        InscriptionClasse[]
+  presences           Presence[]
+  documents           Document[]
+  affectationsCohorte AffectationCohorte[]
 
   @@index([nom, prenom])
   @@index([doublonPotentielId])
@@ -498,6 +506,7 @@ model Section {
   creeLe                    DateTime      @default(now())
 
   cours                   Cours[]
+  cohortes                Cohorte[]
   souhaitsPreinscription  Etudiant[]
   enseignantsSpecialistes Utilisateur[]    @relation("EnseignantSpecialites")
   creneaux                CreneauSection[]
@@ -540,7 +549,8 @@ model Cours {
   description String?
   creeLe      DateTime @default(now())
 
-  cohortes Cohorte[]
+  cohortesLiees CohorteCours[]
+  classes       Classe[]
 
   @@index([sectionId])
   @@map("cours")
@@ -574,27 +584,62 @@ model Salle {
   @@map("salles")
 }
 
-// Catalogue amont Cours + Niveau + Jour (ex. "Étude Islamique Niveau 1
-// Samedi"), créé une fois et réutilisé d'année en année : Classe (ci-dessous)
-// n'est que l'instanciation annuelle concrète (horaire précis, salle,
-// enseignants, semestre) d'une Cohorte. Pas de champ nom stocké : le libellé
-// est calculé partout à l'affichage à partir de cours.nom + niveau +
-// JOUR_LABELS[jour], comme pour Classe/Cours ailleurs dans l'app. Pas de
-// contrainte d'unicité SQL sur (coursId, niveau, jour) : le dédoublonnage
-// suit la même convention que Classe, en application (findFirst + code
-// d'erreur), voir classes/actions.ts.
+// Catalogue amont Section + Niveau + Jour (ex. "Études Islamiques — Deuxième
+// année — Samedi"), créé une fois et réutilisé d'année en année. L'identité
+// de la Cohorte est autosuffisante — Section+niveau+jour — et existe
+// indépendamment de tout Cours : une Cohorte se crée d'abord (même sans
+// aucun cours), puis des Cours lui sont affectés au fil du temps (voir
+// CohorteCours), jamais l'inverse. Cas réel qui motive le multi-cours : le
+// même groupe d'enfants, même salle, même jour, tourne entre plusieurs
+// matières/profs sur le créneau (ex. Biographie du Prophète 9h, Fiqh 10h,
+// Foi islamique 11h) — chaque Cours affecté garde sa propre Classe (horaire
+// précis, salle, enseignants, semestre — voir Classe.coursId), les Classes
+// ne fusionnent jamais entre elles. Un Cours affecté doit appartenir à la
+// Section de la Cohorte (vérifié en application, voir classes/actions.ts) ;
+// changer la Section d'une Cohorte qui a déjà des cours/classes est bloqué
+// (COHORTE_SECTION_VERROUILLEE). Pas de champ nom stocké : le libellé est
+// calculé partout à l'affichage à partir de section.nom + niveau +
+// JOUR_LABELS[jour].
+//
+// capaciteMax : plafond d'étudiants affectés à la Cohorte (voir
+// AffectationCohorte) — null = illimité. Réintroduit une capacité/liste
+// d'attente après qu'elle ait été explicitement retirée par décision de
+// l'association au niveau Classe/InscriptionClasse (migration
+// 20260826101940_retire_capacite_et_liste_attente) : cette fois assumée par
+// l'association, portée au niveau Cohorte plutôt que Classe. Toujours
+// éditable depuis Administration → Classes → Cohortes, jamais une constante
+// en dur (règle non négociable, voir CLAUDE.md).
 model Cohorte {
-  id      String      @id @default(cuid())
-  coursId String
-  cours   Cours       @relation(fields: [coursId], references: [id], onDelete: Restrict)
-  niveau  String?
-  jour    JourSemaine
-  creeLe  DateTime    @default(now())
+  id          String      @id @default(cuid())
+  sectionId   String
+  section     Section     @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  niveau      String?
+  jour        JourSemaine
+  capaciteMax Int?
+  creeLe      DateTime    @default(now())
 
-  classes Classe[]
+  coursLies    CohorteCours[]
+  classes      Classe[]
+  affectations AffectationCohorte[]
 
-  @@index([coursId])
+  @@unique([sectionId, niveau, jour])
+  @@index([sectionId])
   @@map("cohortes")
+}
+
+// Table de liaison Cohorte × Cours (many-to-many explicite plutôt
+// qu'implicite, pour porter un ordre d'affichage — ex. "Biographie du
+// Prophète + Fiqh + Foi islamique" dans l'ordre du créneau).
+model CohorteCours {
+  cohorteId String
+  cohorte   Cohorte @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+  coursId   String
+  cours     Cours   @relation(fields: [coursId], references: [id], onDelete: Restrict)
+  ordre     Int     @default(0)
+
+  @@id([cohorteId, coursId])
+  @@index([coursId])
+  @@map("cohorte_cours")
 }
 
 // Groupe concret relié au planning (voir 03_Analyse_existant_Excel.md §3.5 :
@@ -615,6 +660,16 @@ model Classe {
   id              String        @id @default(cuid())
   cohorteId       String
   cohorte         Cohorte       @relation(fields: [cohorteId], references: [id], onDelete: Restrict)
+  // Cours précis que CETTE Classe instancie au sein du bloc Cohorte (ex. la
+  // Classe "9h" instancie "Biographie du Prophète" dans la Cohorte "Études
+  // Islamiques Niveau 1 Samedi") — nécessaire depuis que Cohorte peut porter
+  // plusieurs Cours (voir Cohorte, CohorteCours) : avant, le Cours se
+  // déduisait implicitement de Cohorte.coursId (unique). Doit référencer un
+  // Cours effectivement lié à cohorteId, vérifié en application (pas de
+  // contrainte SQL composite, pour ne pas complexifier inutilement le
+  // schéma), voir classes/[id]/actions.ts et classes/nouveau/actions.ts.
+  coursId         String
+  cours           Cours         @relation(fields: [coursId], references: [id], onDelete: Restrict)
   anneeScolaireId String
   anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
   semestre        String? // ex. "1", "2" ; null = classe valable toute l'année
@@ -624,56 +679,26 @@ model Classe {
   salle           Salle?        @relation(fields: [salleId], references: [id], onDelete: SetNull)
   creeLe          DateTime      @default(now())
 
-  enseignants      ClasseEnseignant[]
-  inscriptions     InscriptionClasse[]
-  seances          Seance[]
-  groupesEtudiants GroupeEtudiants[]
+  enseignants  ClasseEnseignant[]
+  inscriptions InscriptionClasse[]
+  seances      Seance[]
 
   @@index([anneeScolaireId])
   @@index([cohorteId])
+  @@index([coursId])
   @@index([salleId])
   @@map("classes")
-}
-
-// Groupe nommé d'étudiants déjà rattaché à une classe (ex. "Groupe A" de
-// "Science niveau 2"), pour affecter plusieurs étudiants d'un coup à une
-// autre classe au lieu de les sélectionner un par un (voir
-// classes/[id]/actions.ts#affecterGroupeEtudiantsAction). Ne remplace ni
-// Classe ni Cours : un groupe n'est qu'un raccourci de sélection, il n'empêche
-// pas un étudiant d'être par ailleurs inscrit à d'autres classes (pas de lien
-// direct avec InscriptionClasse, juste une liste de membres).
-model GroupeEtudiants {
-  id       String   @id @default(cuid())
-  nom      String
-  classeId String
-  classe   Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
-  creeLe   DateTime @default(now())
-
-  membres GroupeEtudiantsMembre[]
-
-  @@unique([classeId, nom])
-  @@index([classeId])
-  @@map("groupes_etudiants")
-}
-
-model GroupeEtudiantsMembre {
-  groupeEtudiantsId String
-  groupeEtudiants   GroupeEtudiants @relation(fields: [groupeEtudiantsId], references: [id], onDelete: Cascade)
-  etudiantId        String
-  etudiant          Etudiant        @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
-  ajouteLe          DateTime        @default(now())
-
-  @@id([groupeEtudiantsId, etudiantId])
-  @@index([etudiantId])
-  @@map("groupes_etudiants_membres")
 }
 
 // « Participation à un cours » du modèle métier, en version minimale : le
 // rattachement d'un étudiant à une classe, nécessaire pour constituer la
 // liste d'appel. L'inscription complète (dossier, documents, validation)
-// reste Phase 2, en attente du gabarit du dossier officiel. Pas de notion de
-// capacité/liste d'attente (retirée — décision association) : toute
-// inscription est immédiatement effective.
+// reste Phase 2, en attente du gabarit du dossier officiel. Pas de capacité
+// ni de liste d'attente à ce niveau : toute InscriptionClasse créée est
+// immédiatement effective. La capacité/liste d'attente vivent au niveau
+// Cohorte (voir AffectationCohorte) : une fois un étudiant affecté à une
+// Cohorte, une InscriptionClasse est créée pour chacune de ses Classes sans
+// contrôle de place supplémentaire ici.
 model InscriptionClasse {
   id         String   @id @default(cuid())
   etudiantId String
@@ -685,6 +710,50 @@ model InscriptionClasse {
   @@unique([etudiantId, classeId])
   @@index([classeId])
   @@map("inscriptions_classe")
+}
+
+enum StatutAffectationCohorte {
+  AFFECTE
+  EN_ATTENTE
+}
+
+// Affectation d'un étudiant à une Cohorte pour une année scolaire donnée :
+// porte la capacité/liste d'attente au niveau du bloc (voir
+// Cohorte.capaciteMax), scopée par année puisque Cohorte elle-même n'est pas
+// rattachée à une année (réutilisable d'année en année). Choix explicite du
+// staff au moment de la création du DossierAnnuel (voir
+// paiements/nouveau/actions.ts#creerDossierAction) : jamais déduit
+// automatiquement du créneau souhaité de préinscription
+// (Etudiant.sectionSouhaiteeId/creneauSouhaiteId pointent vers un catalogue
+// générique Section/CreneauSection, sans lien exploitable vers une Cohorte
+// précise).
+//
+// AFFECTE : une InscriptionClasse a été créée (fan-out) pour CHAQUE Classe
+// rattachée à cette Cohorte pour anneeScolaireId — tout ou rien, pas de
+// désinscription partielle d'un seul Cours du bloc en gardant les autres.
+// EN_ATTENTE : capaciteMax atteinte au moment de la demande. Le passage à
+// AFFECTE reste toujours manuel (jamais automatique, même quand une place se
+// libère — voir classes/cohortes/actions.ts#promouvoirAffectationCohorteAction),
+// pour laisser le staff arbitrer explicitement.
+model AffectationCohorte {
+  id               String                   @id @default(cuid())
+  cohorteId        String
+  cohorte          Cohorte                  @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+  etudiantId       String
+  etudiant         Etudiant                 @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  anneeScolaireId  String
+  anneeScolaire    AnneeScolaire            @relation(fields: [anneeScolaireId], references: [id], onDelete: Cascade)
+  statut           StatutAffectationCohorte @default(AFFECTE)
+  // Position dans la liste d'attente pour un tri stable indépendant de
+  // creeLe (utile si deux affectations sont créées dans la même
+  // transaction/même milliseconde) — incrémenté au sein de (cohorteId,
+  // anneeScolaireId).
+  rangListeAttente Int?
+  creeLe           DateTime                 @default(now())
+
+  @@unique([etudiantId, cohorteId, anneeScolaireId])
+  @@index([cohorteId, anneeScolaireId, statut])
+  @@map("affectations_cohorte")
 }
 
 model ClasseEnseignant {

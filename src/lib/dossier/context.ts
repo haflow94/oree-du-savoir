@@ -82,12 +82,12 @@ async function contexteInscription(
   if (!anneeActive) return { cours: "", classe: "", horaires: "", classes: [] };
 
   const inscriptions = await prisma.inscriptionClasse.findMany({
-    where: { etudiantId, classe: { anneeScolaireId: anneeActive.id, cohorte: { cours: { sectionId } } } },
-    include: { classe: { include: { cohorte: { include: { cours: true } } } } },
+    where: { etudiantId, classe: { anneeScolaireId: anneeActive.id, cours: { sectionId } } },
+    include: { classe: { include: { cohorte: true, cours: true } } },
   });
 
   return {
-    cours: [...new Set(inscriptions.map((i) => i.classe.cohorte.cours.nom))].join(" ; "),
+    cours: [...new Set(inscriptions.map((i) => i.classe.cours.nom))].join(" ; "),
     classe: [...new Set(inscriptions.map((i) => i.classe.cohorte.niveau).filter((n): n is string => !!n))].join(" ; "),
     horaires: inscriptions
       .map((i) => `${JOUR_LABELS[i.classe.cohorte.jour]} ${i.classe.heureDebut}-${i.classe.heureFin}`)

@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 export type SectionResume = { id: string; nom: string };
 
 type InscriptionAvecSection = {
-  classe: { cohorte: { cours: { section: SectionResume } } };
+  classe: { cours: { section: SectionResume } };
 };
 
 export async function anneeScolaireActiveId(): Promise<string | null> {
@@ -21,7 +21,7 @@ export async function anneeScolaireActiveId(): Promise<string | null> {
 export function inclureInscriptionsActives(anneeScolaireId: string) {
   return {
     where: { classe: { anneeScolaireId } },
-    include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+    include: { classe: { include: { cours: { include: { section: true } } } } },
   } as const;
 }
 
@@ -30,7 +30,7 @@ export function sectionsDInscriptions(
 ): SectionResume[] {
   const parId = new Map<string, SectionResume>();
   for (const i of inscriptions) {
-    const section = i.classe.cohorte.cours.section;
+    const section = i.classe.cours.section;
     parId.set(section.id, { id: section.id, nom: section.nom });
   }
   return [...parId.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
@@ -41,7 +41,7 @@ export function sectionsDInscriptions(
 export function filtreParSection(anneeScolaireId: string, sectionId: string) {
   return {
     inscriptions: {
-      some: { classe: { anneeScolaireId, cohorte: { cours: { sectionId } } } },
+      some: { classe: { anneeScolaireId, cours: { sectionId } } },
     },
   } as const;
 }
@@ -119,19 +119,42 @@ export function compterHistoriqueAutreAnnee(anneeScolaireId: string) {
   } as const;
 }
 
-// Suggestion de montant dû pour un DossierAnnuel : somme des frais de
+// Décomposition d'une suggestion de tarif : formation et frais de dossier
+// restent distincts à l'écran (deux postes différents pour le staff / la
+// famille) même si `total` est la seule valeur réellement enregistrée sur le
+// DossierAnnuel (montantDu).
+export type TarifSuggere = { formation: number; dossier: number; total: number };
+
+// Additionne les frais de formation de chaque Section suivie (un poste par
+// section, cumulatif), mais les frais de DOSSIER ne se paient qu'une seule
+// fois par étudiant quel que soit le nombre de sections suivies (frais
+// administratif unique, pas un tarif par cours) — on retient le plus élevé
+// des frais de dossier des sections suivies plutôt que de les additionner.
+export function cumulerTarif(sections: { fraisFormation: unknown; fraisDossier: unknown }[]): TarifSuggere {
+  const formation = sections.reduce(
+    (somme, s) => somme + Number.parseFloat(String(s.fraisFormation)),
+    0,
+  );
+  const dossier = sections.reduce(
+    (max, s) => Math.max(max, Number.parseFloat(String(s.fraisDossier))),
+    0,
+  );
+  return { formation, dossier, total: formation + dossier };
+}
+
+// Suggestion de montant dû pour un DossierAnnuel, décomposée en frais de
 // formation + frais de dossier des Sections où l'étudiant suit réellement
 // une classe cette année-là (Etudiant -> InscriptionClasse -> Classe ->
 // Cours -> Section). Toujours une SUGGESTION éditable, jamais imposée — le
 // staff garde la main (fratrie, remise…). Retourne null si l'étudiant n'a
 // aucun cours suivi cette année (rien à suggérer).
-export async function montantSuggereDossier(
+export async function tarifSuggereDossier(
   etudiantId: string,
   anneeScolaireId: string,
-): Promise<number | null> {
+): Promise<TarifSuggere | null> {
   const inscriptions = await prisma.inscriptionClasse.findMany({
     where: { etudiantId, classe: { anneeScolaireId } },
-    include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+    include: { classe: { include: { cours: { include: { section: true } } } } },
   });
   const sections = sectionsDInscriptions(inscriptions);
   if (sections.length === 0) return null;
@@ -139,9 +162,5 @@ export async function montantSuggereDossier(
   const sectionsCompletes = await prisma.section.findMany({
     where: { id: { in: sections.map((s) => s.id) } },
   });
-  return sectionsCompletes.reduce(
-    (somme, s) =>
-      somme + Number.parseFloat(s.fraisFormation.toString()) + Number.parseFloat(s.fraisDossier.toString()),
-    0,
-  );
+  return cumulerTarif(sectionsCompletes);
 }

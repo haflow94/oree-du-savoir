@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
 import { enregistrerDocumentAssociation, supprimerFichierDocument } from "@/lib/documents";
+import { JourSemaine } from "@/generated/prisma/enums";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -36,6 +37,10 @@ export async function modifierOrganisationAction(formData: FormData): Promise<vo
   const cible = await prisma.organisation.findUnique({ where: { id: organisationId } });
   if (!cible) retour("INTROUVABLE");
 
+  const joursActifs = formData
+    .getAll("joursActifs")
+    .filter((v): v is string => typeof v === "string" && v in JourSemaine) as JourSemaine[];
+
   const logo = formData.get("logo");
   let logoCheminRelatif = cible.logoCheminRelatif;
   if (logo instanceof File && logo.size > 0) {
@@ -62,6 +67,7 @@ export async function modifierOrganisationAction(formData: FormData): Promise<vo
         siret: champTexte(formData, "siret"),
         naf: champTexte(formData, "naf"),
         logoCheminRelatif,
+        joursActifs,
       },
     }),
     prisma.journalAudit.create({

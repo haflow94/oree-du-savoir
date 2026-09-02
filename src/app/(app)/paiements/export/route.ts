@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
-import { anneeScolaireActiveId, filtreParSection } from "@/lib/sections-etudiant";
+import { anneeScolaireActiveId, cumulerTarif, filtreParSection } from "@/lib/sections-etudiant";
 import { requireModule, Module } from "@/lib/permissions";
 import { INCIDENT_LABELS, MOYEN_LABELS, formaterMontant, incidentDePaiement } from "@/lib/paiements";
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
           // sont chargées, puis filtrées en mémoire sur `d.anneeScolaireId`
           // (même approche que (app)/etudiants/[id]/page.tsx).
           inscriptions: {
-            include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+            include: { classe: { include: { cours: { include: { section: true } } } } },
           },
         },
       },
@@ -68,21 +68,26 @@ export async function GET(request: NextRequest) {
     }).length;
 
     // Sections suivies par l'étudiant sur l'année de CE dossier, avec le
-    // tarif de chaque (frais de formation + frais de dossier) — même somme
-    // que `montantSuggereDossier` (src/lib/sections-etudiant.ts), affichée
-    // ici section par section plutôt qu'agrégée.
+    // tarif de chaque — même décomposition que `tarifSuggereDossier`
+    // (src/lib/sections-etudiant.ts), agrégée ici en deux colonnes (formation
+    // / frais de dossier) distinctes plutôt qu'un montant combiné par section.
     const sectionsParId = new Map<
       string,
-      (typeof d.etudiant.inscriptions)[number]["classe"]["cohorte"]["cours"]["section"]
+      (typeof d.etudiant.inscriptions)[number]["classe"]["cours"]["section"]
     >();
     for (const i of d.etudiant.inscriptions) {
       if (i.classe.anneeScolaireId === d.anneeScolaireId) {
-        sectionsParId.set(i.classe.cohorte.cours.section.id, i.classe.cohorte.cours.section);
+        sectionsParId.set(i.classe.cours.section.id, i.classe.cours.section);
       }
     }
-    const sectionsTexte = [...sectionsParId.values()]
-      .map((s) => `${s.nom} (${formaterMontant(Number(s.fraisFormation) + Number(s.fraisDossier))})`)
-      .join(" | ");
+    const sectionsSuivies = [...sectionsParId.values()];
+    const sectionsTexte = sectionsSuivies.map((s) => s.nom).join(" | ");
+    // Frais de dossier compté une seule fois par étudiant, quel que soit le
+    // nombre de sections suivies (voir cumulerTarif) — jamais additionné
+    // section par section.
+    const { formation: fraisFormationTotal, dossier: fraisDossierTotal } = cumulerTarif(sectionsSuivies);
+    const fraisFormationTexte = fraisFormationTotal.toFixed(2);
+    const fraisDossierTexte = fraisDossierTotal.toFixed(2);
 
     const moyensTexte = [...new Set(paiements.map((p) => MOYEN_LABELS[p.moyen]))].join(", ");
 
@@ -121,6 +126,8 @@ export async function GET(request: NextRequest) {
       responsable ? `${responsable.prenom} ${responsable.nom} (${responsable.lien})` : "",
       d.anneeScolaire.libelle,
       sectionsTexte,
+      fraisFormationTexte,
+      fraisDossierTexte,
       du.toFixed(2),
       moyensTexte,
       echeancesTexte,
@@ -145,7 +152,9 @@ export async function GET(request: NextRequest) {
       "Code postal",
       "Responsable légal",
       "Année",
-      "Sections suivies (tarif)",
+      "Sections suivies",
+      "Frais de formation",
+      "Frais de dossier",
       "Dû",
       "Moyens de paiement",
       "Détail des échéances",

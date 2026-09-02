@@ -185,10 +185,10 @@ async function main() {
       { niveau: "Niveau 1", jour: "SAMEDI", debut: "12:00", fin: "13:15", salle: "B1" },
       { niveau: "Niveau 2", jour: "DIMANCHE", debut: "10:30", fin: "11:45", salle: "B1" },
     ]},
-    { cours: "Soutien scolaire", section: "Jeunes", classes: [
+    { cours: "Formation Jeunes", section: "Jeunes", classes: [
       // Une classe en semaine : garantit une séance les jours ouvrés.
-      { niveau: "Collège", jour: "LUNDI", debut: "17:30", fin: "19:00", salle: "C3" },
-      { niveau: "Primaire", jour: "MERCREDI", debut: "14:00", fin: "15:30", salle: "C3" },
+      { niveau: "1ère année", jour: "LUNDI", debut: "17:30", fin: "19:00", salle: "C3" },
+      { niveau: "2ème année", jour: "MERCREDI", debut: "14:00", fin: "15:30", salle: "C3" },
     ]},
   ] as const;
 
@@ -215,11 +215,17 @@ async function main() {
       const titulaire = enseignants[indexEnseignant % enseignants.length];
       indexEnseignant += 1;
       const cohorte = await prisma.cohorte.create({
-        data: { coursId: cours.id, niveau: c.niveau, jour: c.jour },
+        data: {
+          sectionId,
+          niveau: c.niveau,
+          jour: c.jour,
+          coursLies: { create: [{ coursId: cours.id, ordre: 0 }] },
+        },
       });
       const classe = await prisma.classe.create({
         data: {
           cohorteId: cohorte.id,
+          coursId: cours.id,
           anneeScolaireId: annee.id,
           heureDebut: c.debut,
           heureFin: c.fin,

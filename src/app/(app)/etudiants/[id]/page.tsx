@@ -20,7 +20,7 @@ import { TypeDocument } from "@/generated/prisma/enums";
 import { champsComparaisonDoublon } from "@/lib/doublons-etudiant";
 import { PopupDoublon } from "../doublon-popup";
 import { ChampsTeleversementDocument } from "./champs-televersement-document";
-import { estNouveau, estReinscrit } from "@/lib/sections-etudiant";
+import { cumulerTarif, estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { BackLink } from "@/components/ui/back-link";
 import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
 import { creerDossierAction } from "../../paiements/nouveau/actions";
@@ -40,10 +40,10 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
 import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { SubmitMontantDu } from "@/components/ui/submit-montant-du";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ChampSelectAuto } from "@/components/ui/auto-submit";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { IconChip } from "@/components/ui/icon-chip";
 import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
@@ -113,7 +113,7 @@ function ListeDocuments({
                 rel="noreferrer"
                 className="text-xs font-medium text-pine hover:underline"
               >
-                Voir
+                Voir / imprimer
               </a>
               <a
                 href={`/etudiants/${etudiantId}/documents/${d.id}?telecharger=1`}
@@ -159,7 +159,7 @@ export default async function EtudiantDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; ok?: string; classeSectionId?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
   const session = await requireModule(Module.ETUDIANTS, "LECTURE");
   const [peutModifier, peutGererDocuments, peutCreerDossier, peutInscrire, peutSupprimer] =
@@ -171,7 +171,7 @@ export default async function EtudiantDetailPage({
       peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE"),
     ]);
   const { id } = await params;
-  const { error, ok, classeSectionId: classeSectionIdParam } = await searchParams;
+  const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   // Réservé Bureau/Administration à la demande explicite de l'association,
   // en dur (pas via Module.DOCUMENTS) — voir le commentaire des routes
@@ -196,7 +196,8 @@ export default async function EtudiantDetailPage({
           include: {
             classe: {
               include: {
-                cohorte: { include: { cours: { include: { section: true } } } },
+                cohorte: true,
+                cours: { include: { section: true } },
                 anneeScolaire: true,
               },
             },
@@ -232,27 +233,37 @@ export default async function EtudiantDetailPage({
   // Tarif : une ligne par Section distincte suivie sur l'année active (une
   // même section peut regrouper plusieurs classes/cours), frais de
   // formation + frais de dossier de chaque Section (référentiel
-  // Administration → Sections — voir aussi `montantSuggereDossier`, qui
+  // Administration → Sections — voir aussi `tarifSuggereDossier`, qui
   // fait la même somme pour préremplir le dossier annuel). Affiché à titre
   // indicatif : le montant dû réel reste saisi à la main sur le dossier.
   const sectionsParId = new Map<
     string,
-    (typeof etudiant.inscriptions)[number]["classe"]["cohorte"]["cours"]["section"]
+    (typeof etudiant.inscriptions)[number]["classe"]["cours"]["section"]
   >();
   for (const i of etudiant.inscriptions) {
     if (i.classe.anneeScolaireId === anneeActive?.id) {
-      sectionsParId.set(i.classe.cohorte.cours.section.id, i.classe.cohorte.cours.section);
+      sectionsParId.set(i.classe.cours.section.id, i.classe.cours.section);
     }
   }
   const sectionsAvecTarif = [...sectionsParId.values()].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-  const totalTarifSections = sectionsAvecTarif.reduce(
-    (total, s) => total + Number(s.fraisFormation) + Number(s.fraisDossier),
-    0,
-  );
-  // Section demandée à la préinscription : présélectionne le filtre tant que
-  // le staff n'a pas explicitement changé/vidé le filtre (voir
-  // Etudiant.sectionSouhaiteeId et inscrireEtudiantAction).
-  const classeSectionId = classeSectionIdParam ?? etudiant.sectionSouhaiteeId ?? undefined;
+  // Le dossier PDF est propre à une Section (tarifs, créneaux, règles de
+  // remboursement différents par section) — jamais "le dossier de la fiche"
+  // en général. On restreint donc le choix aux sections réellement suivies
+  // par l'étudiant sur l'année active plutôt qu'à tout le référentiel
+  // Sections de l'association ; repli sur la section souhaitée à la
+  // préinscription si pas encore inscrit, puis sur tout le référentiel en
+  // dernier recours.
+  const sectionsPourDossier =
+    sectionsAvecTarif.length > 0
+      ? sectionsAvecTarif
+      : etudiant.sectionSouhaitee
+        ? [etudiant.sectionSouhaitee]
+        : sections;
+  const {
+    formation: formationTarifSections,
+    dossier: dossierTarifSections,
+    total: totalTarifSections,
+  } = cumulerTarif(sectionsAvecTarif);
   const anneeActiveId = anneeActive?.id ?? null;
   const reinscritAnneeActive = anneeActiveId
     ? estReinscrit({
@@ -268,15 +279,28 @@ export default async function EtudiantDetailPage({
     peutInscrire && anneeActiveId
       ? (
           await prisma.classe.findMany({
-            where: {
-              anneeScolaireId: anneeActiveId,
-              ...(classeSectionId ? { cohorte: { cours: { sectionId: classeSectionId } } } : {}),
-            },
-            include: { cohorte: { include: { cours: { include: { section: true } } } } },
-            orderBy: [{ cohorte: { jour: "asc" } }, { heureDebut: "asc" }],
+            where: { anneeScolaireId: anneeActiveId },
+            include: { cohorte: true, cours: { include: { section: true } } },
+            orderBy: [
+              { cours: { section: { nom: "asc" } } },
+              { cohorte: { jour: "asc" } },
+              { heureDebut: "asc" },
+            ],
           })
         ).filter((c) => !dejaInscritClasseIds.has(c.id))
       : [];
+  // Groupé par Section pour l'affichage (un seul select "Cours", plutôt que
+  // deux selects en cascade "Section" puis "Classe" qui portaient à
+  // confusion — voir retours utilisateurs).
+  const classesDisponiblesParSection = new Map<string, { nom: string; classes: typeof classesDisponibles }>();
+  for (const c of classesDisponibles) {
+    const groupe = classesDisponiblesParSection.get(c.cours.section.id);
+    if (groupe) {
+      groupe.classes.push(c);
+    } else {
+      classesDisponiblesParSection.set(c.cours.section.id, { nom: c.cours.section.nom, classes: [c] });
+    }
+  }
 
   // Formation Jeunes (sexe, niveau scolaire) ne sert qu'au template de
   // dossier Jeunes (voir lib/dossier/templates/jeunes.hbs) : on ne l'affiche
@@ -848,7 +872,7 @@ export default async function EtudiantDetailPage({
                   {etudiant.creneauSouhaite.restriction && ` — ${etudiant.creneauSouhaite.restriction}`}
                 </>
               )}
-              {" "}— choisissez une classe ci-dessous pour l&apos;assigner.
+              {" "}— choisissez un cours ci-dessous pour l&apos;assigner.
             </Alert>
           </div>
         )}
@@ -866,7 +890,7 @@ export default async function EtudiantDetailPage({
                       href={`/classes/${i.classe.id}`}
                       className="text-sm font-medium text-ink hover:underline"
                     >
-                      {i.classe.cohorte.cours.section.nom} · {i.classe.cohorte.cours.nom}
+                      {i.classe.cours.section.nom} · {i.classe.cours.nom}
                       {i.classe.cohorte.niveau && ` — ${i.classe.cohorte.niveau}`}
                     </Link>
                   </div>
@@ -896,14 +920,22 @@ export default async function EtudiantDetailPage({
             <p className={ZONE_TITLE_CLASSES}>Tarif {anneeActive?.libelle}</p>
             <ul className="mt-2 divide-y divide-border">
               {sectionsAvecTarif.map((s) => (
-                <li key={s.id} className="flex items-center justify-between py-1.5 text-sm">
+                <li key={s.id} className="py-1.5 text-sm">
                   <span className="text-ink">{s.nom}</span>
-                  <span className="text-ink-muted">
-                    {formaterMontant(Number(s.fraisFormation) + Number(s.fraisDossier))}
-                  </span>
+                  <div className="mt-0.5 flex items-center justify-between text-xs text-ink-muted">
+                    <span>Formation</span>
+                    <span>{formaterMontant(Number(s.fraisFormation))}</span>
+                  </div>
                 </li>
               ))}
             </ul>
+            {/* Frais de dossier compté une seule fois par étudiant, quel que
+                soit le nombre de sections suivies — jamais un poste par
+                section (voir cumulerTarif). */}
+            <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-xs text-ink-muted">
+              <span>Frais de dossier (unique)</span>
+              <span>{formaterMontant(dossierTarifSections)}</span>
+            </div>
             <div className="mt-1 flex items-center justify-between border-t border-border pt-1.5 text-sm font-semibold text-ink">
               <span>Total à payer</span>
               <span>{formaterMontant(totalTarifSections)}</span>
@@ -913,32 +945,21 @@ export default async function EtudiantDetailPage({
 
         {peutInscrire && (
           <div className="mt-4 space-y-3 border-t border-border pt-4">
-            <form
-              className="flex flex-wrap items-end gap-2"
-              action={`/etudiants/${etudiant.id}#cours-suivis`}
-              method="GET"
-            >
-              <ChampSelectAuto label="Section" name="classeSectionId" defaultValue={classeSectionId ?? ""}>
-                <option value="">Toutes les sections</option>
-                {sections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nom}
-                  </option>
-                ))}
-              </ChampSelectAuto>
-            </form>
-
             {classesDisponibles.length > 0 ? (
               <form action={inscrireEtudiantAction} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="origine" value="etudiant" />
                 <input type="hidden" name="etudiantId" value={etudiant.id} />
-                <ChampSelect label="Classe" name="classeId" required className="w-full max-w-sm">
-                  {classesDisponibles.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.cohorte.cours.section.nom} · {c.cohorte.cours.nom}
-                      {c.cohorte.niveau && ` — ${c.cohorte.niveau}`} · {JOUR_LABELS[c.cohorte.jour]} {c.heureDebut}-
-                      {c.heureFin}
-                    </option>
+                <ChampSelect label="Cours" name="classeId" required className="w-full max-w-sm">
+                  {[...classesDisponiblesParSection.values()].map((groupe) => (
+                    <optgroup key={groupe.nom} label={groupe.nom}>
+                      {groupe.classes.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.cours.nom}
+                          {c.cohorte.niveau && ` — ${c.cohorte.niveau}`} · {JOUR_LABELS[c.cohorte.jour]}{" "}
+                          {c.heureDebut}-{c.heureFin}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </ChampSelect>
                 <SubmitButton variant="secondary" size="sm">
@@ -947,11 +968,7 @@ export default async function EtudiantDetailPage({
               </form>
             ) : (
               <EmptyState
-                message={
-                  anneeActiveId
-                    ? "Aucune classe disponible pour ce filtre."
-                    : "Aucune année scolaire active."
-                }
+                message={anneeActiveId ? "Aucun cours disponible." : "Aucune année scolaire active."}
               />
             )}
           </div>
@@ -980,13 +997,17 @@ export default async function EtudiantDetailPage({
               defaultValue={totalTarifSections > 0 ? totalTarifSections : undefined}
               hint={
                 totalTarifSections > 0
-                  ? `Suggéré depuis les sections suivies (${formaterMontant(totalTarifSections)}) — modifiable.`
+                  ? `Suggéré : formation ${formaterMontant(formationTarifSections)} + dossier (unique) ${formaterMontant(dossierTarifSections)} = ${formaterMontant(totalTarifSections)} — modifiable.`
                   : undefined
               }
             />
-            <SubmitButton variant="primary" pendingLabel="Création…">
+            <SubmitMontantDu
+              montantInputId="montantDu"
+              montantSuggere={totalTarifSections > 0 ? totalTarifSections : null}
+              pendingLabel="Création…"
+            >
               Créer le dossier
-            </SubmitButton>
+            </SubmitMontantDu>
           </form>
         </Card>
       )}
@@ -1034,7 +1055,7 @@ export default async function EtudiantDetailPage({
                           rel="noreferrer"
                           className="text-xs font-medium text-pine hover:underline"
                         >
-                          Reçu (PDF)
+                          Reçu (voir / imprimer)
                         </a>
                         <a
                           href={`/etudiants/${etudiant.id}/attestation/${d.id}`}
@@ -1042,7 +1063,7 @@ export default async function EtudiantDetailPage({
                           rel="noreferrer"
                           className="text-xs font-medium text-pine hover:underline"
                         >
-                          Attestation (PDF)
+                          Attestation (voir / imprimer)
                         </a>
                       </>
                     )}
@@ -1062,22 +1083,32 @@ export default async function EtudiantDetailPage({
           <CardTitle>Dossier d&apos;inscription</CardTitle>
           <p className="mb-3 mt-1 text-xs text-ink-faint">
             Génère le dossier d&apos;inscription en PDF (modèle Adultes ou
-            Jeunes selon la section, mise en page identique à
-            l&apos;impression) à partir des informations de l&apos;étudiant.
-            Le fichier est conservé et réapparaît dans les documents
-            ci-dessous.
+            Jeunes, tarifs et créneaux propres à la section suivie, mise en
+            page identique à l&apos;impression) à partir des informations de
+            l&apos;étudiant. Le fichier est conservé et réapparaît dans les
+            documents ci-dessous.
           </p>
-          {sections.length === 0 ? (
+          {sectionsPourDossier.length === 0 ? (
             <EmptyState message="Aucune section enregistrée." />
           ) : (
             <form className="flex flex-wrap items-end gap-2" action={`/etudiants/${etudiant.id}/dossier`}>
-              <ChampSelect label="Section" name="sectionId" required defaultValue={sections[0]?.id}>
-                {sections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nom}
-                  </option>
-                ))}
-              </ChampSelect>
+              {sectionsPourDossier.length === 1 ? (
+                <input type="hidden" name="sectionId" value={sectionsPourDossier[0].id} />
+              ) : (
+                <ChampSelect
+                  label="Section"
+                  name="sectionId"
+                  required
+                  defaultValue={sectionsPourDossier[0]?.id}
+                  hint="Plusieurs sections suivies par cet étudiant : chacune a son propre gabarit et tarifs."
+                >
+                  {sectionsPourDossier.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nom}
+                    </option>
+                  ))}
+                </ChampSelect>
+              )}
               <button
                 type="submit"
                 formTarget="_blank"

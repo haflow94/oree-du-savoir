@@ -19,7 +19,8 @@ export async function chargerSeanceAvecAppel(seanceId: string, session: SessionU
     include: {
       classe: {
         include: {
-          cohorte: { include: { cours: true } },
+          cohorte: true,
+          cours: true,
           salle: true,
           // Seuls les étudiants au dossier validé font l'appel : une
           // préinscription n'apparaît jamais en présences.

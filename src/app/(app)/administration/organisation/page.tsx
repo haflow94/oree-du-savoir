@@ -7,6 +7,7 @@ import { Champ } from "@/components/ui/champ";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { AdminSubNav } from "../sub-nav";
+import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Le nom de l'association est obligatoire.",
@@ -91,6 +92,28 @@ export default async function OrganisationPage({
                 PNG, JPG, SVG ou WebP. Remplacer le fichier suffit : les
                 modèles de dossier l&apos;utilisent automatiquement.
               </p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <p className="mb-1 block text-sm font-medium text-ink">Jours d&apos;ouverture</p>
+              <p className="mb-2 text-xs text-ink-faint">
+                Jours proposés à la création d&apos;une cohorte (Classes). Décocher
+                un jour ne supprime rien : il redevient juste indisponible à la
+                sélection, et peut être recoché à tout moment.
+              </p>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {JOURS_ORDONNES.map((j) => (
+                  <label key={j} className="flex items-center gap-2 text-sm text-ink-muted">
+                    <input
+                      type="checkbox"
+                      name="joursActifs"
+                      value={j}
+                      defaultChecked={organisation.joursActifs.includes(j)}
+                    />
+                    {JOUR_LABELS[j]}
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div className="flex justify-end sm:col-span-2">

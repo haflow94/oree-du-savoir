@@ -15,21 +15,33 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
   await requireModule(Module.CLASSES, "ECRITURE");
 
   const cohorteId = champTexte(formData, "cohorteId");
+  const coursId = champTexte(formData, "coursId");
   const anneeScolaireId = champTexte(formData, "anneeScolaireId");
   const heureDebut = champTexte(formData, "heureDebut");
   const heureFin = champTexte(formData, "heureFin");
 
-  if (!cohorteId || !anneeScolaireId || !heureDebut || !heureFin) {
+  if (!cohorteId || !coursId || !anneeScolaireId || !heureDebut || !heureFin) {
     redirect("/classes/nouveau?error=CHAMPS_MANQUANTS");
+  }
+
+  // Le Cours choisi doit effectivement appartenir au bloc de la Cohorte
+  // choisie (une Cohorte peut porter plusieurs Cours, voir
+  // Cohorte/CohorteCours dans prisma/schema.prisma).
+  const coursDansCohorte = await prisma.cohorteCours.findUnique({
+    where: { cohorteId_coursId: { cohorteId, coursId } },
+  });
+  if (!coursDansCohorte) {
+    redirect("/classes/nouveau?error=COURS_HORS_COHORTE");
   }
 
   const semestre = champTexte(formData, "semestre");
 
-  // Clé d'unicité métier : cohorte (cours + niveau + jour, voir
-  // Cohorte dans prisma/schema.prisma) + année scolaire + session. Empêche de
+  // Clé d'unicité métier : cohorte + cours + année scolaire + session (une
+  // Cohorte peut désormais porter plusieurs Cours, donc plusieurs Classes
+  // légitimes sur le même cohorteId+anneeScolaireId+semestre). Empêche de
   // créer deux fois la « même » classe sur la même période.
   const classeExistante = await prisma.classe.findFirst({
-    where: { cohorteId, anneeScolaireId, semestre },
+    where: { cohorteId, coursId, anneeScolaireId, semestre },
   });
   if (classeExistante) {
     redirect("/classes/nouveau?error=CLASSE_DEJA_EXISTANTE");
@@ -42,6 +54,7 @@ export async function creerClasseAction(formData: FormData): Promise<void> {
   const classe = await prisma.classe.create({
     data: {
       cohorteId,
+      coursId,
       anneeScolaireId,
       heureDebut,
       heureFin,

@@ -58,7 +58,7 @@ export async function resoudreSeanceDuJourPourSalle(
 
   const classes = await prisma.classe.findMany({
     where: { salleId: salle.id, anneeScolaireId: anneeId },
-    include: { cohorte: { include: { cours: true } }, enseignants: { include: { utilisateur: true } } },
+    include: { cohorte: true, cours: true, enseignants: { include: { utilisateur: true } } },
   });
   if (classes.length === 0) {
     return { trouvee: false, raison: "PAS_DE_SEANCE", salleNom: salle.nom };
@@ -77,7 +77,7 @@ export async function resoudreSeanceDuJourPourSalle(
     return {
       seanceId: s.id,
       classeId: classe.id,
-      coursNom: classe.cohorte.cours.nom,
+      coursNom: classe.cours.nom,
       niveau: classe.cohorte.niveau,
       heureDebut: classe.heureDebut,
       heureFin: classe.heureFin,

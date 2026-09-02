@@ -63,7 +63,7 @@ export default async function PaiementsPage({
       etudiant: {
         include: {
           inscriptions: {
-            include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+            include: { classe: { include: { cours: { include: { section: true } } } } },
           },
         },
       },

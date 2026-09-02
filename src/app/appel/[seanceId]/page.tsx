@@ -56,7 +56,7 @@ export default async function AppelPage({
         <div className="mx-auto max-w-3xl space-y-6">
           <div>
             <h1 className="font-display text-3xl font-semibold text-pine-strong">
-              {seance.classe.cohorte.cours.nom}
+              {seance.classe.cours.nom}
               {seance.classe.cohorte.niveau && ` — ${seance.classe.cohorte.niveau}`}
             </h1>
             <p className="text-sm text-ink-muted">

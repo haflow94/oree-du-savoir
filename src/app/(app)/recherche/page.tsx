@@ -57,12 +57,12 @@ export default async function RecherchePage({
       ? prisma.classe.findMany({
           where: {
             OR: [
-              { cohorte: { cours: { nom: { contains: recherche, mode: "insensitive" } } } },
+              { cours: { nom: { contains: recherche, mode: "insensitive" } } },
               { cohorte: { niveau: { contains: recherche, mode: "insensitive" } } },
               { salle: { nom: { contains: recherche, mode: "insensitive" } } },
             ],
           },
-          include: { cohorte: { include: { cours: true } }, anneeScolaire: true, salle: true },
+          include: { cohorte: true, cours: true, anneeScolaire: true, salle: true },
           orderBy: { cohorte: { jour: "asc" } },
           take: 20,
         })
@@ -123,7 +123,7 @@ export default async function RecherchePage({
             {classes.map((c) => (
               <li key={c.id} className="py-2">
                 <Link href={`/classes/${c.id}`} className="text-sm font-medium text-ink hover:underline">
-                  {c.cohorte.cours.nom}
+                  {c.cours.nom}
                   {c.cohorte.niveau && ` — ${c.cohorte.niveau}`}
                 </Link>
                 <span className="ml-2 text-xs text-ink-muted">

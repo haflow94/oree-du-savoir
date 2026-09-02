@@ -2,17 +2,19 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formaterMontant } from "@/lib/paiements";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
-import { montantSuggereDossier } from "@/lib/sections-etudiant";
+import { tarifSuggereDossier } from "@/lib/sections-etudiant";
+import { JOUR_LABELS } from "@/lib/planning";
 import { creerDossierAction } from "./actions";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
 import { buttonVariants } from "@/components/ui/button";
-import { SubmitButton } from "@/components/ui/submit-button";
+import { SubmitMontantDu } from "@/components/ui/submit-montant-du";
 import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 
 const ERROR_MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Étudiant, année scolaire et montant dû sont obligatoires.",
+  COHORTE_INTROUVABLE: "Cette cohorte n'existe plus.",
 };
 
 export default async function NouveauDossierPage({
@@ -35,7 +37,7 @@ export default async function NouveauDossierPage({
     !!etudiantId && (await peutAccederModule(session.role, Module.ETUDIANTS, "LECTURE"));
   const retourHref = peutVoirEtudiant ? `/etudiants/${etudiantId}` : "/paiements";
 
-  const [etudiants, annees] = await Promise.all([
+  const [etudiants, annees, cohortesBrutes] = await Promise.all([
     // Recherche par nom/prénom : indispensable dès qu'il y a plus qu'une
     // poignée d'étudiants (le <select> seul devient vite ingérable).
     prisma.etudiant.findMany({
@@ -50,6 +52,13 @@ export default async function NouveauDossierPage({
       orderBy: [{ nom: "asc" }, { prenom: "asc" }],
     }),
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
+    prisma.cohorte.findMany({
+      include: {
+        section: { select: { id: true, nom: true } },
+        coursLies: { include: { cours: true }, orderBy: { ordre: "asc" } },
+      },
+      orderBy: [{ section: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
+    }),
   ]);
 
   const anneeParDefaut = anneeScolaireId ?? annees.find((a) => a.active)?.id ?? annees[0]?.id;
@@ -57,10 +66,24 @@ export default async function NouveauDossierPage({
   // choisi (depuis sa fiche) : elle ne peut pas se recalculer sans rechargt
   // de page si le staff change le select ensuite, donc pas de suggestion
   // trompeuse affichée dans ce cas — juste le champ vide comme avant.
-  const montantSuggere =
+  const tarifSuggere =
     etudiantId && anneeParDefaut
-      ? await montantSuggereDossier(etudiantId, anneeParDefaut)
+      ? await tarifSuggereDossier(etudiantId, anneeParDefaut)
       : null;
+
+  // Occupation actuelle par Cohorte, sur l'année par défaut (comme pour
+  // tarifSuggere ci-dessus : pas de recalcul dynamique si le staff change
+  // le select Année ensuite, juste un aperçu au chargement).
+  const affectesParCohorte = anneeParDefaut
+    ? await prisma.affectationCohorte.groupBy({
+        by: ["cohorteId"],
+        where: { anneeScolaireId: anneeParDefaut, statut: "AFFECTE" },
+        _count: { _all: true },
+      })
+    : [];
+  const compteAffectesParCohorteId = new Map(
+    affectesParCohorte.map((a) => [a.cohorteId, a._count._all]),
+  );
 
   return (
     <div className="max-w-lg space-y-6">
@@ -134,20 +157,45 @@ export default async function NouveauDossierPage({
             step="0.01"
             min="0"
             required
-            defaultValue={montantSuggere ?? undefined}
+            defaultValue={tarifSuggere?.total ?? undefined}
             hint={
-              montantSuggere !== null
-                ? `Suggéré depuis les sections suivies (${formaterMontant(montantSuggere)}) — modifiable.`
+              tarifSuggere
+                ? `Suggéré depuis les sections suivies : formation ${formaterMontant(tarifSuggere.formation)} + dossier (unique) ${formaterMontant(tarifSuggere.dossier)} = ${formaterMontant(tarifSuggere.total)} — modifiable.`
                 : undefined
             }
           />
+          <ChampSelect
+            label="Affecter à une cohorte (optionnel)"
+            name="cohorteId"
+            defaultValue=""
+            hint="Inscrit automatiquement l'étudiant à toutes les classes du bloc si une place est disponible, sinon le met en liste d'attente."
+          >
+            <option value="">Aucune affectation immédiate</option>
+            {cohortesBrutes.map((c) => {
+              const compte = compteAffectesParCohorteId.get(c.id) ?? 0;
+              const occupation =
+                c.capaciteMax !== null
+                  ? ` · ${compte}/${c.capaciteMax}${compte >= c.capaciteMax ? " (complet, liste d'attente)" : ""}`
+                  : "";
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.section.nom}
+                  {c.niveau ? ` — ${c.niveau}` : ""} ({JOUR_LABELS[c.jour]}){occupation}
+                </option>
+              );
+            })}
+          </ChampSelect>
           <div className="flex justify-end gap-3">
             <Link href={retourHref} className={buttonVariants({ variant: "secondary" })}>
               Annuler
             </Link>
-            <SubmitButton variant="primary" pendingLabel="Création…">
+            <SubmitMontantDu
+              montantInputId="montantDu"
+              montantSuggere={tarifSuggere?.total ?? null}
+              pendingLabel="Création…"
+            >
               Créer le dossier
-            </SubmitButton>
+            </SubmitMontantDu>
           </div>
         </form>
       )}

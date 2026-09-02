@@ -14,26 +14,31 @@ import { SubmitButton } from "@/components/ui/submit-button";
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 
+type Cours = { id: string; nom: string; sectionId: string };
 type Cohorte = {
   id: string;
+  section: { id: string; nom: string };
   niveau: string | null;
   jour: JourSemaine;
-  cours: { id: string; nom: string; sectionId: string };
+  cours: Cours[];
 };
 type Annee = { id: string; libelle: string; active: boolean };
 type Salle = { id: string; nom: string };
 type Source = {
   cohorteId: string;
+  coursId: string;
   semestre: string | null;
   heureDebut: string;
   heureFin: string;
   salleId: string | null;
 } | null;
 
-// Client component : le choix de la cohorte détermine la section de son
-// cours, qui filtre la liste des enseignants proposés juste en dessous (voir
+// Client component : le choix de la cohorte détermine les Cours proposés
+// (une Cohorte peut désormais en porter plusieurs, voir Cohorte/CohorteCours
+// dans prisma/schema.prisma), et le Cours choisi détermine la section qui
+// filtre la liste des enseignants juste en dessous (voir
 // lib/enseignants.ts#filtrerParSection) — nécessite un état partagé entre
-// les deux champs, impossible en composant serveur pur sans recharger la
+// les trois champs, impossible en composant serveur pur sans recharger la
 // page (et perdre le reste du formulaire déjà rempli).
 export function NouvelleClasseForm({
   cohortes,
@@ -51,7 +56,21 @@ export function NouvelleClasseForm({
   salles: Salle[];
 }) {
   const [cohorteId, setCohorteId] = useState(source?.cohorteId ?? cohortes[0]?.id ?? "");
-  const sectionId = cohortes.find((c) => c.id === cohorteId)?.cours.sectionId;
+  const coursDeLaCohorte = cohortes.find((c) => c.id === cohorteId)?.cours ?? [];
+  const [coursId, setCoursId] = useState(source?.coursId ?? coursDeLaCohorte[0]?.id ?? "");
+
+  // Si la cohorte change et que le cours sélectionné n'en fait plus partie
+  // (ou qu'aucun n'était encore choisi), on retombe sur le premier cours du
+  // nouveau bloc — ajusté pendant le rendu (pattern React recommandé)
+  // plutôt que dans un useEffect, pour éviter un rendu supplémentaire après
+  // coup.
+  const [cohorteIdPourCoursId, setCohorteIdPourCoursId] = useState(cohorteId);
+  if (cohorteId !== cohorteIdPourCoursId) {
+    setCohorteIdPourCoursId(cohorteId);
+    setCoursId(coursDeLaCohorte[0]?.id ?? "");
+  }
+
+  const sectionId = coursDeLaCohorte.find((c) => c.id === coursId)?.sectionId;
   const enseignantsVisibles = filtrerParSection(enseignants, sectionId);
 
   return (
@@ -68,8 +87,22 @@ export function NouvelleClasseForm({
           >
             {cohortes.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.cours.nom}
+                {c.section.nom}
                 {c.niveau ? ` — ${c.niveau}` : ""} · {JOUR_LABELS[c.jour]}
+              </option>
+            ))}
+          </ChampSelect>
+          <ChampSelect
+            label="Cours de ce bloc"
+            name="coursId"
+            required
+            disabled={coursDeLaCohorte.length === 0}
+            value={coursId}
+            onChange={(e) => setCoursId(e.target.value)}
+          >
+            {coursDeLaCohorte.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nom}
               </option>
             ))}
           </ChampSelect>
@@ -92,6 +125,12 @@ export function NouvelleClasseForm({
             <option value="2">Semestre 2</option>
           </ChampSelect>
         </div>
+        {coursDeLaCohorte.length === 0 && (
+          <p className="mt-2 text-sm text-ochre">
+            Cette cohorte n&apos;a pas encore de cours affecté. Affectez-en un
+            depuis Classes → Cohortes avant de créer une classe pour ce bloc.
+          </p>
+        )}
       </fieldset>
 
       <fieldset className={FIELDSET_CLASSES}>

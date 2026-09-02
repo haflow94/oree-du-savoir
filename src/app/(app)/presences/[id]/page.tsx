@@ -47,7 +47,7 @@ export default async function SeancePage({
       <div>
         <BackLink href="/presences" label="Présences" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
-          {seance.classe.cohorte.cours.nom}
+          {seance.classe.cours.nom}
           {seance.classe.cohorte.niveau && ` — ${seance.classe.cohorte.niveau}`}
         </h1>
         <p className="text-sm text-ink-muted">

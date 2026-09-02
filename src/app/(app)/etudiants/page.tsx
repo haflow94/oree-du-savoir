@@ -119,7 +119,7 @@ export default async function EtudiantsPage({
         ? inclureInscriptionsActives(anneeSelectionneeId)
         : {
             where: { id: "" },
-            include: { classe: { include: { cohorte: { include: { cours: { include: { section: true } } } } } } },
+            include: { classe: { include: { cours: { include: { section: true } } } } },
           },
       dossiersAnnuels: anneeSelectionneeId
         ? inclureDossierAnnuelActif(anneeSelectionneeId)
