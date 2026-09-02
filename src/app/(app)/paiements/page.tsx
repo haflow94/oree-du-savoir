@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { MoyenPaiement } from "@/generated/prisma/enums";
 import {
+  MOYEN_LABELS,
   formaterMontant,
+  incidentDePaiement,
   statutCotisation,
   totalEncaisse,
   STATUT_COTISATION_VARIANTS,
   STATUT_COTISATION_ROW_CLASSES,
+  type StatutCotisation,
 } from "@/lib/paiements";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { filtreParSection, sectionsDInscriptions } from "@/lib/sections-etudiant";
@@ -27,13 +31,17 @@ export default async function PaiementsPage({
     sectionId?: string;
     q?: string;
     archives?: string;
+    moyen?: string;
+    statut?: string;
   }>;
 }) {
   const session = await requireModule(Module.PAIEMENTS, "LECTURE");
   const peutCreer = await peutAccederModule(session.role, Module.PAIEMENTS, "ECRITURE");
-  const { anneeScolaireId, sectionId, q, archives } = await searchParams;
+  const { anneeScolaireId, sectionId, q, archives, moyen, statut } = await searchParams;
   const recherche = q?.trim() ?? "";
   const voirArchives = archives === "1";
+  const moyenFiltre = moyen && moyen in MoyenPaiement ? (moyen as MoyenPaiement) : "";
+  const statutFiltre = statut && statut in STATUT_COTISATION_VARIANTS ? (statut as StatutCotisation) : "";
 
   const [annees, sections, anneeActive] = await Promise.all([
     prisma.anneeScolaire.findMany({ orderBy: { libelle: "desc" } }),
@@ -58,11 +66,12 @@ export default async function PaiementsPage({
       : {}),
   };
 
-  const dossiers = await prisma.dossierAnnuel.findMany({
+  const dossiersBruts = await prisma.dossierAnnuel.findMany({
     where: {
       ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
       ...(!voirArchives && !anneeFiltre ? { anneeScolaire: { archivee: false } } : {}),
       ...(Object.keys(filtreEtudiant).length > 0 ? { etudiant: filtreEtudiant } : {}),
+      ...(moyenFiltre ? { echeances: { some: { paiements: { some: { moyen: moyenFiltre } } } } } : {}),
     },
     orderBy: [{ anneeScolaire: { libelle: "desc" } }, { etudiant: { nom: "asc" } }],
     include: {
@@ -75,11 +84,24 @@ export default async function PaiementsPage({
       },
       anneeScolaire: true,
       echeances: {
-        include: { paiements: { include: { cheque: true, prelevement: true } } },
+        include: {
+          paiements: {
+            include: { cheque: true, prelevement: true },
+            orderBy: { datePaiement: "desc" },
+          },
+        },
         orderBy: { dateEcheance: "asc" },
       },
     },
   });
+
+  // Le statut de cotisation est une valeur calculée (montant dû vs encaissé
+  // réel, hors chèque/prélèvement rejeté — voir statutCotisation), donc pas
+  // filtrable directement en SQL : filtré ici après calcul, sur le volume
+  // déjà réduit par les filtres précédents (petite volumétrie associative).
+  const dossiers = statutFiltre
+    ? dossiersBruts.filter((d) => statutCotisation(d).statut === statutFiltre)
+    : dossiersBruts;
 
   const paramsExport = new URLSearchParams({
     ...(anneeFiltre ? { anneeScolaireId: anneeFiltre } : {}),
@@ -162,6 +184,28 @@ export default async function PaiementsPage({
             {sections.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.nom}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        <div>
+          <label className={LABEL_XS_CLASSES}>Moyen de paiement</label>
+          <AutoSubmitSelect name="moyen" defaultValue={moyenFiltre} className={CONTROL_SM_CLASSES}>
+            <option value="">Tous les moyens</option>
+            {Object.entries(MOYEN_LABELS).map(([valeur, label]) => (
+              <option key={valeur} value={valeur}>
+                {label}
+              </option>
+            ))}
+          </AutoSubmitSelect>
+        </div>
+        <div>
+          <label className={LABEL_XS_CLASSES}>Statut</label>
+          <AutoSubmitSelect name="statut" defaultValue={statutFiltre} className={CONTROL_SM_CLASSES}>
+            <option value="">Tous les statuts</option>
+            {Object.keys(STATUT_COTISATION_VARIANTS).map((valeur) => (
+              <option key={valeur} value={valeur}>
+                {valeur}
               </option>
             ))}
           </AutoSubmitSelect>
@@ -258,11 +302,25 @@ export default async function PaiementsPage({
                       : encaisseEcheance > 0
                         ? "warning"
                         : "danger";
+                  // Un seul badge par échéance pour ne pas surcharger le
+                  // tableau (pas la liste de tous les paiements en cas de
+                  // règlement partiel/multiple) : priorité à l'incident s'il y
+                  // en a un, sinon le moyen du dernier paiement (paiements
+                  // triés par date décroissante, voir la requête ci-dessus).
+                  const echeanceEnIncident = e.paiements.some((p) => incidentDePaiement(p));
+                  const dernierPaiement = e.paiements[0];
                   return (
                     <td key={i} className="whitespace-nowrap px-4 py-3" title={e.libelle || "Échéance"}>
                       <Badge variant={echeanceVariant}>{formaterMontant(montantEcheance)}</Badge>
-                      <div className="mt-1 text-xs text-ink-faint">
-                        {new Date(e.dateEcheance).toLocaleDateString("fr-FR")}
+                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-ink-faint">
+                        <span>{new Date(e.dateEcheance).toLocaleDateString("fr-FR")}</span>
+                        {echeanceEnIncident ? (
+                          <Badge variant="danger">Incident</Badge>
+                        ) : (
+                          dernierPaiement && (
+                            <Badge variant="neutral">{MOYEN_LABELS[dernierPaiement.moyen]}</Badge>
+                          )
+                        )}
                       </div>
                     </td>
                   );
@@ -286,7 +344,9 @@ export default async function PaiementsPage({
       </TableWrap>
       <p className="text-xs text-ink-faint">
         Survolez le montant d&apos;une échéance pour voir son libellé. Vert =
-        réglée, orange = partiellement réglée, rouge = impayée.
+        réglée, orange = partiellement réglée, rouge = impayée. Le badge sous
+        la date indique le moyen du dernier paiement, ou &quot;Incident&quot;
+        si un chèque ou un prélèvement a été rejeté sur cette échéance.
       </p>
     </div>
   );

@@ -2,19 +2,27 @@ import { aujourdhuiUTC, normaliserDateUTC } from "@/lib/presences";
 
 export { aujourdhuiUTC, normaliserDateUTC };
 
-// "salles" : planning hebdomadaire récurrent (jour+heure de chaque Classe),
-// pas une plage de dates comme les 4 autres vues — voir decalerDate ci-dessous
-// et (app)/calendrier/page.tsx, qui masque la navigation jour/semaine/mois
-// précédent-suivant pour cette vue.
-export type VueCalendrier = "jour" | "semaine" | "mois" | "annee" | "salles";
+// "salles" et "sections" : planning hebdomadaire récurrent (jour+heure de
+// chaque Classe), pas une plage de dates comme les 4 autres vues — voir
+// decalerDate ci-dessous et (app)/calendrier/page.tsx, qui masque la
+// navigation jour/semaine/mois précédent-suivant pour ces deux vues.
+export type VueCalendrier = "jour" | "semaine" | "mois" | "annee" | "sections" | "salles";
 
-export const VUES_CALENDRIER: VueCalendrier[] = ["jour", "semaine", "mois", "annee", "salles"];
+export const VUES_CALENDRIER: VueCalendrier[] = [
+  "jour",
+  "semaine",
+  "mois",
+  "annee",
+  "sections",
+  "salles",
+];
 
 export const VUE_LABELS: Record<VueCalendrier, string> = {
   jour: "Jour",
   semaine: "Semaine",
   mois: "Mois",
   annee: "Année",
+  sections: "Sections",
   salles: "Salles",
 };
 
@@ -24,6 +32,7 @@ export function estVueCalendrier(valeur: string | undefined): valeur is VueCalen
     valeur === "semaine" ||
     valeur === "mois" ||
     valeur === "annee" ||
+    valeur === "sections" ||
     valeur === "salles"
   );
 }
@@ -56,6 +65,17 @@ export function finMoisUTC(date: Date): Date {
 
 export function debutAnneeUTC(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+}
+
+// 1er septembre de l'année scolaire calendaire contenant `date` (même
+// convention que libelleAnneeScolaireDe dans activites-recurrence.ts).
+// Sert d'ancre pour des cadences liées à la rentrée : les inscriptions
+// démarrent bien avant AnneeScolaire.dateDebut, la date pédagogique
+// (créneaux de classes), souvent fin septembre/octobre.
+export function debutAnneeScolaireCalendaireUTC(date: Date): Date {
+  const mois = date.getUTCMonth() + 1;
+  const annee = mois >= 9 ? date.getUTCFullYear() : date.getUTCFullYear() - 1;
+  return new Date(Date.UTC(annee, 8, 1));
 }
 
 export function ajouterAnneesUTC(date: Date, annees: number): Date {
@@ -113,6 +133,7 @@ export function decalerDate(date: Date, vue: VueCalendrier, sens: 1 | -1): Date 
       return ajouterMoisUTC(debutMoisUTC(date), sens);
     case "annee":
       return ajouterAnneesUTC(debutAnneeUTC(date), sens);
+    case "sections":
     case "salles":
       // Planning récurrent, sans navigation par date (voir le type ci-dessus).
       return date;
