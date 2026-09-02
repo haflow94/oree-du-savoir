@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { MoyenPaiement, StatutCheque } from "@/generated/prisma/enums";
+import { MoyenPaiement, StatutCheque, StatutPrelevement } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
 import { getOuCreerCategorieCotisations } from "@/lib/tresorerie";
@@ -384,8 +384,12 @@ export async function mettreAJourPrelevementAction(formData: FormData): Promise<
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const prelevementId = champTexte(formData, "prelevementId");
+  const statutBrut = champTexte(formData, "statut");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!prelevementId) retour(dossierAnnuelId, "CHAMPS_INVALIDES");
+  if (!prelevementId || !statutBrut || !(statutBrut in StatutPrelevement)) {
+    retour(dossierAnnuelId, "CHAMPS_INVALIDES");
+  }
+  const statut = statutBrut as StatutPrelevement;
 
   const cible = await prisma.prelevement.findUnique({
     where: { id: prelevementId },
@@ -393,13 +397,12 @@ export async function mettreAJourPrelevementAction(formData: FormData): Promise<
   });
   if (!cible) retour(dossierAnnuelId, "PRELEVEMENT_INTROUVABLE");
 
-  const rejete = formData.get("rejete") === "on";
-
   await prisma.prelevement.update({
     where: { id: prelevementId },
     data: {
-      rejete,
-      motifRejet: rejete ? champTexte(formData, "motifRejet") : null,
+      statut,
+      motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
+      dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
     },
   });
 

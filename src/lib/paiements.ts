@@ -1,10 +1,11 @@
 import type {
   MoyenPaiement,
   StatutCheque,
+  StatutPrelevement,
   TypeMouvement,
 } from "@/generated/prisma/enums";
 
-export { MoyenPaiement, StatutCheque, TypeMouvement } from "@/generated/prisma/enums";
+export { MoyenPaiement, StatutCheque, StatutPrelevement, TypeMouvement } from "@/generated/prisma/enums";
 
 export const MOYEN_LABELS: Record<MoyenPaiement, string> = {
   ESPECES: "Espèces",
@@ -21,9 +22,17 @@ export const STATUT_CHEQUE_LABELS: Record<StatutCheque, string> = {
   REJETE: "Rejeté",
 };
 
+// Même principe que STATUT_CHEQUE_LABELS, sans étape de dépôt physique (voir
+// Prelevement.statut, prisma/schema.prisma).
+export const STATUT_PRELEVEMENT_LABELS: Record<StatutPrelevement, string> = {
+  EMIS: "Émis",
+  ENCAISSE: "Encaissé",
+  REJETE: "Rejeté",
+};
+
 // Incident de paiement : chèque impayé (Cheque.statut = REJETE) ou
-// prélèvement rejeté (Prelevement.rejete) — les deux seuls moyens ayant une
-// sous-table dédiée, donc les deux seuls pouvant échouer après coup
+// prélèvement rejeté (Prelevement.statut = REJETE) — les deux seuls moyens
+// ayant une sous-table dédiée, donc les deux seuls pouvant échouer après coup
 // (espèces/CB/virement sont considérés définitifs à la saisie).
 export type IncidentPaiement = { type: "CHEQUE" | "PRELEVEMENT"; motif: string | null };
 
@@ -34,12 +43,12 @@ export const INCIDENT_LABELS: Record<IncidentPaiement["type"], string> = {
 
 export function incidentDePaiement(paiement: {
   cheque?: { statut: StatutCheque; motifRejet: string | null } | null;
-  prelevement?: { rejete: boolean; motifRejet: string | null } | null;
+  prelevement?: { statut: StatutPrelevement; motifRejet: string | null } | null;
 }): IncidentPaiement | null {
   if (paiement.cheque && paiement.cheque.statut === "REJETE") {
     return { type: "CHEQUE", motif: paiement.cheque.motifRejet };
   }
-  if (paiement.prelevement?.rejete) {
+  if (paiement.prelevement && paiement.prelevement.statut === "REJETE") {
     return { type: "PRELEVEMENT", motif: paiement.prelevement.motifRejet };
   }
   return null;
@@ -86,7 +95,7 @@ export const STATUT_COTISATION_ROW_CLASSES: Record<StatutCotisation, string> = {
 type PaiementPourEncaisse = {
   montant: { toString(): string };
   cheque?: { statut: StatutCheque } | null;
-  prelevement?: { rejete: boolean } | null;
+  prelevement?: { statut: StatutPrelevement } | null;
 };
 
 // Un chèque impayé ou un prélèvement rejeté n'a jamais été réellement
@@ -96,7 +105,7 @@ type PaiementPourEncaisse = {
 // Centralisé ici pour que dossier, échéance et export CSV restent cohérents.
 export function totalEncaisse(paiements: PaiementPourEncaisse[]): number {
   return paiements
-    .filter((p) => p.cheque?.statut !== "REJETE" && !p.prelevement?.rejete)
+    .filter((p) => p.cheque?.statut !== "REJETE" && p.prelevement?.statut !== "REJETE")
     .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
 }
 

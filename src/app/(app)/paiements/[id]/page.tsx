@@ -5,6 +5,7 @@ import {
   MOYEN_LABELS,
   STATUT_CHEQUE_LABELS,
   STATUT_COTISATION_VARIANTS,
+  STATUT_PRELEVEMENT_LABELS,
   formaterMontant,
   incidentDePaiement,
   statutCotisation,
@@ -307,6 +308,11 @@ export default async function DossierPaiementPage({
                           </Badge>
                         )}
                         {p.prelevement && (
+                          <Badge variant={p.prelevement.statut === "REJETE" ? "danger" : "neutral"}>
+                            {STATUT_PRELEVEMENT_LABELS[p.prelevement.statut]}
+                          </Badge>
+                        )}
+                        {p.prelevement && (
                           <Badge variant="neutral">
                             {p.prelevement.iban && `IBAN …${p.prelevement.iban.slice(-4)}`}
                             {p.prelevement.iban && p.prelevement.referenceMandat && " · "}
@@ -413,14 +419,17 @@ export default async function DossierPaiementPage({
                           >
                             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                             <input type="hidden" name="prelevementId" value={p.prelevement.id} />
-                            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
-                              <input
-                                type="checkbox"
-                                name="rejete"
-                                defaultChecked={p.prelevement.rejete}
-                              />
-                              Rejeté
-                            </label>
+                            <select
+                              name="statut"
+                              defaultValue={p.prelevement.statut}
+                              className={CONTROL_XS_CLASSES}
+                            >
+                              {Object.entries(STATUT_PRELEVEMENT_LABELS).map(([valeur, label]) => (
+                                <option key={valeur} value={valeur}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
                             <input
                               type="text"
                               name="motifRejet"

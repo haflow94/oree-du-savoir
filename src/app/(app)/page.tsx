@@ -82,7 +82,7 @@ export default async function DashboardPage() {
                   select: {
                     montant: true,
                     cheque: { select: { statut: true } },
-                    prelevement: { select: { rejete: true } },
+                    prelevement: { select: { statut: true } },
                   },
                 },
               },

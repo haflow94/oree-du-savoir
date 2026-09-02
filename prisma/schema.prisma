@@ -973,23 +973,30 @@ model Cheque {
   @@map("cheques")
 }
 
+enum StatutPrelevement {
+  EMIS
+  ENCAISSE
+  REJETE
+}
+
 // Détails spécifiques au prélèvement SEPA, en 1-1 avec le paiement
-// (uniquement quand Paiement.moyen = PRELEVEMENT). Pas de cycle de statut
-// multi-étapes comme pour le chèque (RECU/DEPOSE/ENCAISSE) : la trésorerie
-// reste simple (règle non négociable) — juste un incident binaire (rejeté ou
-// non) + son motif, symétrique à `Cheque.motifRejet`, pour le suivi des
-// incidents de paiement (voir lib/paiements.ts#incidentDePaiement,
-// (app)/paiements/[id]).
+// (uniquement quand Paiement.moyen = PRELEVEMENT). Même principe de cycle
+// que Cheque.statut, mais sans étape de dépôt physique en banque (le
+// prélèvement est déjà transmis à la banque dès la saisie) : EMIS (transmis,
+// par défaut) → ENCAISSE / REJETE, avec motifRejet symétrique à
+// `Cheque.motifRejet` pour le suivi des incidents de paiement (voir
+// lib/paiements.ts#incidentDePaiement, (app)/paiements/[id]).
 model Prelevement {
-  id              String   @id @default(cuid())
-  paiementId      String   @unique
-  paiement        Paiement @relation(fields: [paiementId], references: [id], onDelete: Cascade)
-  iban            String?
-  bic             String?
-  titulaire       String?
-  referenceMandat String?
-  rejete          Boolean  @default(false)
-  motifRejet      String?
+  id               String            @id @default(cuid())
+  paiementId       String            @unique
+  paiement         Paiement          @relation(fields: [paiementId], references: [id], onDelete: Cascade)
+  iban             String?
+  bic              String?
+  titulaire        String?
+  referenceMandat  String?
+  statut           StatutPrelevement @default(EMIS)
+  dateEncaissement DateTime?
+  motifRejet       String?
 
   @@map("prelevements")
 }
