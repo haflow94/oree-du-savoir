@@ -133,14 +133,14 @@ export default async function CalendrierPage({
 
   // Planning hebdomadaire récurrent (jour+heure de chaque Classe) sur
   // l'année scolaire active — pas les Seance datées, qui n'apporteraient
-  // rien de plus pour vérifier l'occupation des salles ou les sections
-  // dispensées sur une semaine type.
+  // rien de plus pour vérifier l'occupation des salles ou les cours
+  // dispensés sur une semaine type.
   const classesPlanning = estVuePlanningRecurrent
     ? await prisma.classe.findMany({
         where: anneeActive ? { anneeScolaireId: anneeActive.id } : {},
         include: {
           cohorte: true,
-          cours: { include: { section: true } },
+          cours: true,
           salle: true,
           enseignants: { include: { utilisateur: true } },
         },
@@ -154,7 +154,7 @@ export default async function CalendrierPage({
     vue === "salles"
       ? `Occupation des salles${anneeActive ? ` · ${anneeActive.libelle}` : ""}`
       : vue === "sections"
-        ? `Sections dispensées dans la semaine${anneeActive ? ` · ${anneeActive.libelle}` : ""}`
+        ? `Cours dispensés dans la semaine${anneeActive ? ` · ${anneeActive.libelle}` : ""}`
         : vue === "jour"
           ? dateRef.toLocaleDateString("fr-FR", {
               weekday: "long",
@@ -319,94 +319,60 @@ export default async function CalendrierPage({
 
       {vue === "sections" &&
         (() => {
-          const classesParSection = new Map<string, typeof classesPlanning>();
-          for (const c of classesPlanning) {
-            const cle = c.cours.section.nom;
-            const liste = classesParSection.get(cle) ?? [];
-            liste.push(c);
-            classesParSection.set(cle, liste);
-          }
-          const sectionsNoms = [...classesParSection.keys()].sort((a, b) => a.localeCompare(b, "fr"));
+          // Planning condensé par cours (pas par section) : un jour n'apparaît
+          // que s'il a au moins une classe, et chaque créneau liste les cours
+          // qui s'y tiennent (toutes cohortes confondues), sans détail
+          // salle/enseignant — juste de quoi voir d'un coup d'œil la semaine
+          // type.
+          const joursAvecClasses = JOURS_ORDONNES.filter((j) =>
+            classesPlanning.some((c) => c.cohorte.jour === j),
+          );
 
-          return sectionsNoms.length === 0 ? (
+          return joursAvecClasses.length === 0 ? (
             <p className="text-sm text-ink-faint">
               Aucune classe planifiée{anneeActive ? ` sur ${anneeActive.libelle}` : ""}.
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] border-separate border-spacing-1">
-                <thead>
-                  <tr>
-                    <th className="sticky left-0 z-10 bg-bg px-2 py-1 text-left text-xs font-semibold uppercase text-ink-faint">
-                      Section
-                    </th>
-                    {JOURS_ORDONNES.map((j) => (
-                      <th
-                        key={j}
-                        className="px-2 py-1 text-left text-xs font-semibold uppercase text-ink-faint"
-                      >
-                        {JOUR_LABELS[j]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {sectionsNoms.map((section) => {
-                    const classesSection = classesParSection.get(section)!;
-                    return (
-                      <tr key={section}>
-                        <td className="sticky left-0 z-10 whitespace-nowrap bg-bg px-2 py-2 align-top text-sm font-medium text-ink">
-                          {section}
-                        </td>
-                        {JOURS_ORDONNES.map((j) => {
-                          const classesJour = classesSection
-                            .filter((c) => c.cohorte.jour === j)
-                            .sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
-                          return (
-                            <td
-                              key={j}
-                              className="min-w-[160px] rounded-lg border border-border bg-bg-elevated p-1.5 align-top"
-                            >
-                              {classesJour.length === 0 ? (
-                                <span className="text-xs text-ink-faint">—</span>
-                              ) : (
-                                <div className="space-y-1">
-                                  {classesJour.map((c) => (
-                                    <Link
-                                      key={c.id}
-                                      href={`/classes/${c.id}`}
-                                      className="block rounded-md bg-bg-sunken px-1.5 py-1 text-xs text-ink hover:bg-pine-soft"
-                                    >
-                                      <div className="font-medium">
-                                        {c.heureDebut}–{c.heureFin} {c.cours.nom}
-                                        {c.cohorte.niveau && ` (${c.cohorte.niveau})`}
-                                      </div>
-                                      {(c.salle || c.enseignants.length > 0) && (
-                                        <div className="text-ink-faint">
-                                          {[
-                                            c.salle?.nom,
-                                            c.enseignants.length > 0
-                                              ? c.enseignants
-                                                  .map((e) => `${e.utilisateur.prenom} ${e.utilisateur.nom}`)
-                                                  .join(", ")
-                                              : null,
-                                          ]
-                                            .filter(Boolean)
-                                            .join(" · ")}
-                                        </div>
-                                      )}
-                                    </Link>
-                                  ))}
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="space-y-5">
+              {joursAvecClasses.map((j) => {
+                const classesJour = classesPlanning.filter((c) => c.cohorte.jour === j);
+                const creneaux = new Map<string, typeof classesPlanning>();
+                for (const c of classesJour) {
+                  const cle = `${c.heureDebut}–${c.heureFin}`;
+                  const liste = creneaux.get(cle) ?? [];
+                  liste.push(c);
+                  creneaux.set(cle, liste);
+                }
+                const creneauxTries = [...creneaux.entries()].sort((a, b) =>
+                  a[1][0].heureDebut.localeCompare(b[1][0].heureDebut),
+                );
+
+                return (
+                  <div key={j}>
+                    <h2 className="text-sm font-semibold text-ink">{JOUR_LABELS[j]}</h2>
+                    <dl className="mt-1 space-y-1">
+                      {creneauxTries.map(([creneau, classes]) => (
+                        <div key={creneau} className="flex flex-wrap gap-x-2 gap-y-1 text-sm">
+                          <dt className="w-28 shrink-0 text-ink-faint">{creneau}</dt>
+                          <dd className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-ink">
+                            {classes
+                              .sort((a, b) => a.cours.nom.localeCompare(b.cours.nom, "fr"))
+                              .map((c, i) => (
+                                <span key={c.id} className="flex items-center gap-1.5">
+                                  {i > 0 && <span className="text-ink-faint">·</span>}
+                                  <Link href={`/classes/${c.id}`} className="hover:underline">
+                                    {c.cours.nom}
+                                    {c.cohorte.niveau && ` (${c.cohorte.niveau})`}
+                                  </Link>
+                                </span>
+                              ))}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                );
+              })}
             </div>
           );
         })()}

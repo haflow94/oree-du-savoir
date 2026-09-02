@@ -22,7 +22,7 @@ export const VUE_LABELS: Record<VueCalendrier, string> = {
   semaine: "Semaine",
   mois: "Mois",
   annee: "Année",
-  sections: "Sections",
+  sections: "Cours",
   salles: "Salles",
 };
 
