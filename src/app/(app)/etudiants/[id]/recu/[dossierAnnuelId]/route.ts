@@ -25,7 +25,10 @@ export async function GET(
     include: {
       etudiant: true,
       anneeScolaire: true,
-      echeances: { include: { paiements: true }, orderBy: { dateEcheance: "asc" } },
+      echeances: {
+        include: { paiements: { include: { cheque: true, prelevement: true } } },
+        orderBy: { dateEcheance: "asc" },
+      },
     },
   });
   if (!dossier || dossier.etudiantId !== etudiantId) {

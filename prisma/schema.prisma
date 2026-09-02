@@ -923,6 +923,11 @@ model Paiement {
   cheque      Cheque?
   prelevement Prelevement?
 
+  // Mouvement de trésorerie généré automatiquement à la saisie du paiement
+  // (voir getOuCreerCategorieCotisations, src/lib/tresorerie.ts) — jamais
+  // recréé/dupliqué grâce à la contrainte unique côté MouvementTresorerie.
+  mouvementTresorerie MouvementTresorerie?
+
   @@index([echeanceId])
   @@map("paiements")
 }
@@ -999,6 +1004,12 @@ enum TypeMouvement {
 model CategorieMouvement {
   id     String   @id @default(cuid())
   nom    String   @unique
+  // Clé technique stable pour les catégories gérées par le système (ex.
+  // "Cotisations" créée par getOuCreerCategorieCotisations) : le lien
+  // automatique repose dessus, jamais sur `nom`, pour survivre à un
+  // renommage depuis Administration → Trésorerie. Null pour une catégorie
+  // créée librement par le Bureau.
+  cle    String?  @unique
   actif  Boolean  @default(true)
   creeLe DateTime @default(now())
 
@@ -1019,6 +1030,12 @@ model MouvementTresorerie {
   categorieId  String?
   categorie    CategorieMouvement? @relation(fields: [categorieId], references: [id], onDelete: SetNull)
   justificatif String? // chemin/référence du fichier séparé, pas de contenu en base
+  // Non nul quand ce mouvement a été généré automatiquement depuis un
+  // paiement (voir enregistrerPaiementAction) : le mouvement devient alors
+  // en lecture seule côté Trésorerie, la correction passe par la fiche
+  // paiement (voir modifierPaiementAction, qui resynchronise le montant).
+  paiementId   String?             @unique
+  paiement     Paiement?           @relation(fields: [paiementId], references: [id], onDelete: SetNull)
   creeLe       DateTime            @default(now())
 
   @@index([date])

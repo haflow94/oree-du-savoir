@@ -25,6 +25,8 @@ const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Le nom de la catégorie est obligatoire.",
   CHAMPS_INVALIDES: "Merci de renseigner tous les champs du mouvement.",
+  MOUVEMENT_LIE_PAIEMENT:
+    "Ce mouvement provient d'un paiement ; corrigez-le depuis la fiche du paiement correspondant.",
 };
 
 function versDateStr(date: Date): string {

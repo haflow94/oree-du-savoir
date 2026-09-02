@@ -71,18 +71,45 @@ export const STATUT_COTISATION_VARIANTS: Record<
   Remboursé: "neutral",
 };
 
+// Teinte de ligne (liste Paiements) : même code couleur que le badge de
+// statut, en repère additionnel pour un scan visuel rapide sur une longue
+// liste — le badge reste affiché à côté, jamais remplacé (accessibilité :
+// la couleur seule ne doit jamais porter l'information).
+export const STATUT_COTISATION_ROW_CLASSES: Record<StatutCotisation, string> = {
+  Gratuit: "border-l-4 border-l-sky bg-sky-bg/25",
+  Soldé: "border-l-4 border-l-sage bg-sage-bg/25",
+  Partiel: "border-l-4 border-l-ochre bg-ochre-bg/25",
+  Impayé: "border-l-4 border-l-rust bg-rust-bg/25",
+  Remboursé: "border-l-4 border-l-border-strong bg-bg-sunken/40",
+};
+
+type PaiementPourEncaisse = {
+  montant: { toString(): string };
+  cheque?: { statut: StatutCheque } | null;
+  prelevement?: { rejete: boolean } | null;
+};
+
+// Un chèque impayé ou un prélèvement rejeté n'a jamais été réellement
+// encaissé (voir mettreAJourChequeAction / mettreAJourPrelevementAction,
+// paiements/[id]/actions.ts) : il ne doit plus jamais compter dans un total
+// encaissé, sans quoi un dossier/une échéance reste affiché "Soldé" à tort.
+// Centralisé ici pour que dossier, échéance et export CSV restent cohérents.
+export function totalEncaisse(paiements: PaiementPourEncaisse[]): number {
+  return paiements
+    .filter((p) => p.cheque?.statut !== "REJETE" && !p.prelevement?.rejete)
+    .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
+}
+
 // Statut de cotisation d'un dossier annuel : calculé à partir du dû et de
 // l'encaissé, sauf "Remboursé" qui prime (basculé manuellement, voir
 // DossierAnnuel.rembourse) et "Gratuit" quand aucun montant n'est dû.
 export function statutCotisation(dossier: {
   montantDu: { toString(): string };
   rembourse?: boolean;
-  echeances: { paiements: { montant: { toString(): string } }[] }[];
+  echeances: { paiements: PaiementPourEncaisse[] }[];
 }): { du: number; encaisse: number; reste: number; statut: StatutCotisation } {
   const du = Number.parseFloat(dossier.montantDu.toString());
-  const encaisse = dossier.echeances
-    .flatMap((e) => e.paiements)
-    .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
+  const encaisse = totalEncaisse(dossier.echeances.flatMap((e) => e.paiements));
   const reste = du - encaisse;
   const statut: StatutCotisation = dossier.rembourse
     ? "Remboursé"

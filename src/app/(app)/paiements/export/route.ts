@@ -3,7 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { versCsv, reponseCsv } from "@/lib/csv";
 import { anneeScolaireActiveId, cumulerTarif, filtreParSection } from "@/lib/sections-etudiant";
 import { requireModule, Module } from "@/lib/permissions";
-import { INCIDENT_LABELS, MOYEN_LABELS, formaterMontant, incidentDePaiement } from "@/lib/paiements";
+import {
+  INCIDENT_LABELS,
+  MOYEN_LABELS,
+  formaterMontant,
+  incidentDePaiement,
+  totalEncaisse,
+} from "@/lib/paiements";
 
 export async function GET(request: NextRequest) {
   await requireModule(Module.PAIEMENTS, "LECTURE");
@@ -52,18 +58,12 @@ export async function GET(request: NextRequest) {
   const lignes = dossiers.map((d) => {
     const du = Number.parseFloat(d.montantDu.toString());
     const paiements = d.echeances.flatMap((e) => e.paiements);
-    const encaisse = paiements.reduce(
-      (total, p) => total + Number.parseFloat(p.montant.toString()),
-      0,
-    );
+    const encaisse = totalEncaisse(paiements);
     const reste = du - encaisse;
     const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
     const echeancesReglees = d.echeances.filter((e) => {
       const montantEcheance = Number.parseFloat(e.montant.toString());
-      const encaisseEcheance = e.paiements.reduce(
-        (total, p) => total + Number.parseFloat(p.montant.toString()),
-        0,
-      );
+      const encaisseEcheance = totalEncaisse(e.paiements);
       return encaisseEcheance >= montantEcheance;
     }).length;
 
@@ -94,10 +94,7 @@ export async function GET(request: NextRequest) {
     const echeancesTexte = d.echeances
       .map((e) => {
         const montantEcheance = Number.parseFloat(e.montant.toString());
-        const encaisseEcheance = e.paiements.reduce(
-          (total, p) => total + Number.parseFloat(p.montant.toString()),
-          0,
-        );
+        const encaisseEcheance = totalEncaisse(e.paiements);
         const statutEcheance =
           encaisseEcheance >= montantEcheance ? "réglée" : encaisseEcheance > 0 ? "partielle" : "impayée";
         return `${e.libelle || "Échéance"} : ${formaterMontant(montantEcheance)} le ${new Date(

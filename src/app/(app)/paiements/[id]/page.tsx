@@ -8,6 +8,7 @@ import {
   formaterMontant,
   incidentDePaiement,
   statutCotisation,
+  totalEncaisse,
 } from "@/lib/paiements";
 import {
   ajouterEcheanceAction,
@@ -136,7 +137,9 @@ export default async function DossierPaiementPage({
                   <li key={paiement.id} className="rounded-lg border border-rust-border bg-rust-bg p-2.5">
                     <Badge variant="danger">{INCIDENT_LABELS[incident.type]}</Badge>
                     <p className="mt-1.5 text-xs text-ink">
-                      {echeance.libelle || "Échéance"} · {formaterMontant(paiement.montant.toString())}
+                      <a href={`#echeance-${echeance.id}`} className="hover:underline">
+                        {echeance.libelle || "Échéance"} · {formaterMontant(paiement.montant.toString())}
+                      </a>
                     </p>
                     {incident.motif && (
                       <p className="mt-0.5 text-xs text-ink-muted">{incident.motif}</p>
@@ -189,15 +192,23 @@ export default async function DossierPaiementPage({
       <div className="space-y-4">
         {dossier.echeances.map((e) => {
           const montantEcheance = Number.parseFloat(e.montant.toString());
-          const encaisseEcheance = e.paiements.reduce(
-            (total, p) => total + Number.parseFloat(p.montant.toString()),
-            0,
-          );
+          const encaisseEcheance = totalEncaisse(e.paiements);
+          // Comparaison au centime près (évite les faux positifs
+          // d'arrondi flottant type 0.1 + 0.2) : une échéance déjà couverte
+          // par ses paiements ne doit plus proposer d'en enregistrer un
+          // nouveau — voir le formulaire "Nouveau paiement" plus bas.
+          const echeanceSoldee = Math.round(encaisseEcheance * 100) >= Math.round(montantEcheance * 100);
+          // Affiché sur l'échéance elle-même plutôt que sur chaque ligne de
+          // paiement (voir la carte "Incidents" ci-contre) : un chèque
+          // impayé ou un prélèvement rejeté concerne l'échéance dans son
+          // ensemble, pas seulement le paiement qui l'a soldée.
+          const echeanceEnIncident = e.paiements.some((p) => incidentDePaiement(p));
           return (
-            <Card key={e.id}>
+            <Card key={e.id} id={`echeance-${e.id}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="text-sm font-semibold text-ink">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-ink">
                   {e.libelle || "Échéance"} — {formaterMontant(montantEcheance)}
+                  {echeanceEnIncident && <Badge variant="danger">Incident</Badge>}
                 </h3>
                 <span className="text-xs text-ink-muted">
                   échéance le {new Date(e.dateEcheance).toLocaleDateString("fr-FR")}
@@ -284,7 +295,9 @@ export default async function DossierPaiementPage({
                         <span className="text-ink-faint">·</span>
                         <span>{new Date(p.datePaiement).toLocaleDateString("fr-FR")}</span>
                         {p.cheque && (
-                          <Badge variant="neutral">{STATUT_CHEQUE_LABELS[p.cheque.statut]}</Badge>
+                          <Badge variant={p.cheque.statut === "REJETE" ? "danger" : "neutral"}>
+                            {STATUT_CHEQUE_LABELS[p.cheque.statut]}
+                          </Badge>
                         )}
                         {p.cheque && p.cheque.nombreAlertesEnvoyees > 0 && (
                           <Badge variant="warning">
@@ -301,12 +314,7 @@ export default async function DossierPaiementPage({
                               `mandat ${p.prelevement.referenceMandat}`}
                           </Badge>
                         )}
-                        <span className="text-xs uppercase text-ink-faint">Incident :</span>
-                        {incident ? (
-                          <Badge variant="danger">{INCIDENT_LABELS[incident.type]}</Badge>
-                        ) : (
-                          <span className="text-xs text-ink-faint">—</span>
-                        )}
+                        {incident && <Badge variant="danger">{INCIDENT_LABELS[incident.type]}</Badge>}
                         {peutGererCheque && (
                           <details>
                             <summary className="cursor-pointer text-xs text-ink-faint hover:underline">
@@ -360,58 +368,71 @@ export default async function DossierPaiementPage({
                         </p>
                       )}
                       {p.cheque && peutGererCheque && (
-                        <form action={mettreAJourChequeAction} className="mt-2 flex flex-wrap items-center gap-2">
-                          <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-                          <input type="hidden" name="chequeId" value={p.cheque.id} />
-                          <select
-                            name="statut"
-                            defaultValue={p.cheque.statut}
-                            className={CONTROL_XS_CLASSES}
+                        <div className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
+                          <h4 className="mb-1.5 text-xs font-semibold uppercase text-ink-faint">
+                            Statut du chèque — signaler ici un chèque impayé
+                          </h4>
+                          <form
+                            action={mettreAJourChequeAction}
+                            className="flex flex-wrap items-center gap-2"
                           >
-                            {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
-                              <option key={valeur} value={valeur}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="text"
-                            name="motifRejet"
-                            placeholder="Motif si rejeté"
-                            defaultValue={p.cheque.motifRejet ?? ""}
-                            className={CONTROL_XS_CLASSES}
-                          />
-                          <SubmitButton variant="secondary" size="sm">
-                            Mettre à jour
-                          </SubmitButton>
-                        </form>
+                            <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                            <input type="hidden" name="chequeId" value={p.cheque.id} />
+                            <select
+                              name="statut"
+                              defaultValue={p.cheque.statut}
+                              className={CONTROL_XS_CLASSES}
+                            >
+                              {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
+                                <option key={valeur} value={valeur}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="text"
+                              name="motifRejet"
+                              placeholder="Motif si rejeté"
+                              defaultValue={p.cheque.motifRejet ?? ""}
+                              className={CONTROL_XS_CLASSES}
+                            />
+                            <SubmitButton variant="secondary" size="sm">
+                              Mettre à jour
+                            </SubmitButton>
+                          </form>
+                        </div>
                       )}
                       {p.prelevement && peutGererCheque && (
-                        <form
-                          action={mettreAJourPrelevementAction}
-                          className="mt-2 flex flex-wrap items-center gap-2"
-                        >
-                          <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-                          <input type="hidden" name="prelevementId" value={p.prelevement.id} />
-                          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+                        <div className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
+                          <h4 className="mb-1.5 text-xs font-semibold uppercase text-ink-faint">
+                            Statut du prélèvement — signaler ici un rejet
+                          </h4>
+                          <form
+                            action={mettreAJourPrelevementAction}
+                            className="flex flex-wrap items-center gap-2"
+                          >
+                            <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                            <input type="hidden" name="prelevementId" value={p.prelevement.id} />
+                            <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+                              <input
+                                type="checkbox"
+                                name="rejete"
+                                defaultChecked={p.prelevement.rejete}
+                              />
+                              Rejeté
+                            </label>
                             <input
-                              type="checkbox"
-                              name="rejete"
-                              defaultChecked={p.prelevement.rejete}
+                              type="text"
+                              name="motifRejet"
+                              placeholder="Motif si rejeté"
+                              defaultValue={p.prelevement.motifRejet ?? ""}
+                              className={CONTROL_XS_CLASSES}
                             />
-                            Rejeté
-                          </label>
-                          <input
-                            type="text"
-                            name="motifRejet"
-                            placeholder="Motif si rejeté"
-                            defaultValue={p.prelevement.motifRejet ?? ""}
-                            className={CONTROL_XS_CLASSES}
-                          />
-                          <SubmitButton variant="secondary" size="sm">
-                            Mettre à jour
-                          </SubmitButton>
-                        </form>
+                            <SubmitButton variant="secondary" size="sm">
+                              Mettre à jour
+                            </SubmitButton>
+                          </form>
+                        </div>
                       )}
                     </li>
                     );
@@ -421,31 +442,39 @@ export default async function DossierPaiementPage({
 
               {peutSaisir && (
                 <div className="mt-4 border-t border-border pt-4">
-                  <h4 className="mb-2 text-xs font-semibold uppercase text-ink-faint">
-                    Nouveau paiement
-                  </h4>
-                  <form action={enregistrerPaiementAction} className="flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-                    <input type="hidden" name="echeanceId" value={e.id} />
-                    <div>
-                      <label className={LABEL_XS_CLASSES}>Montant</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        name="montant"
-                        required
-                        className={`w-28 ${CONTROL_SM_CLASSES}`}
-                      />
-                    </div>
-                    <ChampsMoyenPaiement
-                      etudiantNom={dossier.etudiant.nom}
-                      etudiantPrenom={dossier.etudiant.prenom}
-                    />
-                    <SubmitButton variant="primary" size="sm">
-                      Enregistrer le paiement
-                    </SubmitButton>
-                  </form>
+                  {echeanceSoldee ? (
+                    <p className="text-xs text-ink-faint">
+                      Échéance soldée — aucun nouveau paiement à enregistrer.
+                    </p>
+                  ) : (
+                    <>
+                      <h4 className="mb-2 text-xs font-semibold uppercase text-ink-faint">
+                        Nouveau paiement
+                      </h4>
+                      <form action={enregistrerPaiementAction} className="flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                        <input type="hidden" name="echeanceId" value={e.id} />
+                        <div>
+                          <label className={LABEL_XS_CLASSES}>Montant</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name="montant"
+                            required
+                            className={`w-28 ${CONTROL_SM_CLASSES}`}
+                          />
+                        </div>
+                        <ChampsMoyenPaiement
+                          etudiantNom={dossier.etudiant.nom}
+                          etudiantPrenom={dossier.etudiant.prenom}
+                        />
+                        <SubmitButton variant="primary" size="sm">
+                          Enregistrer le paiement
+                        </SubmitButton>
+                      </form>
+                    </>
+                  )}
                 </div>
               )}
             </Card>

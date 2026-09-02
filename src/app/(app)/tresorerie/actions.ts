@@ -105,6 +105,13 @@ export async function modifierMouvementAction(formData: FormData): Promise<void>
   const montant = champTexte(formData, "montant");
   if (!mouvementId) redirect("/tresorerie");
 
+  const existant = await prisma.mouvementTresorerie.findUnique({ where: { id: mouvementId } });
+  if (!existant) redirect("/tresorerie");
+  // Généré automatiquement depuis un paiement (voir enregistrerPaiementAction,
+  // paiements/[id]/actions.ts) : la correction passe par la fiche paiement,
+  // qui resynchronise ce mouvement, jamais par ce formulaire.
+  if (existant.paiementId) retourMouvement(mouvementId, "MOUVEMENT_LIE_PAIEMENT");
+
   if (
     !date ||
     !libelle ||
@@ -152,6 +159,7 @@ export async function supprimerMouvementAction(formData: FormData): Promise<void
 
   const cible = await prisma.mouvementTresorerie.findUnique({ where: { id: mouvementId } });
   if (!cible) redirect("/tresorerie");
+  if (cible.paiementId) retourMouvement(mouvementId, "MOUVEMENT_LIE_PAIEMENT");
 
   await prisma.$transaction([
     prisma.mouvementTresorerie.delete({ where: { id: mouvementId } }),

@@ -22,7 +22,7 @@ import { PopupDoublon } from "../doublon-popup";
 import { ChampsTeleversementDocument } from "./champs-televersement-document";
 import { cumulerTarif, estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { BackLink } from "@/components/ui/back-link";
-import { inscrireEtudiantAction, retirerEtudiantAction } from "../../presences/actions";
+import { retirerEtudiantAction } from "../../presences/actions";
 import { creerDossierAction } from "../../paiements/nouveau/actions";
 import {
   modifierEtudiantAction,
@@ -30,6 +30,7 @@ import {
   modifierResponsableAction,
   supprimerResponsableAction,
   validerInscriptionAction,
+  affecterCohorteAction,
   televerserDocumentAction,
   supprimerDocumentAction,
   supprimerEtudiantAction,
@@ -62,6 +63,7 @@ const MESSAGES: Record<string, string> = {
   ETUDIANT_UTILISE:
     "Impossible de supprimer : un dossier annuel, une inscription ou des présences existent déjà pour cet étudiant.",
   INSCRIPTION_INVALIDE: "Sélectionnez une classe à inscrire.",
+  AFFECTATION_INVALIDE: "Sélectionnez une cohorte à affecter.",
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
   DOUBLON_NON_FUSIONNABLE:
     "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles. Transférez-les manuellement avant de la supprimer.",
@@ -159,7 +161,7 @@ export default async function EtudiantDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; cohorteEnAttente?: string }>;
 }) {
   const session = await requireModule(Module.ETUDIANTS, "LECTURE");
   const [peutModifier, peutGererDocuments, peutCreerDossier, peutInscrire, peutSupprimer] =
@@ -171,7 +173,7 @@ export default async function EtudiantDetailPage({
       peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE"),
     ]);
   const { id } = await params;
-  const { error, ok } = await searchParams;
+  const { error, ok, cohorteEnAttente } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
   // Réservé Bureau/Administration à la demande explicite de l'association,
   // en dur (pas via Module.DOCUMENTS) — voir le commentaire des routes
@@ -207,7 +209,7 @@ export default async function EtudiantDetailPage({
         dossiersAnnuels: {
           include: {
             anneeScolaire: true,
-            echeances: { include: { paiements: true } },
+            echeances: { include: { paiements: { include: { cheque: true, prelevement: true } } } },
           },
           orderBy: { anneeScolaire: { libelle: "desc" } },
         },
@@ -229,7 +231,6 @@ export default async function EtudiantDetailPage({
     notFound();
   }
 
-  const dejaInscritClasseIds = new Set(etudiant.inscriptions.map((i) => i.classe.id));
   // Tarif : une ligne par Section distincte suivie sur l'année active (une
   // même section peut regrouper plusieurs classes/cours), frais de
   // formation + frais de dossier de chaque Section (référentiel
@@ -275,30 +276,56 @@ export default async function EtudiantDetailPage({
   // inscrit" plutôt que "Réinscrit"/"Non réinscrit", qui suppose à tort une
   // inscription passée (voir estNouveau).
   const nouveauEtudiant = anneeActiveId ? estNouveau(etudiant, anneeActiveId) : true;
-  const classesDisponibles =
+  // L'affectation se fait au niveau de la Cohorte (bloc section + niveau +
+  // jour), jamais Classe par Classe : en pratique un étudiant suit tout le
+  // bloc, et affecterEtudiantACohorte (voir lib/cohortes.ts) fait le
+  // fan-out vers chaque Classe du bloc pour l'année active, en respectant
+  // la capacité/liste d'attente. Retirer une Classe précise reste possible
+  // ci-dessous (ex. correction ponctuelle), sans repasser par ce chemin.
+  const cohortesDejaAffecteesIds =
+    anneeActiveId && peutInscrire
+      ? new Set(
+          (
+            await prisma.affectationCohorte.findMany({
+              where: { etudiantId: etudiant.id, anneeScolaireId: anneeActiveId },
+              select: { cohorteId: true },
+            })
+          ).map((a) => a.cohorteId),
+        )
+      : new Set<string>();
+  const [cohortesToutesSections, affectesParCohorte] =
     peutInscrire && anneeActiveId
-      ? (
-          await prisma.classe.findMany({
-            where: { anneeScolaireId: anneeActiveId },
-            include: { cohorte: true, cours: { include: { section: true } } },
-            orderBy: [
-              { cours: { section: { nom: "asc" } } },
-              { cohorte: { jour: "asc" } },
-              { heureDebut: "asc" },
-            ],
-          })
-        ).filter((c) => !dejaInscritClasseIds.has(c.id))
-      : [];
-  // Groupé par Section pour l'affichage (un seul select "Cours", plutôt que
-  // deux selects en cascade "Section" puis "Classe" qui portaient à
-  // confusion — voir retours utilisateurs).
-  const classesDisponiblesParSection = new Map<string, { nom: string; classes: typeof classesDisponibles }>();
-  for (const c of classesDisponibles) {
-    const groupe = classesDisponiblesParSection.get(c.cours.section.id);
+      ? await Promise.all([
+          prisma.cohorte.findMany({
+            include: { section: { select: { id: true, nom: true } } },
+            orderBy: [{ section: { nom: "asc" } }, { niveau: "asc" }, { jour: "asc" }],
+          }),
+          prisma.affectationCohorte.groupBy({
+            by: ["cohorteId"],
+            where: { anneeScolaireId: anneeActiveId, statut: "AFFECTE" },
+            _count: { _all: true },
+          }),
+        ])
+      : [[], []];
+  const compteAffectesParCohorteId = new Map(
+    affectesParCohorte.map((a) => [a.cohorteId, a._count._all]),
+  );
+  const cohortesDisponibles = cohortesToutesSections.filter(
+    (c) => !cohortesDejaAffecteesIds.has(c.id),
+  );
+  // Groupé par Section pour l'affichage (un seul select, plutôt que deux
+  // selects en cascade "Section" puis "Cohorte" qui portaient à confusion —
+  // voir retours utilisateurs sur l'ancien select "Cours").
+  const cohortesDisponiblesParSection = new Map<
+    string,
+    { nom: string; cohortes: typeof cohortesDisponibles }
+  >();
+  for (const c of cohortesDisponibles) {
+    const groupe = cohortesDisponiblesParSection.get(c.section.id);
     if (groupe) {
-      groupe.classes.push(c);
+      groupe.cohortes.push(c);
     } else {
-      classesDisponiblesParSection.set(c.cours.section.id, { nom: c.cours.section.nom, classes: [c] });
+      cohortesDisponiblesParSection.set(c.section.id, { nom: c.section.nom, cohortes: [c] });
     }
   }
 
@@ -406,7 +433,13 @@ export default async function EtudiantDetailPage({
       </div>
 
       {message && <Alert variant="danger">{message}</Alert>}
-      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
+      {ok && !message && cohorteEnAttente === "1" && (
+        <Alert variant="warning">
+          Cohorte complète : l&apos;étudiant a été mis en liste d&apos;attente plutôt qu&apos;inscrit
+          directement (voir Classes → Cohortes → « Voir l&apos;occupation et la liste d&apos;attente »).
+        </Alert>
+      )}
+      {ok && !message && cohorteEnAttente !== "1" && <Alert variant="success">Modification enregistrée.</Alert>}
 
       {peutModifier && etudiant.doublonPotentiel && (
         <Alert variant="warning">
@@ -945,20 +978,33 @@ export default async function EtudiantDetailPage({
 
         {peutInscrire && (
           <div className="mt-4 space-y-3 border-t border-border pt-4">
-            {classesDisponibles.length > 0 ? (
-              <form action={inscrireEtudiantAction} className="flex flex-wrap items-end gap-2">
-                <input type="hidden" name="origine" value="etudiant" />
+            {cohortesDisponibles.length > 0 ? (
+              <form action={affecterCohorteAction} className="flex flex-wrap items-end gap-2">
                 <input type="hidden" name="etudiantId" value={etudiant.id} />
-                <ChampSelect label="Cours" name="classeId" required className="w-full max-w-sm">
-                  {[...classesDisponiblesParSection.values()].map((groupe) => (
+                <input type="hidden" name="anneeScolaireId" value={anneeActiveId ?? ""} />
+                <ChampSelect
+                  label="Cohorte"
+                  name="cohorteId"
+                  required
+                  className="w-full max-w-sm"
+                  hint="Inscrit à toutes les classes déjà créées pour ce bloc, ou met en liste d'attente si la cohorte est complète."
+                >
+                  {[...cohortesDisponiblesParSection.values()].map((groupe) => (
                     <optgroup key={groupe.nom} label={groupe.nom}>
-                      {groupe.classes.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.cours.nom}
-                          {c.cohorte.niveau && ` — ${c.cohorte.niveau}`} · {JOUR_LABELS[c.cohorte.jour]}{" "}
-                          {c.heureDebut}-{c.heureFin}
-                        </option>
-                      ))}
+                      {groupe.cohortes.map((c) => {
+                        const compte = compteAffectesParCohorteId.get(c.id) ?? 0;
+                        const occupation =
+                          c.capaciteMax !== null
+                            ? ` · ${compte}/${c.capaciteMax}${compte >= c.capaciteMax ? " (complet, liste d'attente)" : ""}`
+                            : "";
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {c.niveau ? `${c.niveau} — ` : ""}
+                            {JOUR_LABELS[c.jour]}
+                            {occupation}
+                          </option>
+                        );
+                      })}
                     </optgroup>
                   ))}
                 </ChampSelect>
@@ -968,7 +1014,7 @@ export default async function EtudiantDetailPage({
               </form>
             ) : (
               <EmptyState
-                message={anneeActiveId ? "Aucun cours disponible." : "Aucune année scolaire active."}
+                message={anneeActiveId ? "Aucune cohorte disponible." : "Aucune année scolaire active."}
               />
             )}
           </div>

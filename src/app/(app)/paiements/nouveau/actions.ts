@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
+import { affecterEtudiantACohorte } from "@/lib/cohortes";
 
 export async function creerDossierAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
@@ -52,63 +53,14 @@ export async function creerDossierAction(formData: FormData): Promise<void> {
   });
 
   if (cohorteId) {
-    const cohorte = await prisma.cohorte.findUnique({ where: { id: cohorteId } });
-    if (!cohorte) {
-      redirect(`/paiements/${dossier.id}?error=COHORTE_INTROUVABLE`);
-    }
-
-    const dejaAffecte = await prisma.affectationCohorte.findUnique({
-      where: { etudiantId_cohorteId_anneeScolaireId: { etudiantId, cohorteId, anneeScolaireId } },
+    const resultat = await affecterEtudiantACohorte({
+      etudiantId,
+      cohorteId,
+      anneeScolaireId,
+      utilisateurId: session.id,
     });
-
-    if (!dejaAffecte) {
-      const [classesDuBloc, compteAffectes, compteEnAttente] = await Promise.all([
-        prisma.classe.findMany({ where: { cohorteId, anneeScolaireId }, select: { id: true } }),
-        prisma.affectationCohorte.count({
-          where: { cohorteId, anneeScolaireId, statut: "AFFECTE" },
-        }),
-        prisma.affectationCohorte.count({
-          where: { cohorteId, anneeScolaireId, statut: "EN_ATTENTE" },
-        }),
-      ]);
-      const placeDisponible = cohorte.capaciteMax === null || compteAffectes < cohorte.capaciteMax;
-
-      await prisma.$transaction([
-        prisma.affectationCohorte.create({
-          data: {
-            etudiantId,
-            cohorteId,
-            anneeScolaireId,
-            statut: placeDisponible ? "AFFECTE" : "EN_ATTENTE",
-            // Rang FIFO au sein de la liste d'attente de cette Cohorte+année
-            // (voir AffectationCohorte.rangListeAttente) — sans effet si
-            // placeDisponible (reste null).
-            rangListeAttente: placeDisponible ? null : compteEnAttente + 1,
-          },
-        }),
-        // Fan-out : une InscriptionClasse par Classe du bloc pour cette
-        // année (tout ou rien sur les Cours de la Cohorte, voir décision
-        // associée). skipDuplicates couvre le cas d'un étudiant déjà inscrit
-        // manuellement à l'une des Classes du bloc. No-op si aucune Classe
-        // n'existe encore pour ce bloc sur cette année (affectation
-        // administrative en attendant que le staff crée les Classes).
-        ...(placeDisponible && classesDuBloc.length > 0
-          ? [
-              prisma.inscriptionClasse.createMany({
-                data: classesDuBloc.map((c) => ({ etudiantId, classeId: c.id })),
-                skipDuplicates: true,
-              }),
-            ]
-          : []),
-        prisma.journalAudit.create({
-          data: {
-            utilisateurId: session.id,
-            action: placeDisponible ? "affectation_cohorte" : "mise_en_attente_cohorte",
-            entite: "AffectationCohorte",
-            details: { cohorteId, etudiantId, anneeScolaireId },
-          },
-        }),
-      ]);
+    if (resultat.statut === "COHORTE_INTROUVABLE") {
+      redirect(`/paiements/${dossier.id}?error=COHORTE_INTROUVABLE`);
     }
   }
 

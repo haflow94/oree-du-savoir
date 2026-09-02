@@ -53,7 +53,9 @@ export function filtreParSection(anneeScolaireId: string, sectionId: string) {
 export function inclureDossierAnnuelActif(anneeScolaireId: string) {
   return {
     where: { anneeScolaireId },
-    include: { echeances: { include: { paiements: true } } },
+    include: {
+      echeances: { include: { paiements: { include: { cheque: true, prelevement: true } } } },
+    },
   } as const;
 }
 

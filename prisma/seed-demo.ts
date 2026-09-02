@@ -97,6 +97,7 @@ async function viderDonneesMetier() {
   await prisma.inscriptionClasse.deleteMany();
   await prisma.classeEnseignant.deleteMany();
   await prisma.classe.deleteMany();
+  await prisma.salle.deleteMany();
   await prisma.cohorte.deleteMany();
   await prisma.cours.deleteMany();
   await prisma.cheque.deleteMany();
@@ -432,9 +433,16 @@ async function main() {
   console.log(`[demo] ${etudiants.length} dossiers annuels, ${nbPaiements} paiements.`);
 
   // --- Trésorerie ---------------------------------------------------------
+  // "Cotisations" reprend la clé technique utilisée par
+  // getOuCreerCategorieCotisations (src/lib/tresorerie.ts) : les paiements
+  // enregistrés par-dessus ce jeu de démo alimentent la même catégorie au
+  // lieu d'en recréer une seconde.
   const categories = await Promise.all(
     ["Cotisations", "Dons", "Loyer", "Fournitures", "Salaires", "Événements", "Frais bancaires"].map(
-      (nom) => prisma.categorieMouvement.create({ data: { nom } }),
+      (nom) =>
+        prisma.categorieMouvement.create({
+          data: { nom, cle: nom === "Cotisations" ? "cotisations_paiements" : undefined },
+        }),
     ),
   );
   const parNom = new Map(categories.map((c) => [c.nom, c.id]));

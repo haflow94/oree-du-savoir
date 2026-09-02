@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { CreditCard } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formaterMontant, statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
+import {
+  formaterMontant,
+  statutCotisation,
+  totalEncaisse,
+  STATUT_COTISATION_VARIANTS,
+  STATUT_COTISATION_ROW_CLASSES,
+} from "@/lib/paiements";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { filtreParSection, sectionsDInscriptions } from "@/lib/sections-etudiant";
 import { buttonVariants } from "@/components/ui/button";
@@ -68,7 +74,10 @@ export default async function PaiementsPage({
         },
       },
       anneeScolaire: true,
-      echeances: { include: { paiements: true }, orderBy: { dateEcheance: "asc" } },
+      echeances: {
+        include: { paiements: { include: { cheque: true, prelevement: true } } },
+        orderBy: { dateEcheance: "asc" },
+      },
     },
   });
 
@@ -199,7 +208,10 @@ export default async function PaiementsPage({
             );
 
             return (
-              <tr key={d.id} className="hover:bg-bg-sunken/40">
+              <tr
+                key={d.id}
+                className={`${STATUT_COTISATION_ROW_CLASSES[statut]} hover:bg-bg-sunken/40`}
+              >
                 <td className="px-4 py-3 font-medium text-ink">
                   <Link href={`/paiements/${d.id}`} className="hover:underline">
                     {d.etudiant.prenom} {d.etudiant.nom}
@@ -239,10 +251,7 @@ export default async function PaiementsPage({
                     );
                   }
                   const montantEcheance = Number.parseFloat(e.montant.toString());
-                  const encaisseEcheance = e.paiements.reduce(
-                    (total, p) => total + Number.parseFloat(p.montant.toString()),
-                    0,
-                  );
+                  const encaisseEcheance = totalEncaisse(e.paiements);
                   const echeanceVariant =
                     encaisseEcheance >= montantEcheance
                       ? "success"

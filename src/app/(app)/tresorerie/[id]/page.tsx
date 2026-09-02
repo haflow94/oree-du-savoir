@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
@@ -6,6 +7,7 @@ import {
   MOYEN_LABELS,
   TypeMouvement,
   TYPE_MOUVEMENT_LABELS,
+  formaterMontant,
 } from "@/lib/paiements";
 import { modifierMouvementAction, supprimerMouvementAction } from "../actions";
 import { BackLink } from "@/components/ui/back-link";
@@ -17,6 +19,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Tous les champs obligatoires doivent être renseignés.",
+  MOUVEMENT_LIE_PAIEMENT:
+    "Ce mouvement provient d'un paiement ; corrigez-le depuis la fiche du paiement correspondant.",
 };
 
 function versChampDate(date: Date): string {
@@ -36,12 +40,66 @@ export default async function MouvementDetailPage({
   const message = error ? MESSAGES[error] : undefined;
 
   const [mouvement, categories] = await Promise.all([
-    prisma.mouvementTresorerie.findUnique({ where: { id } }),
+    prisma.mouvementTresorerie.findUnique({
+      where: { id },
+      include: { categorie: true, paiement: { include: { echeance: true } } },
+    }),
     prisma.categorieMouvement.findMany({ orderBy: { nom: "asc" } }),
   ]);
 
   if (!mouvement) {
     notFound();
+  }
+
+  if (mouvement.paiementId && mouvement.paiement) {
+    return (
+      <div className="max-w-xl space-y-6">
+        <div>
+          <BackLink href="/tresorerie" label="Trésorerie" />
+          <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
+            Mouvement issu d&apos;un paiement
+          </h1>
+        </div>
+
+        {message && <Alert variant="danger">{message}</Alert>}
+
+        <Alert variant="info">
+          Ce mouvement est généré automatiquement depuis un paiement et n&apos;est pas modifiable
+          ici. Pour le corriger, ouvrez la fiche du paiement correspondant.
+        </Alert>
+
+        <Card className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-xs uppercase text-ink-faint">Date</div>
+              <div className="text-ink">{new Date(mouvement.date).toLocaleDateString("fr-FR")}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-ink-faint">Montant</div>
+              <div className="text-ink">{formaterMontant(Number(mouvement.montant))}</div>
+            </div>
+            <div className="col-span-2">
+              <div className="text-xs uppercase text-ink-faint">Libellé</div>
+              <div className="text-ink">{mouvement.libelle}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-ink-faint">Moyen</div>
+              <div className="text-ink">{MOYEN_LABELS[mouvement.moyen]}</div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-ink-faint">Catégorie</div>
+              <div className="text-ink">{mouvement.categorie?.nom ?? "—"}</div>
+            </div>
+          </div>
+          <Link
+            href={`/paiements/${mouvement.paiement.echeance.dossierAnnuelId}`}
+            className="inline-block text-sm font-medium text-pine-strong hover:underline"
+          >
+            Voir le paiement correspondant →
+          </Link>
+        </Card>
+      </div>
+    );
   }
 
   return (

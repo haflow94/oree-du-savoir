@@ -10,6 +10,7 @@ import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/c
 import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
 import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
 import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
+import { affecterEtudiantACohorte } from "@/lib/cohortes";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -194,6 +195,46 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
   revalidatePath(`/etudiants/${etudiantId}`);
   revalidatePath("/etudiants");
   retour(etudiantId);
+}
+
+// Affecte l'étudiant à une Cohorte plutôt qu'à une Classe précise : un même
+// geste "Inscrire" depuis la fiche étudiant couvre tout le bloc de cours
+// (un étudiant suit en pratique tous les cours de sa cohorte). Passe par
+// lib/cohortes.ts pour respecter la même capacité/liste d'attente que
+// l'affectation faite depuis la création du dossier de paiement — aucun des
+// deux chemins ne doit pouvoir la contourner.
+export async function affecterCohorteAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.ETUDIANTS, "ECRITURE");
+
+  const etudiantId = champTexte(formData, "etudiantId");
+  const cohorteId = champTexte(formData, "cohorteId");
+  const anneeScolaireId = champTexte(formData, "anneeScolaireId");
+  if (!etudiantId) redirect("/etudiants");
+  if (!cohorteId || !anneeScolaireId) retour(etudiantId, "AFFECTATION_INVALIDE");
+
+  const resultat = await affecterEtudiantACohorte({
+    etudiantId,
+    cohorteId,
+    anneeScolaireId,
+    utilisateurId: session.id,
+  });
+
+  if (resultat.statut === "COHORTE_INTROUVABLE") retour(etudiantId, "AFFECTATION_INVALIDE");
+
+  // Le souhait de section/créneau exprimé à la préinscription est satisfait
+  // dès qu'une affectation existe, même en liste d'attente (voir la même
+  // règle dans presences/actions.ts#inscrireEtudiantAction).
+  await prisma.etudiant.update({
+    where: { id: etudiantId },
+    data: { sectionSouhaiteeId: null, creneauSouhaiteId: null },
+  });
+
+  revalidatePath(`/etudiants/${etudiantId}`);
+  redirect(
+    resultat.statut === "EN_ATTENTE"
+      ? `/etudiants/${etudiantId}?ok=1&cohorteEnAttente=1`
+      : `/etudiants/${etudiantId}?ok=1`,
+  );
 }
 
 // Un document PHOTO/PIECE_IDENTITE compte comme valide s'il n'a pas de date

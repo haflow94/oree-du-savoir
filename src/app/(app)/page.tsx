@@ -76,7 +76,17 @@ export default async function DashboardPage() {
           select: {
             montantDu: true,
             rembourse: true,
-            echeances: { select: { paiements: { select: { montant: true } } } },
+            echeances: {
+              select: {
+                paiements: {
+                  select: {
+                    montant: true,
+                    cheque: { select: { statut: true } },
+                    prelevement: { select: { rejete: true } },
+                  },
+                },
+              },
+            },
           },
         })
       : Promise.resolve([]),

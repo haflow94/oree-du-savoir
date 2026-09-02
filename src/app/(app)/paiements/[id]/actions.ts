@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { getOuCreerCategorieCotisations } from "@/lib/tresorerie";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -139,17 +140,36 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
     });
   }
 
-  await prisma.journalAudit.create({
-    data: {
-      utilisateurId: session.id,
-      action: "saisie_paiement",
-      entite: "Paiement",
-      entiteId: paiement.id,
-    },
-  });
+  const categorieCotisations = await getOuCreerCategorieCotisations();
+  const libelleEcheance = echeance.libelle
+    ? echeance.libelle
+    : `échéance du ${echeance.dateEcheance.toLocaleDateString("fr-FR")}`;
+
+  await prisma.$transaction([
+    prisma.mouvementTresorerie.create({
+      data: {
+        date: paiement.datePaiement,
+        libelle: `Paiement — ${echeance.dossierAnnuel.etudiant.prenom} ${echeance.dossierAnnuel.etudiant.nom} — ${libelleEcheance}`,
+        type: "RECETTE",
+        moyen: paiement.moyen,
+        montant: paiement.montant,
+        categorieId: categorieCotisations.id,
+        paiementId: paiement.id,
+      },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "saisie_paiement",
+        entite: "Paiement",
+        entiteId: paiement.id,
+      },
+    }),
+  ]);
 
   revalidatePath(`/paiements/${echeance.dossierAnnuelId}`);
   revalidatePath("/paiements");
+  revalidatePath("/tresorerie");
   retour(echeance.dossierAnnuelId);
 }
 
@@ -306,6 +326,10 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
 
   await prisma.$transaction([
     prisma.paiement.update({ where: { id: paiementId }, data: { montant } }),
+    // Le mouvement de trésorerie généré à la saisie initiale (voir
+    // enregistrerPaiementAction) suit la correction — no-op silencieux si ce
+    // paiement date d'avant cette fonctionnalité et n'a aucun mouvement lié.
+    prisma.mouvementTresorerie.updateMany({ where: { paiementId }, data: { montant } }),
     prisma.journalAudit.create({
       data: {
         utilisateurId: session.id,
@@ -319,6 +343,7 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
 
   revalidatePath(`/paiements/${cible.echeance.dossierAnnuelId}`);
   revalidatePath("/paiements");
+  revalidatePath("/tresorerie");
   retour(cible.echeance.dossierAnnuelId);
 }
 
