@@ -852,6 +852,16 @@ model ParametresRelance {
   // trésorerie interne), donc jamais couplés.
   nombreMaxAlertesCheque Int @default(2)
   delaiJoursCheque       Int @default(7)
+  // Réglage d'un 3e flux, sans rapport avec les deux précédents (rapport
+  // hebdomadaire/mensuel effectifs + trésorerie au Bureau) : nombre de
+  // semaines après le 1er septembre calendaire (voir
+  // debutAnneeScolaireCalendaireUTC dans src/lib/calendrier.ts) pendant
+  // lesquelles la cadence reste hebdomadaire (envoi le lundi) ; au-delà,
+  // cadence mensuelle (envoi le dernier jour du mois, y compris l'été). Ancré
+  // sur le calendrier plutôt que sur AnneeScolaire.dateDebut (rentrée
+  // pédagogique, souvent fin septembre/octobre) car les inscriptions
+  // démarrent avant la rentrée effective des classes.
+  dureeIntensiveRapportSemaines Int @default(6)
   misAJourLe       DateTime @updatedAt
 
   @@map("parametres_relance")

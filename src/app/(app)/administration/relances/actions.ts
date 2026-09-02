@@ -92,3 +92,37 @@ export async function modifierParametresAlerteChequeAction(formData: FormData): 
   revalidatePath("/administration/relances");
   retour();
 }
+
+// Réglage d'un 3e flux, sans rapport avec les deux précédents (rapport
+// effectifs + trésorerie au Bureau, voir dureeIntensiveRapportSemaines dans
+// schema.prisma) : nombre de semaines après le 1er septembre pendant
+// lesquelles la cadence reste hebdomadaire avant de repasser mensuelle.
+export async function modifierDureeIntensiveRapportAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.ADMINISTRATION, "ECRITURE");
+
+  const parametresId = champTexte(formData, "parametresId");
+  const dureeIntensiveRapportSemaines = champEntierPositif(formData, "dureeIntensiveRapportSemaines");
+  if (!parametresId || !dureeIntensiveRapportSemaines) retour("CHAMPS_INVALIDES");
+
+  const cible = await prisma.parametresRelance.findUnique({ where: { id: parametresId } });
+  if (!cible) retour("INTROUVABLE");
+
+  await prisma.$transaction([
+    prisma.parametresRelance.update({
+      where: { id: parametresId },
+      data: { dureeIntensiveRapportSemaines },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_duree_intensive_rapport",
+        entite: "ParametresRelance",
+        entiteId: parametresId,
+        details: { dureeIntensiveRapportSemaines },
+      },
+    }),
+  ]);
+
+  revalidatePath("/administration/relances");
+  retour();
+}

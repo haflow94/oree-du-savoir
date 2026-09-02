@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
-import { modifierParametresRelanceAction, modifierParametresAlerteChequeAction } from "./actions";
+import {
+  modifierParametresRelanceAction,
+  modifierParametresAlerteChequeAction,
+  modifierDureeIntensiveRapportAction,
+} from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ } from "@/components/ui/champ";
@@ -9,7 +13,7 @@ import { Alert } from "@/components/ui/alert";
 import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
-  CHAMPS_INVALIDES: "Le nombre et le délai doivent être des entiers positifs.",
+  CHAMPS_INVALIDES: "Le nombre, le délai et la durée doivent être des entiers positifs.",
   INTROUVABLE: "Réglage introuvable — relancer le seed (npm run db:seed).",
 };
 
@@ -111,6 +115,40 @@ export default async function RelancesPage({
               required
               defaultValue={parametres.delaiJoursCheque}
               hint="Compté depuis la réception du chèque (date du paiement enregistré)."
+            />
+
+            <div className="flex justify-end sm:col-span-2">
+              <SubmitButton variant="primary" pendingLabel="Enregistrement…">
+                Enregistrer
+              </SubmitButton>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      {parametres && (
+        <Card>
+          <CardTitle>Rapport effectifs + trésorerie</CardTitle>
+          <p className="mt-1 text-sm text-ink-muted">
+            Rapport automatique envoyé au Bureau (hors app, via n8n) :
+            hebdomadaire (le lundi) pendant les premières semaines suivant le
+            1er septembre, puis mensuel (le dernier jour du mois) le reste de
+            l&apos;année — y compris l&apos;été, où des inscriptions
+            continuent d&apos;arriver.
+          </p>
+          <form
+            action={modifierDureeIntensiveRapportAction}
+            className="mt-3 grid gap-3 sm:grid-cols-2"
+          >
+            <input type="hidden" name="parametresId" value={parametres.id} />
+            <Champ
+              label="Durée de la période hebdomadaire (semaines)"
+              name="dureeIntensiveRapportSemaines"
+              type="number"
+              min={1}
+              required
+              defaultValue={parametres.dureeIntensiveRapportSemaines}
+              hint="Comptée depuis le 1er septembre. Au-delà, le rapport repasse automatiquement en cadence mensuelle."
             />
 
             <div className="flex justify-end sm:col-span-2">
