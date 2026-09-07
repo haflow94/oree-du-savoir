@@ -88,6 +88,20 @@ export async function login(
   // (la réponse de la redirection passe), mais aucune session ne persistait
   // ensuite. `x-forwarded-proto` est déjà la même détection utilisée pour
   // l'URL encodée dans le QR (voir (app)/classes/[id]/page.tsx).
+  //
+  // Une fois le tunnel public de la préinscription en place
+  // (ARCHITECTURE-PREINSCRIPTION.md) : ce mécanisme reste correct SANS
+  // modification, à condition que les deux points suivants restent vrais —
+  // 1) le client du tunnel (ex. cloudflared) définit fidèlement
+  //    `x-forwarded-proto: https` sur toute requête publique qu'il relaie
+  //    (le point d'entrée public termine le TLS, la connexion tunnel→app
+  //    reste en clair sur le réseau interne) ; 2) rien entre le client du
+  //    tunnel et cette app ne peut recevoir ce header directement d'un
+  //    client externe non fiable (sinon n'importe qui pourrait forcer
+  //    `secure: false` en l'omettant) — la route interne /preinscription
+  //    n'étant jamais exposée autrement que via ce tunnel, ce risque
+  //    n'existe que si cette hypothèse réseau change. Revérifier ces deux
+  //    points à l'activation du tunnel plutôt que de modifier ce code.
   const protocole = (await headers()).get("x-forwarded-proto") ?? "http";
 
   const cookieStore = await cookies();

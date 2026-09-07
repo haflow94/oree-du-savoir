@@ -87,12 +87,19 @@ const EMAIL_CONTACT_RGPD = "";
 export function PreinscriptionForm({
   sections,
   creneaux,
+  code,
 }: {
   sections: Section[];
   // Catalogue CS/S/D + restriction de chaque section (voir Administration →
   // Sections) : toujours ce catalogue générique qui est proposé ici, jamais
   // une Classe réelle (matière/niveau précis) — voir preinscrireAction.
   creneaux: Creneau[];
+  // Non nul uniquement quand la page (preinscription/page.tsx) a déjà
+  // vérifié ce code comme valide (lien de campagne email, ou code accueil
+  // obtenu via /accueil-preinscription) : embarqué en champ caché pour être
+  // consommé à la soumission (voir preinscrireAction/tenterConsommerCode).
+  // Absent pour un accès direct par URL, sans code.
+  code?: string;
 }) {
   // Une même personne peut vouloir suivre plusieurs cours/sections en une
   // seule préinscription (ex. Jeunes + Études Coraniques pour le même
@@ -122,7 +129,6 @@ export function PreinscriptionForm({
   const [error, setError] = useState<string | null>(null);
   const [succes, setSucces] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [pieceIdentiteFournie, setPieceIdentiteFournie] = useState(false);
 
   if (succes) {
     return (
@@ -156,6 +162,7 @@ export function PreinscriptionForm({
       className="space-y-6"
     >
       {error && <Alert variant="danger">{error}</Alert>}
+      {code && <input type="hidden" name="code" value={code} />}
 
       <nav
         aria-label="Sections du formulaire"
@@ -351,11 +358,11 @@ export function PreinscriptionForm({
       )}
 
       <fieldset id="section-documents" className={FIELDSET_CLASSES}>
-        <legend className={LEGEND_CLASSES}>Documents (facultatif)</legend>
+        <legend className={LEGEND_CLASSES}>Documents</legend>
         <p className="mb-3 text-sm text-ink-muted">
-          Si vous les avez sous la main, vous pouvez déjà envoyer une photo et
-          une pièce d&apos;identité — sinon l&apos;association vous les
-          demandera lors du contrôle sur place.
+          Merci de joindre une photo d&apos;identité et une pièce
+          d&apos;identité — elles sont nécessaires pour finaliser
+          l&apos;inscription.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -367,6 +374,7 @@ export function PreinscriptionForm({
               type="file"
               name="photo"
               accept="image/*"
+              required
               className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
             />
           </div>
@@ -379,35 +387,21 @@ export function PreinscriptionForm({
               type="file"
               name="pieceIdentite"
               accept="image/*,application/pdf"
-              onChange={(e) => setPieceIdentiteFournie(!!e.target.files?.length)}
+              required
               className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
             />
           </div>
-          {pieceIdentiteFournie && (
-            <>
-              <ChampSelect
-                label="Type de pièce"
-                name="typePieceIdentite"
-                required={pieceIdentiteFournie}
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Choisir…
-                </option>
-                <option value="CARTE_IDENTITE">Carte d&apos;identité</option>
-                <option value="PASSEPORT">Passeport</option>
-                <option value="TITRE_SEJOUR">Titre de séjour</option>
-                <option value="PERMIS_CONDUIRE">Permis de conduire</option>
-                <option value="AUTRE">Autre</option>
-              </ChampSelect>
-              <Champ
-                label="Date d'expiration"
-                name="dateExpirationPiece"
-                type="date"
-                required={pieceIdentiteFournie}
-              />
-            </>
-          )}
+          <ChampSelect label="Type de pièce" name="typePieceIdentite" required defaultValue="">
+            <option value="" disabled>
+              Choisir…
+            </option>
+            <option value="CARTE_IDENTITE">Carte d&apos;identité</option>
+            <option value="PASSEPORT">Passeport</option>
+            <option value="TITRE_SEJOUR">Titre de séjour</option>
+            <option value="PERMIS_CONDUIRE">Permis de conduire</option>
+            <option value="AUTRE">Autre</option>
+          </ChampSelect>
+          <Champ label="Date d'expiration" name="dateExpirationPiece" type="date" required />
         </div>
       </fieldset>
 

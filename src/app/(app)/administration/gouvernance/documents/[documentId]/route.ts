@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { lireDocument } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
+import { enTetesServiceDocument } from "@/lib/service-fichier";
 
 // Même principe que etudiants/[id]/documents/[documentId]/route.ts : le
-// chemin sur disque n'est jamais pris depuis l'URL, seul l'id en base compte.
+// chemin sur disque n'est jamais pris depuis l'URL, seul l'id en base compte,
+// et le Content-Type est recalculé depuis le contenu réel (jamais depuis
+// mimeType, déclaré par le staff à l'upload).
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> },
@@ -26,9 +29,6 @@ export async function GET(
   }
 
   return new NextResponse(new Uint8Array(contenu), {
-    headers: {
-      "Content-Type": document.mimeType,
-      "Content-Disposition": `${telecharger ? "attachment" : "inline"}; filename="${document.nomFichier}"`,
-    },
+    headers: enTetesServiceDocument(contenu, document.nomFichier, telecharger),
   });
 }

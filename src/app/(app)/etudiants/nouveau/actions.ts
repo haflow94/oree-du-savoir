@@ -172,6 +172,7 @@ export async function creerEtudiantAction(
         nom,
         prenom,
         dateNaissance,
+        dateInscription: new Date(),
         villeNaissance,
         telephoneMobile,
         telephoneFixe,

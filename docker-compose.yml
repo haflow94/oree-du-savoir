@@ -25,8 +25,16 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB manquant}
     volumes:
       - db_data:/var/lib/postgresql/data
+    # Lié à 127.0.0.1 uniquement (jamais 0.0.0.0) : Postgres n'a besoin
+    # d'être joignable que par le conteneur `app` (réseau interne Docker,
+    # toujours accessible sans ports:) et, ponctuellement, par un accès
+    # direct depuis l'hôte (ex. npm run db:studio en dev). Publier ce port
+    # sur toutes les interfaces l'exposerait sur le réseau local — et, une
+    # fois le tunnel public de la préinscription en place, potentiellement
+    # au-delà — sans aucun rapport avec le besoin (voir audit de sécurité de
+    # la préinscription publique, ARCHITECTURE-PREINSCRIPTION.md).
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
@@ -65,6 +73,10 @@ services:
       # pour l'URL encodée dans le QR d'accès (voir .env.example). Vide par
       # défaut : le fallback détecté depuis la requête HTTP est utilisé.
       PUBLIC_HOST: ${PUBLIC_HOST:-}
+      # Cloisonnement par hostname du tunnel public de préinscription (voir
+      # .env.example et src/proxy.ts) : vide par défaut, sans effet tant que
+      # le tunnel n'est pas en place.
+      PREINSCRIPTION_PUBLIC_HOSTNAME: ${PREINSCRIPTION_PUBLIC_HOSTNAME:-}
       # Le conteneur tourne en UTC par défaut : sans ce réglage, « aujourd'hui »
       # côté serveur bascule à minuit UTC, soit 2h du matin à Paris en été.
       # Les séances du jour et le délai de correction des présences seraient
@@ -84,8 +96,14 @@ services:
   n8n:
     image: n8nio/n8n:latest
     restart: unless-stopped
+    # Lié à 127.0.0.1 uniquement, même raison que db.ports ci-dessus : n8n
+    # n'a besoin d'être joignable que par l'app (réseau interne Docker) et,
+    # pour son interface d'administration, par le staff sur la machine hôte
+    # elle-même (ou via un tunnel/VPN dédié, hors du scope réseau public de
+    # la préinscription). Aucun besoin d'exposition sur toutes les
+    # interfaces (voir audit de sécurité de la préinscription publique).
     ports:
-      - "5678:5678"
+      - "127.0.0.1:5678:5678"
     environment:
       - TZ=${TZ:-Europe/Paris}
       # Même valeur que côté app : les workflows appellent l'app via

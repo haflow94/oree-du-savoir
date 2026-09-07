@@ -248,6 +248,7 @@ async function main() {
         nom: e.nom,
         prenom: e.prenom,
         dateNaissance: jour(e.naissance),
+        dateInscription: new Date(),
         villeNaissance: e.ville,
         civilite: alea() > 0.5 ? "M" : "MME",
         email: `${e.prenom}.${e.nom}@example.test`

@@ -96,7 +96,7 @@ model PermissionRole {
 // analyse de conversation pour le détail des tables qui devraient recevoir
 // un organisationId le jour où une deuxième organisation est nécessaire).
 model Organisation {
-  id                String   @id @default(cuid())
+  id                String        @id @default(cuid())
   nom               String
   // Sous-titre affiché sous le nom sur la page 1 du dossier (ex. "Institut
   // des cultures et des savoirs · Créteil") — jamais en dur dans le
@@ -120,7 +120,7 @@ model Organisation {
   // permet de rouvrir un jour plus tard sans migration (voir CLAUDE.md,
   // règles non négociables sur les décisions métier éditables).
   joursActifs       JourSemaine[] @default([MARDI, JEUDI, SAMEDI, DIMANCHE])
-  misAJourLe        DateTime @updatedAt
+  misAJourLe        DateTime      @updatedAt
 
   @@map("organisation")
 }
@@ -144,6 +144,7 @@ model Utilisateur {
   activitesCreees             Activite[]
   activitesResponsable        ActiviteResponsable[]
   documentsAssociationAjoutes DocumentAssociation[]
+  codesPreinscriptionCrees    CodePreinscription[]
   // Spécialités déclarées d'un enseignant (Section dans laquelle il peut
   // intervenir), affectées à la création/modification du compte — sert à
   // filtrer les enseignants proposés lors de la création d'une classe (voir
@@ -371,6 +372,12 @@ model Etudiant {
   doublonPotentielId             String?
   doublonPotentiel               Etudiant?         @relation("DoublonPotentiel", fields: [doublonPotentielId], references: [id], onDelete: SetNull)
   doublonsDetectes               Etudiant[]        @relation("DoublonPotentiel")
+  // Date d'inscription affichée/modifiable sur la fiche étudiant (distincte
+  // de `creeLe`, horodatage technique de création de la ligne jamais
+  // corrigé) : posée explicitement à la création (préinscription ou saisie
+  // manuelle, voir preinscription/actions.ts et etudiants/nouveau/actions.ts)
+  // puis librement corrigible ensuite (ex. dossier papier saisi en retard).
+  dateInscription                DateTime
   creeLe                         DateTime          @default(now())
   misAJourLe                     DateTime          @updatedAt
 
@@ -464,6 +471,90 @@ model Document {
   @@index([etudiantId])
   @@index([chequeId])
   @@map("documents")
+}
+
+// Code d'accès pour la préinscription publique (voir /preinscription?code=...
+// et src/lib/preinscription-code.ts) — jamais un verrou global sur
+// /preinscription, n'entre en jeu QUE quand l'URL porte `?code=...`. Même
+// principe que Session (voir plus haut) : seul le hash du code est stocké,
+// jamais le code en clair (même fonction de hash que hashSessionToken).
+//
+// Deux origines, distinguées par `estAccueilAuto`, avec un mode de
+// consommation différent (`usageUnique`) :
+// - email (estAccueilAuto = false, usageUnique = true) : campagne ciblée, un
+//   code généré à la main par le staff depuis *Inscriptions* pour une
+//   famille précise — invalidé dès la première soumission réussie (via
+//   `utiliseLe`), comme un lien à usage unique classique.
+// - accueil (estAccueilAuto = true, usageUnique = false) : généré
+//   automatiquement par GET /accueil-preinscription (voir
+//   src/app/accueil-preinscription/route.ts), `expireLe` fixée à la fin de
+//   la journée courante. Plusieurs familles scannant le même QR affiché sur
+//   place le même jour doivent toutes pouvoir soumettre avec — jamais
+//   consommé à la soumission (`utiliseLe` reste null), seule l'expiration
+//   l'invalide. Le prochain GET après expiration en régénère un nouveau
+//   paresseusement ; le staff peut aussi forcer cette régénération plus tôt
+//   (ex. fuite suspectée) via `invaliderCodeAccueilAutoEnCours`, qui avance
+//   `expireLe` à maintenant sans rien créer lui-même.
+model CodePreinscription {
+  id            String       @id @default(cuid())
+  codeHash      String       @unique
+  // Libellé libre (ex. "Relance rentrée 2026" pour un code email, "Accueil
+  // (rotation automatique)" pour un code accueil) : sert uniquement au staff
+  // pour se repérer dans Prisma Studio (pas d'écran de liste dédié, voir
+  // CLAUDE.md sur l'absence de sur-ingénierie), aucun usage fonctionnel.
+  campagneLabel String
+  expireLe      DateTime
+  // true = généré automatiquement par GET /accueil-preinscription ; false =
+  // généré à la main depuis *Inscriptions* pour une campagne email. Défaut à
+  // false : un code existant (créé avant ce champ) reste un code email,
+  // comportement inchangé.
+  estAccueilAuto Boolean     @default(false)
+  // Gouverne la consommation à la soumission (voir tenterConsommerCode) :
+  // true = invalidé dès la première soumission réussie (`utiliseLe` posé) ;
+  // false = jamais consommé, seule `expireLe` invalide le code — plusieurs
+  // soumissions différentes peuvent donc réussir avec le même code tant
+  // qu'il n'a pas expiré. Défaut à true : un code existant (créé avant ce
+  // champ, donc forcément un code email) garde son comportement usage
+  // unique inchangé. Toujours false pour un code accueil (estAccueilAuto).
+  usageUnique   Boolean      @default(true)
+  // Non nul dès la première soumission réussie de preinscrireAction avec un
+  // code `usageUnique` (voir preinscription/actions.ts) — invalide le code
+  // pour toute soumission suivante. Reste toujours null pour un code
+  // `usageUnique = false` (accueil) : la présence de ce champ n'est donc
+  // significative que combinée à `usageUnique`.
+  utiliseLe     DateTime?
+  creeLe        DateTime     @default(now())
+  creeParId     String?
+  creePar       Utilisateur? @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+
+  @@index([expireLe])
+  @@map("codes_preinscription")
+}
+
+// Jeton permanent embarqué dans le QR officiel de préinscription publique
+// (voir /inscriptions et ARCHITECTURE-PREINSCRIPTION.md) — volontairement
+// distinct de CodePreinscription ci-dessus : celui-ci gère des codes à
+// expiration/rotation (email, accueil), ce jeton-ci n'a ni l'un ni l'autre.
+// Ce n'est pas un mécanisme d'authentification, seulement un filtre contre
+// les robots qui découvriraient le hostname public sans être passés par le
+// QR imprimé (voir src/lib/preinscription-token.ts). Un seul enregistrement
+// en pratique — id fixe (`ID_SINGLETON` côté code) plutôt que @default(cuid()),
+// pour que deux requêtes concurrentes de première création ne puissent pas
+// produire deux jetons permanents valides à la fois.
+model JetonPreinscriptionPermanent {
+  id        String   @id
+  // Contrairement à codeHash ci-dessus, le jeton est aussi stocké en clair
+  // ici, en plus de son hash : ce n'est pas un secret au sens d'une session
+  // ou d'un code email — il est destiné à être imprimé et affiché
+  // publiquement sur le QR officiel. Le staff doit pouvoir réafficher
+  // l'URL/QR complet à tout moment depuis *Inscriptions* (y compris après un
+  // redémarrage du conteneur), sans jamais le régénérer — ce qui
+  // invaliderait le QR déjà imprimé.
+  jeton     String
+  jetonHash String   @unique
+  creeLe    DateTime @default(now())
+
+  @@map("jetons_preinscription_permanents")
 }
 
 // Les 4 sections de l'association (Jeunes, Études Islamiques, Langue Arabe,
@@ -837,21 +928,21 @@ enum MoyenPaiement {
 // règle métier"). Consommé par GET /api/internal/n8n/dossiers-a-relancer
 // (flux n8n de relance paiement/pièce d'identité, hors app).
 model ParametresRelance {
-  id               String   @id @default(cuid())
+  id                            String   @id @default(cuid())
   // Nombre maximum de relances automatiques envoyées par dossier annuel :
   // au-delà, le flux n8n ne le remonte plus, le staff reprend la main
   // manuellement depuis la fiche.
-  nombreMaxRelances Int     @default(2)
+  nombreMaxRelances             Int      @default(2)
   // Jours d'attente avant la première relance (depuis DossierAnnuel.creeLe)
   // puis entre deux relances (depuis DossierAnnuel.derniereRelanceEnvoyeeLe).
-  delaiJours       Int      @default(15)
+  delaiJours                    Int      @default(15)
   // Réglage d'un flux distinct (alerte interne Bureau quand un chèque reçu
   // traîne non déposé, voir Cheque.nombreAlertesEnvoyees) : même mécanique
   // que nombreMaxRelances/delaiJours ci-dessus mais volontairement des
   // champs séparés — ce n'est pas la même règle métier (famille vs
   // trésorerie interne), donc jamais couplés.
-  nombreMaxAlertesCheque Int @default(2)
-  delaiJoursCheque       Int @default(7)
+  nombreMaxAlertesCheque        Int      @default(2)
+  delaiJoursCheque              Int      @default(7)
   // Réglage d'un 3e flux, sans rapport avec les deux précédents (rapport
   // hebdomadaire/mensuel effectifs + trésorerie au Bureau) : nombre de
   // semaines après le 1er septembre calendaire (voir
@@ -861,8 +952,8 @@ model ParametresRelance {
   // sur le calendrier plutôt que sur AnneeScolaire.dateDebut (rentrée
   // pédagogique, souvent fin septembre/octobre) car les inscriptions
   // démarrent avant la rentrée effective des classes.
-  dureeIntensiveRapportSemaines Int @default(6)
-  misAJourLe       DateTime @updatedAt
+  dureeIntensiveRapportSemaines Int      @default(6)
+  misAJourLe                    DateTime @updatedAt
 
   @@map("parametres_relance")
 }
@@ -874,22 +965,22 @@ model ParametresRelance {
 // automatique du montant dû à partir des sections/cours suivis reste à
 // faire (Phase 2) ; en attendant, montantDu est saisi manuellement.
 model DossierAnnuel {
-  id              String        @id @default(cuid())
-  etudiantId      String
-  etudiant        Etudiant      @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
-  anneeScolaireId String
-  anneeScolaire   AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
-  montantDu       Decimal       @db.Decimal(10, 2)
+  id                       String        @id @default(cuid())
+  etudiantId               String
+  etudiant                 Etudiant      @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  anneeScolaireId          String
+  anneeScolaire            AnneeScolaire @relation(fields: [anneeScolaireId], references: [id], onDelete: Restrict)
+  montantDu                Decimal       @db.Decimal(10, 2)
   // Basculé manuellement par le Trésorier/Bureau quand la cotisation a été
   // remboursée à la famille : prime sur le statut calculé (soldé/partiel/
   // impayé) pour l'affichage, sans toucher aux échéances/paiements déjà
   // enregistrés (traçabilité conservée).
-  rembourse       Boolean       @default(false)
+  rembourse                Boolean       @default(false)
   // Renseigné à la main par l'administration pour le dossier Jeunes (case
   // "Réservé à l'administration — Niveau d'admission"), sans équivalent côté
   // Adultes. Reste vide tant que non saisi.
-  niveauAdmission String?
-  creeLe          DateTime      @default(now())
+  niveauAdmission          String?
+  creeLe                   DateTime      @default(now())
   // Idempotence + compteur du flux n8n de relance (voir ParametresRelance et
   // GET/POST /api/internal/n8n/dossiers-a-relancer|.../relance-envoyee) :
   // incrémenté seulement après l'envoi réussi d'une relance, jamais avant.
@@ -897,7 +988,7 @@ model DossierAnnuel {
   // lib/paiements.ts#statutCotisation, qui reflète l'encaissement réel en
   // trésorerie) : la relance ne regarde que si au moins un paiement a été
   // apporté, peu importe son état de traitement.
-  nombreRelancesEnvoyees   Int      @default(0)
+  nombreRelancesEnvoyees   Int           @default(0)
   derniereRelanceEnvoyeeLe DateTime?
 
   echeances Echeance[]
@@ -952,22 +1043,22 @@ enum StatutCheque {
 // Détails spécifiques au chèque, en 1-1 avec le paiement (uniquement quand
 // Paiement.moyen = CHEQUE).
 model Cheque {
-  id                   String       @id @default(cuid())
-  paiementId           String       @unique
-  paiement             Paiement     @relation(fields: [paiementId], references: [id], onDelete: Cascade)
-  banque               String?
-  numero               String?
-  titulaireNom         String?
-  titulairePrenom      String?
+  id                      String       @id @default(cuid())
+  paiementId              String       @unique
+  paiement                Paiement     @relation(fields: [paiementId], references: [id], onDelete: Cascade)
+  banque                  String?
+  numero                  String?
+  titulaireNom            String?
+  titulairePrenom         String?
   // true = le titulaire est l'étudiant lui-même (cas par défaut) : dans ce
   // cas on ne redemande pas une seconde pièce d'identité, celle du dossier
   // étudiant suffit. false = tiers payeur (ex. grand-parent) : nom/prénom
   // distincts + pièce d'identité dédiée (voir Document.chequeId).
-  titulaireEstEtudiant Boolean      @default(true)
-  statut               StatutCheque @default(RECU)
-  dateDepot            DateTime?
-  dateEncaissement     DateTime?
-  motifRejet           String?
+  titulaireEstEtudiant    Boolean      @default(true)
+  statut                  StatutCheque @default(RECU)
+  dateDepot               DateTime?
+  dateEncaissement        DateTime?
+  motifRejet              String?
   // Idempotence + compteur du flux n8n d'alerte "chèque reçu non déposé"
   // (voir ParametresRelance et GET/POST /api/internal/n8n/cheques-a-alerter
   // |.../alerte-envoyee) : incrémenté seulement après l'envoi réussi d'une
@@ -975,7 +1066,7 @@ model Cheque {
   // le chèque passe à DEPOSE/ENCAISSE/REJETE, il sort du champ de la requête
   // du flux, ces compteurs restent alors figés (traçabilité, jamais remis à
   // zéro).
-  nombreAlertesEnvoyees   Int      @default(0)
+  nombreAlertesEnvoyees   Int          @default(0)
   derniereAlerteEnvoyeeLe DateTime?
 
   documents Document[]

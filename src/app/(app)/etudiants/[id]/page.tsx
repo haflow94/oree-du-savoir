@@ -52,7 +52,7 @@ import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire"
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Le nom et le prénom sont obligatoires.",
   PROFIL_CHAMPS_MANQUANTS:
-    "La civilité, le nom, le prénom, la date de naissance, la ville de naissance, le téléphone mobile, l'email, l'adresse, le code postal, la ville et le niveau d'études sont obligatoires.",
+    "La civilité, le nom, le prénom, la date de naissance, la date d'inscription, la ville de naissance, le téléphone mobile, l'email, l'adresse, le code postal, la ville et le niveau d'études sont obligatoires.",
   TELEPHONE_INVALIDE: "Ce numéro de téléphone n'a pas un format valide (ex. 06 12 34 56 78).",
   EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
   CODE_POSTAL_INVALIDE: "Le code postal doit comporter 5 chiffres.",
@@ -67,6 +67,8 @@ const MESSAGES: Record<string, string> = {
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
   DOUBLON_NON_FUSIONNABLE:
     "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles. Transférez-les manuellement avant de la supprimer.",
+  DOSSIER_INCOMPLET:
+    "Impossible de valider l'inscription : le dossier documentaire n'est pas complet ou aucune action de paiement n'a encore été enregistrée.",
 };
 
 const STATUT_DOCUMENT_LABELS: Record<StatutDocumentRequis, string> = {
@@ -353,6 +355,29 @@ export default async function EtudiantDetailPage({
   const statutDossier = statutDocumentsRequis(etudiant.documents);
   const dossierComplet = dossierDocumentaireComplet(etudiant.documents);
 
+  // Conditions pour autoriser la validation de l'inscription (bouton
+  // "Valider l'inscription" ci-dessous) : dossier documentaire complet (voir
+  // dossierComplet) ET au moins une action de paiement entreprise (chèque
+  // reçu, prélèvement mis en place ou paiement partiel enregistré) — pas
+  // nécessairement soldé, voir statutCotisation utilisé plus bas pour ça.
+  const paiementEntame = etudiant.dossiersAnnuels.some((d) =>
+    d.echeances.some((e) => e.paiements.length > 0),
+  );
+  const motifsBlocageValidation: string[] = [];
+  if (!dossierComplet) {
+    for (const type of TYPES_DOCUMENTS_REQUIS) {
+      if (statutDossier[type] !== "OK") {
+        motifsBlocageValidation.push(
+          `${TYPE_DOCUMENT_LABELS[type]} ${statutDossier[type] === "EXPIRE" ? "expiré(e)" : "manquant(e)"}`,
+        );
+      }
+    }
+  }
+  if (!paiementEntame) {
+    motifsBlocageValidation.push("Aucun paiement (chèque, prélèvement ou versement) encore enregistré");
+  }
+  const validationPossible = motifsBlocageValidation.length === 0;
+
   // Bandeau d'état : ce que la fiche cachait jusqu'ici (dossier financier de
   // l'année active manquant, ou pas encore soldé) devient visible en tête,
   // au lieu d'être enterré dans la carte Situation financière.
@@ -406,12 +431,28 @@ export default async function EtudiantDetailPage({
         </div>
         <div className="flex items-center gap-2">
           {peutModifier && etudiant.statutInscription === "PREINSCRIT" && (
-            <form action={validerInscriptionAction}>
-              <input type="hidden" name="etudiantId" value={etudiant.id} />
-              <SubmitButton variant="primary" pendingLabel="Validation…">
-                Valider l&apos;inscription
-              </SubmitButton>
-            </form>
+            <div className="text-right">
+              <form action={validerInscriptionAction}>
+                <input type="hidden" name="etudiantId" value={etudiant.id} />
+                <SubmitButton
+                  variant="primary"
+                  pendingLabel="Validation…"
+                  disabled={!validationPossible}
+                  title={
+                    validationPossible
+                      ? undefined
+                      : `Dossier incomplet : ${motifsBlocageValidation.join(", ")}.`
+                  }
+                >
+                  Valider l&apos;inscription
+                </SubmitButton>
+              </form>
+              {!validationPossible && (
+                <p className="mt-1 max-w-xs text-xs text-ink-muted">
+                  Manque : {motifsBlocageValidation.join(", ")}.
+                </p>
+              )}
+            </div>
           )}
           {peutSupprimer && (
             <>
@@ -588,6 +629,13 @@ export default async function EtudiantDetailPage({
                 defaultValue={etudiant.villeNaissance ?? ""}
                 required
               />
+              <Champ
+                label="Date d'inscription"
+                name="dateInscription"
+                type="date"
+                defaultValue={versChampDate(etudiant.dateInscription)}
+                required
+              />
             </div>
           </fieldset>
 
@@ -721,6 +769,12 @@ export default async function EtudiantDetailPage({
               <div>
                 <dt className={DT_CLASSES}>Ville de naissance</dt>
                 <dd className={DD_CLASSES}>{etudiant.villeNaissance || "—"}</dd>
+              </div>
+              <div>
+                <dt className={DT_CLASSES}>Date d&apos;inscription</dt>
+                <dd className={DD_CLASSES}>
+                  {new Date(etudiant.dateInscription).toLocaleDateString("fr-FR")}
+                </dd>
               </div>
             </dl>
           </Card>

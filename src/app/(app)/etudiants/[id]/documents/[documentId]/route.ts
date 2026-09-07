@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { lireDocument } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
+import { enTetesServiceDocument } from "@/lib/service-fichier";
 
 // Le chemin sur disque n'est jamais pris depuis l'URL : on ne sert que le
 // document dont l'id est en base, avec vérification que etudiantId
 // correspond bien (défense en profondeur contre un id de document deviné).
 // "inline" (par défaut) laisse le navigateur afficher le fichier dans un
 // onglet (PDF, image…) ; ?telecharger=1 force le téléchargement même pour
-// ces types-là.
+// ces types-là. Content-Type/Content-Disposition sont recalculés à partir du
+// contenu réel par enTetesServiceDocument (lib/service-fichier.ts) — jamais
+// depuis document.mimeType, déclaré par le client à l'upload et donc pas
+// fiable (voir audit de sécurité de la préinscription publique) : un fichier
+// dont la signature ne correspond à aucun type sûr est toujours forcé en
+// téléchargement, même sans ?telecharger=1.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; documentId: string }> },
@@ -34,9 +40,6 @@ export async function GET(
   }
 
   return new NextResponse(new Uint8Array(contenu), {
-    headers: {
-      "Content-Type": document.mimeType,
-      "Content-Disposition": `${telecharger ? "attachment" : "inline"}; filename="${document.nomFichier}"`,
-    },
+    headers: enTetesServiceDocument(contenu, document.nomFichier, telecharger),
   });
 }

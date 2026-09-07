@@ -5,6 +5,14 @@ import { Civilite, Sexe, TypePieceIdentite } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { detecterTypeMimeReel, TAILLE_MAX_FICHIER_MO, TAILLE_MAX_FICHIER_OCTETS } from "@/lib/fichiers-uploades";
+import {
+  tenterConsommerCode,
+  estCodeAccueilAuto,
+  MESSAGE_CODE_INVALIDE,
+  MESSAGE_CODE_ACCUEIL_EXPIRE,
+} from "@/lib/preinscription-code";
+import { adresseIpClient, limiteDebitDepassee } from "@/lib/rate-limit";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -90,6 +98,15 @@ function responsableDepuisFormulaire(formData: FormData, index: 1 | 2) {
 export async function preinscrireAction(
   formData: FormData,
 ): Promise<{ erreur: string } | { ok: true }> {
+  // Limitation de débit applicative (défense en profondeur, en complément du
+  // point d'entrée public — voir src/lib/rate-limit.ts) : avant toute
+  // lecture de FormData, pour ne pas gaspiller de travail sur un abus
+  // évident.
+  const ip = await adresseIpClient();
+  if (limiteDebitDepassee(`preinscription-soumission:${ip}`, 5, 15 * 60 * 1000)) {
+    return { erreur: "Trop de tentatives depuis cette connexion. Merci de réessayer dans quelques minutes." };
+  }
+
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");
   const civilite = champCivilite(formData, "civilite");
@@ -120,20 +137,52 @@ export async function preinscrireAction(
     };
   }
 
-  // Photo et pièce d'identité sont facultatives sur ce formulaire public (la
-  // famille peut ne pas les avoir sous la main, ou déjà être connue de
-  // l'association) : voir CLAUDE.md, formulaire public/anonyme. Type et date
-  // d'expiration ne sont exigés que si un fichier de pièce d'identité est
-  // effectivement fourni.
+  // Photo et pièce d'identité sont obligatoires sur ce formulaire public.
   const photo = formData.get("photo");
   const pieceIdentite = formData.get("pieceIdentite");
   const typePieceIdentite = champTexte(formData, "typePieceIdentite");
   const dateExpirationPieceBrute = champTexte(formData, "dateExpirationPiece");
+  const photoFournie = photo instanceof File && photo.size > 0;
   const pieceIdentiteFournie = pieceIdentite instanceof File && pieceIdentite.size > 0;
-  if (pieceIdentiteFournie && (!estTypePieceIdentite(typePieceIdentite) || !dateExpirationPieceBrute)) {
+  if (!photoFournie || !pieceIdentiteFournie) {
     return {
-      erreur: "Le type de pièce et sa date d'expiration sont obligatoires si vous joignez une pièce d'identité.",
+      erreur: "La photo d'identité et la pièce d'identité sont obligatoires.",
     };
+  }
+  if (!estTypePieceIdentite(typePieceIdentite) || !dateExpirationPieceBrute) {
+    return {
+      erreur: "Le type de pièce et sa date d'expiration sont obligatoires.",
+    };
+  }
+
+  // Validation du contenu réel des fichiers (magic bytes), jamais de
+  // l'extension ou du `type` déclaré par le navigateur — whitelist stricte
+  // PDF/JPEG/PNG (voir lib/fichiers-uploades.ts). Faite avant toute écriture
+  // en base : un fichier invalide ne doit jamais laisser un étudiant
+  // préinscrit orphelin d'un document attendu, ni un fichier orphelin sur
+  // DOCUMENTS_DIR.
+  let contenuPhoto: Buffer | null = null;
+  if (photo instanceof File && photo.size > 0) {
+    if (photo.size > TAILLE_MAX_FICHIER_OCTETS) {
+      return { erreur: `La photo dépasse la taille maximale autorisée (${TAILLE_MAX_FICHIER_MO} Mo).` };
+    }
+    contenuPhoto = Buffer.from(await photo.arrayBuffer());
+    if (!detecterTypeMimeReel(contenuPhoto)) {
+      return { erreur: "Le fichier de la photo doit être une image (JPEG, PNG) ou un PDF valide." };
+    }
+  }
+
+  let contenuPieceIdentite: Buffer | null = null;
+  if (pieceIdentiteFournie && pieceIdentite instanceof File) {
+    if (pieceIdentite.size > TAILLE_MAX_FICHIER_OCTETS) {
+      return {
+        erreur: `Le fichier de la pièce d'identité dépasse la taille maximale autorisée (${TAILLE_MAX_FICHIER_MO} Mo).`,
+      };
+    }
+    contenuPieceIdentite = Buffer.from(await pieceIdentite.arrayBuffer());
+    if (!detecterTypeMimeReel(contenuPieceIdentite)) {
+      return { erreur: "Le fichier de la pièce d'identité doit être une image (JPEG, PNG) ou un PDF valide." };
+    }
   }
 
   const sectionIdsChoisies = [...new Set(lignes.map((l) => l.sectionId))];
@@ -258,12 +307,33 @@ export async function preinscrireAction(
           .join(", ")}.`
       : null;
 
+  // Code d'accès à usage unique (voir preinscription/page.tsx et
+  // lib/preinscription-code.ts) : absent pour un accès direct par URL (sans
+  // code), présent pour un lien email de campagne ou un code accueil obtenu
+  // via /accueil-preinscription — dans ces deux cas, consommé ici de façon
+  // atomique, juste avant de créer l'étudiant, pour qu'aucune autre
+  // soumission ne puisse réutiliser le même code (y compris en cas de double
+  // clic/soumission concurrente, ou d'une autre famille ayant scanné le même
+  // QR accueil avant que ce formulaire ne soit soumis).
+  const codeBrut = champTexte(formData, "code");
+  if (codeBrut) {
+    const consomme = await tenterConsommerCode(codeBrut);
+    if (!consomme) {
+      // Message dédié pour un code accueil déjà pris de vitesse par une
+      // autre famille (ou expiré d'inactivité) : rescanner suffit, voir
+      // MESSAGE_CODE_ACCUEIL_EXPIRE.
+      const message = (await estCodeAccueilAuto(codeBrut)) ? MESSAGE_CODE_ACCUEIL_EXPIRE : MESSAGE_CODE_INVALIDE;
+      return { erreur: message };
+    }
+  }
+
   const etudiant = await prisma.etudiant.create({
     data: {
       civilite,
       nom,
       prenom,
       dateNaissance,
+      dateInscription: new Date(),
       villeNaissance,
       sexe: champSexe(formData, "sexe"),
       niveauScolaire: champTexte(formData, "niveauScolaire"),
@@ -290,24 +360,26 @@ export async function preinscrireAction(
   // Écriture des fichiers hors transaction (même pattern que
   // televerserDocumentAction, etudiants/[id]/actions.ts) : le fichier vit
   // sur DOCUMENTS_DIR, jamais en base, la ligne Document ne référence que le
-  // chemin une fois le fichier réellement écrit.
-  if (photo instanceof File && photo.size > 0) {
-    const contenu = Buffer.from(await photo.arrayBuffer());
-    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, photo.name, contenu);
+  // chemin une fois le fichier réellement écrit. mimeType est toujours le
+  // type détecté à partir du contenu réel (validé plus haut), jamais celui
+  // déclaré par le navigateur — voir lib/fichiers-uploades.ts.
+  if (contenuPhoto && photo instanceof File) {
+    const typeMimeReel = detecterTypeMimeReel(contenuPhoto)!;
+    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, photo.name, contenuPhoto);
     await prisma.document.create({
       data: {
         etudiantId: etudiant.id,
         type: "PHOTO",
         nomFichier: photo.name,
         cheminRelatif,
-        mimeType: photo.type || "application/octet-stream",
-        tailleOctets: contenu.length,
+        mimeType: typeMimeReel,
+        tailleOctets: contenuPhoto.length,
       },
     });
   }
-  if (pieceIdentiteFournie && pieceIdentite instanceof File) {
-    const contenu = Buffer.from(await pieceIdentite.arrayBuffer());
-    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, pieceIdentite.name, contenu);
+  if (contenuPieceIdentite && pieceIdentite instanceof File) {
+    const typeMimeReel = detecterTypeMimeReel(contenuPieceIdentite)!;
+    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, pieceIdentite.name, contenuPieceIdentite);
     await prisma.document.create({
       data: {
         etudiantId: etudiant.id,
@@ -316,8 +388,8 @@ export async function preinscrireAction(
         dateExpiration: new Date(dateExpirationPieceBrute!),
         nomFichier: pieceIdentite.name,
         cheminRelatif,
-        mimeType: pieceIdentite.type || "application/octet-stream",
-        tailleOctets: contenu.length,
+        mimeType: typeMimeReel,
+        tailleOctets: contenuPieceIdentite.length,
       },
     });
   }

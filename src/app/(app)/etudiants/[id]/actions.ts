@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Civilite, Sexe, TypeDocument, TypePieceIdentite } from "@/generated/prisma/enums";
-import { enregistrerDocumentEtudiant, supprimerFichierDocument } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, supprimerFichierDocument, dossierDocumentaireComplet } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
@@ -58,6 +58,7 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
   const nom = champTexte(formData, "nom");
   const prenom = champTexte(formData, "prenom");
   const dateNaissanceBrute = champTexte(formData, "dateNaissance");
+  const dateInscriptionBrute = champTexte(formData, "dateInscription");
   const villeNaissance = champTexte(formData, "villeNaissance");
   const telephoneMobile = champTexte(formData, "telephoneMobile");
   const email = champTexte(formData, "email");
@@ -71,6 +72,7 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
     !nom ||
     !prenom ||
     !dateNaissanceBrute ||
+    !dateInscriptionBrute ||
     !villeNaissance ||
     !telephoneMobile ||
     !email ||
@@ -96,6 +98,7 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
         nom,
         prenom,
         dateNaissance: new Date(dateNaissanceBrute),
+        dateInscription: new Date(dateInscriptionBrute),
         villeNaissance,
         telephoneMobile,
         telephoneFixe,
@@ -140,8 +143,25 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
   const etudiantId = champTexte(formData, "etudiantId");
   if (!etudiantId) redirect("/etudiants");
 
-  const etudiant = await prisma.etudiant.findUnique({ where: { id: etudiantId } });
+  const etudiant = await prisma.etudiant.findUnique({
+    where: { id: etudiantId },
+    include: {
+      documents: true,
+      dossiersAnnuels: { include: { echeances: { include: { paiements: true } } } },
+    },
+  });
   if (!etudiant) redirect("/etudiants");
+
+  // Même règle que le bouton "Valider l'inscription" côté page (voir
+  // etudiants/[id]/page.tsx) : dossier documentaire complet ET au moins une
+  // action de paiement entreprise (pas forcément soldée) — vérifiée aussi
+  // ici pour ne pas dépendre uniquement du bouton désactivé côté client.
+  const paiementEntame = etudiant.dossiersAnnuels.some((d) =>
+    d.echeances.some((e) => e.paiements.length > 0),
+  );
+  if (!dossierDocumentaireComplet(etudiant.documents) || !paiementEntame) {
+    retour(etudiantId, "DOSSIER_INCOMPLET");
+  }
 
   await prisma.$transaction([
     prisma.etudiant.update({
