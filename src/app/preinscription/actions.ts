@@ -1,8 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Civilite, Sexe, TypePieceIdentite } from "@/generated/prisma/enums";
-import { trouverDoublonEtudiant } from "@/lib/doublons-etudiant";
+import { trouverDoublonEtudiant, LIBELLE_CRITERE_DOUBLON } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
 import { detecterTypeMimeReel, TAILLE_MAX_FICHIER_MO, TAILLE_MAX_FICHIER_OCTETS } from "@/lib/fichiers-uploades";
@@ -13,6 +14,7 @@ import {
   MESSAGE_CODE_ACCUEIL_EXPIRE,
 } from "@/lib/preinscription-code";
 import { adresseIpClient, limiteDebitDepassee } from "@/lib/rate-limit";
+import { genererNouvelleVersionDossier } from "@/lib/dossier/generation";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -291,12 +293,24 @@ export async function preinscrireAction(
     (r): r is NonNullable<typeof r> => r !== null,
   );
 
+  // Deux axes de correspondance passés ici, indépendants l'un de l'autre
+  // (voir lib/doublons-etudiant.ts) : nom+prénom+date de naissance (branche
+  // NOM_DATE, comportement inchangé) et e-mail/téléphone — coordonnées
+  // propres de l'étudiant (dossier Adultes) ET du/des responsable(s)
+  // (dossier Jeunes), les deux jamais vérifiées ensemble jusqu'ici.
   const doublon = await trouverDoublonEtudiant({
     nom,
     prenom,
     dateNaissance,
-    telephoneResponsable: responsable1?.telephone,
-    emailResponsable: responsable1?.email,
+    emails: [champTexte(formData, "email"), responsable1?.email, responsable2?.email],
+    telephones: [
+      champTexte(formData, "telephoneMobile"),
+      champTexte(formData, "telephoneFixe"),
+      responsable1?.telephone,
+      responsable1?.telephoneProfessionnel,
+      responsable2?.telephone,
+      responsable2?.telephoneProfessionnel,
+    ],
   });
 
   const remarqueSectionsSupplementaires =
@@ -306,6 +320,21 @@ export async function preinscrireAction(
           .map((s) => (s.creneau ? `${s.nom} (créneau souhaité : ${s.creneau.code} — ${s.creneau.jour}, ${s.creneau.horaire})` : s.nom))
           .join(", ")}.`
       : null;
+
+  // Signalement non bloquant (voir CLAUDE.md — jamais de refus automatique
+  // d'une préinscription) : seul le critère NOM_DATE était jusqu'ici
+  // « auto-explicatif » pour le staff via la popup de comparaison
+  // (doublon-popup.tsx, qui affiche déjà les deux fiches côte à côte). Un
+  // rapprochement par e-mail/téléphone seul est moins évident à deviner en
+  // comparant les fiches — noté ici en clair, dans `remarque` (champ déjà
+  // affiché sur /inscriptions et sur la fiche étudiant, aucune nouvelle
+  // colonne nécessaire) plutôt que silencieusement laissé à découvrir.
+  const remarqueDoublon =
+    doublon && doublon.critere !== "NOM_DATE"
+      ? `Doublon potentiel détecté (${LIBELLE_CRITERE_DOUBLON[doublon.critere]}).`
+      : null;
+  const remarqueFinale =
+    [remarqueSectionsSupplementaires, remarqueDoublon].filter(Boolean).join(" ") || null;
 
   // Code d'accès à usage unique (voir preinscription/page.tsx et
   // lib/preinscription-code.ts) : absent pour un accès direct par URL (sans
@@ -348,14 +377,39 @@ export async function preinscrireAction(
       profession: champTexte(formData, "profession"),
       niveauEtudes: champTexte(formData, "niveauEtudes"),
       dernierDiplome: champTexte(formData, "dernierDiplome"),
-      remarque: remarqueSectionsSupplementaires,
+      remarque: remarqueFinale,
+      // Déclaration libre de la famille (voir Etudiant.niveauDeclare) —
+      // jamais utilisée pour une affectation automatique de cohorte/classe,
+      // volontairement hors périmètre de cette version (voir CLAUDE.md/
+      // analyse de conversation : "ne pas gérer les tests de niveau
+      // maintenant"). Affichée telle quelle sur le dossier généré.
+      niveauDeclare: champTexte(formData, "niveauDeclare"),
       statutInscription: "PREINSCRIT",
       sectionSouhaiteeId: sectionsSouhaitees[0]?.id ?? null,
       creneauSouhaiteId: sectionsSouhaitees[0]?.creneau?.id ?? null,
       doublonPotentielId: doublon?.id,
       responsables: responsablesACreer.length > 0 ? { create: responsablesACreer } : undefined,
+      // Écriture imbriquée : la notification staff (voir
+      // lib/notifications-preinscription.ts) est créée dans la MÊME requête
+      // que l'étudiant, jamais par un job séparé qui « découvrirait » après
+      // coup les nouvelles préinscriptions — Postgres reste la seule source
+      // de vérité. Destinataires jamais stockés ici : déterminés
+      // dynamiquement à la lecture via la grille de permissions (voir
+      // (app)/layout.tsx). État de lecture individuel par utilisateur, posé
+      // uniquement au clic (voir LecturePreinscription) — rien à créer ici.
+      notificationsPreinscription: { create: {} },
     },
   });
+
+  // Cache serveur de /inscriptions invalidé tout de suite après la mutation
+  // (même idiome que (app)/inscriptions/actions.ts) : la page étant déjà
+  // rendue dynamiquement (requireModule y lit la session), ceci n'est pas
+  // strictement nécessaire à la fraîcheur des données, mais reste l'idiome
+  // Next.js correct après une mutation touchant cette route. La mise à jour
+  // d'un onglet /inscriptions déjà ouvert, elle, vient du polling léger
+  // (router.refresh(), voir components/topbar.tsx) — revalidatePath seul ne
+  // pousse rien vers un onglet déjà ouvert.
+  revalidatePath("/inscriptions");
 
   // Écriture des fichiers hors transaction (même pattern que
   // televerserDocumentAction, etudiants/[id]/actions.ts) : le fichier vit
@@ -392,6 +446,48 @@ export async function preinscrireAction(
         tailleOctets: contenuPieceIdentite.length,
       },
     });
+  }
+
+  // Génération automatique du dossier V1 + lien sécurisé de vérification
+  // (voir CLAUDE.md/analyse de conversation — parcours préinscription →
+  // signature) : uniquement quand la préinscription est raisonnablement
+  // fiable (aucun doublon détecté — un doublon reste une exception traitée
+  // par le staff avant tout envoi, voir etudiants/[id]/actions.ts#fusionnerDoublonAction/
+  // confirmerHomonymeAction) et qu'une année scolaire active existe (source
+  // du DossierAnnuel, jamais demandée à la famille — voir
+  // src/lib/dossier/context.ts). Best-effort et hors du chemin critique :
+  // une erreur ici (Chromium indisponible, etc.) ne doit jamais faire
+  // échouer la préinscription elle-même, exactement comme la génération
+  // best-effort déjà existante à la validation finale (voir
+  // etudiants/[id]/actions.ts#validerInscriptionAction) — le staff peut
+  // toujours déclencher/relancer ce parcours à la main depuis la fiche.
+  if (!doublon) {
+    try {
+      const sectionPrincipale = sectionsSouhaitees[0];
+      const anneeActive = await prisma.anneeScolaire.findFirst({ where: { active: true } });
+      if (sectionPrincipale && anneeActive) {
+        const section = sectionParId.get(sectionPrincipale.id)!;
+        const montantDu = Number.parseFloat(section.fraisFormation.toString()) + Number.parseFloat(section.fraisDossier.toString());
+
+        const dossierAnnuel = await prisma.dossierAnnuel.create({
+          data: { etudiantId: etudiant.id, anneeScolaireId: anneeActive.id, montantDu },
+        });
+
+        await genererNouvelleVersionDossier({
+          etudiantId: etudiant.id,
+          sectionId: sectionPrincipale.id,
+          dossierAnnuelId: dossierAnnuel.id,
+        });
+        // Le lien sécurisé (AccesDossier) n'est PAS créé ici : le token brut
+        // ne pouvant jamais être relu une fois généré (seul son hash est
+        // stocké, même principe que Session/CodePreinscription), il doit
+        // être créé au moment où il sert réellement — voir GET
+        // /api/internal/n8n/dossiers-a-verifier, qui le génère à la lecture
+        // pour construire le lien de l'email "dossier prêt à vérifier".
+      }
+    } catch (erreur) {
+      console.error("Génération automatique du dossier à la préinscription :", erreur);
+    }
   }
 
   return { ok: true };

@@ -29,7 +29,10 @@ export async function affecterEtudiantACohorte({
   anneeScolaireId: string;
   utilisateurId: string;
 }): Promise<ResultatAffectationCohorte> {
-  const cohorte = await prisma.cohorte.findUnique({ where: { id: cohorteId } });
+  const [cohorte, etudiant] = await Promise.all([
+    prisma.cohorte.findUnique({ where: { id: cohorteId } }),
+    prisma.etudiant.findUnique({ where: { id: etudiantId }, select: { statutInscription: true } }),
+  ]);
   if (!cohorte) return { statut: "COHORTE_INTROUVABLE" };
 
   const dejaAffecte = await prisma.affectationCohorte.findUnique({
@@ -47,6 +50,15 @@ export async function affecterEtudiantACohorte({
     }),
   ]);
   const placeDisponible = cohorte.capaciteMax === null || compteAffectes < cohorte.capaciteMax;
+  // Règle "signature ≠ validation finale" (voir CLAUDE.md/analyse de
+  // conversation) : un étudiant non validé ne doit jamais devenir membre
+  // effectif d'une classe. L'AffectationCohorte (choix de la cohorte,
+  // capacité/liste d'attente) peut être enregistrée à tout moment — c'est
+  // le fan-out InscriptionClasse qui reste bloqué tant que
+  // statutInscription n'est pas VALIDE. Voir synchroniserInscriptionsClasse
+  // ci-dessous pour le rattrapage symétrique (validation finale posée APRÈS
+  // que la cohorte a déjà été choisie).
+  const fanOutAutorise = placeDisponible && etudiant?.statutInscription === "VALIDE";
 
   await prisma.$transaction([
     prisma.affectationCohorte.create({
@@ -58,7 +70,7 @@ export async function affecterEtudiantACohorte({
         rangListeAttente: placeDisponible ? null : compteEnAttente + 1,
       },
     }),
-    ...(placeDisponible && classesDuBloc.length > 0
+    ...(fanOutAutorise && classesDuBloc.length > 0
       ? [
           prisma.inscriptionClasse.createMany({
             data: classesDuBloc.map((c) => ({ etudiantId, classeId: c.id })),
@@ -71,10 +83,53 @@ export async function affecterEtudiantACohorte({
         utilisateurId,
         action: placeDisponible ? "affectation_cohorte" : "mise_en_attente_cohorte",
         entite: "AffectationCohorte",
-        details: { cohorteId, etudiantId, anneeScolaireId },
+        details: { cohorteId, etudiantId, anneeScolaireId, fanOutAutorise },
       },
     }),
   ]);
 
   return { statut: placeDisponible ? "AFFECTE" : "EN_ATTENTE" };
+}
+
+// Rattrapage symétrique : à appeler juste après qu'un étudiant bascule
+// PREINSCRIT → VALIDE (voir etudiants/[id]/actions.ts#validerInscriptionAction)
+// pour les AffectationCohorte déjà à AFFECTE mais dont le fan-out avait été
+// bloqué faute de validation (cas B/situation 1 de la règle "validation
+// finale et affectation classe sont deux événements indépendants, dans
+// n'importe quel ordre"). Idempotent (skipDuplicates) : ne recrée jamais une
+// InscriptionClasse déjà existante.
+export async function synchroniserInscriptionsClasse(etudiantId: string): Promise<void> {
+  const affectations = await prisma.affectationCohorte.findMany({
+    where: { etudiantId, statut: "AFFECTE" },
+    select: { cohorteId: true, anneeScolaireId: true },
+  });
+  if (affectations.length === 0) return;
+
+  const classes = await prisma.classe.findMany({
+    where: { OR: affectations.map((a) => ({ cohorteId: a.cohorteId, anneeScolaireId: a.anneeScolaireId })) },
+    select: { id: true },
+  });
+  if (classes.length === 0) return;
+
+  await prisma.inscriptionClasse.createMany({
+    data: classes.map((c) => ({ etudiantId, classeId: c.id })),
+    skipDuplicates: true,
+  });
+}
+
+// Dérivée, sans nouveau champ (voir CLAUDE.md — vérifier si le modèle
+// existant permet déjà de représenter l'état avant d'en ajouter un) : liste
+// des étudiants validés administrativement mais sans aucune classe effective
+// pour l'année active — file "Validés sans classe" (voir
+// (app)/inscriptions/page.tsx).
+export async function etudiantsValidesSansClasse(anneeScolaireId: string) {
+  return prisma.etudiant.findMany({
+    where: {
+      statutInscription: "VALIDE",
+      anonymiseLe: null,
+      inscriptions: { none: { classe: { anneeScolaireId } } },
+    },
+    select: { id: true, nom: true, prenom: true, misAJourLe: true },
+    orderBy: { misAJourLe: "desc" },
+  });
 }

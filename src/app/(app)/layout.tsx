@@ -1,7 +1,11 @@
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { activitesARappeler } from "@/lib/activites";
-import { peutAccederModule } from "@/lib/permissions";
+import { peutAccederModule, Module } from "@/lib/permissions";
+import {
+  nombreNotificationsPreinscriptionNonLues,
+  dernieresNotificationsPreinscription,
+} from "@/lib/notifications-preinscription";
 import { Role } from "@/lib/roles";
 import { NAV_ITEMS } from "@/lib/nav";
 import { Sidebar } from "@/components/sidebar";
@@ -17,15 +21,33 @@ export default async function AppLayout({
   // de ce layout, donc jamais de menu à cacher ici : si on arrive jusque-là,
   // c'est qu'on a le droit de voir l'appli normale.
   const session = await requireSession();
-  const [anneeActive, rappels, visibilites] = await Promise.all([
-    prisma.anneeScolaire.findFirst({ where: { active: true } }),
-    activitesARappeler(),
-    Promise.all(
-      NAV_ITEMS.map((item) =>
-        !item.module ? true : peutAccederModule(session.role, item.module, "LECTURE"),
+  // Détermine si CE rôle peut voir les notifications de préinscription avant
+  // même d'aller les chercher : les destinataires ne sont jamais une liste
+  // stockée, seulement « qui a LECTURE sur Module.INSCRIPTIONS en ce moment »
+  // (voir NotificationPreinscription, prisma/schema.prisma) — un rôle sans
+  // ce droit n'a même pas la requête exécutée pour lui, cohérent avec le
+  // reste du menu ci-dessous.
+  const peutVoirNotificationsPreinscription = await peutAccederModule(
+    session.role,
+    Module.INSCRIPTIONS,
+    "LECTURE",
+  );
+  const [anneeActive, rappels, visibilites, nombreNotificationsNonLues, dernieresNotifications] =
+    await Promise.all([
+      prisma.anneeScolaire.findFirst({ where: { active: true } }),
+      activitesARappeler(),
+      Promise.all(
+        NAV_ITEMS.map((item) =>
+          !item.module ? true : peutAccederModule(session.role, item.module, "LECTURE"),
+        ),
       ),
-    ),
-  ]);
+      peutVoirNotificationsPreinscription
+        ? nombreNotificationsPreinscriptionNonLues(session.id)
+        : Promise.resolve(0),
+      peutVoirNotificationsPreinscription
+        ? dernieresNotificationsPreinscription(session.id)
+        : Promise.resolve([]),
+    ]);
   // Le tableau de bord (item sans module) agrège plusieurs modules, jamais
   // pertinent pour Enseignant qui n'a accès qu'à Présences (voir la
   // redirection dans (app)/page.tsx) — masqué ici pour cohérence du menu.
@@ -48,6 +70,8 @@ export default async function AppLayout({
           role={session.role}
           hrefsVisibles={hrefsVisibles}
           anneeActive={anneeActive?.libelle ?? null}
+          nombreNotificationsNonLues={nombreNotificationsNonLues}
+          dernieresNotifications={dernieresNotifications}
         />
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
           <div className="mx-auto max-w-6xl">{children}</div>

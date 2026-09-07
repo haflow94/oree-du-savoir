@@ -68,7 +68,7 @@ const MESSAGES: Record<string, string> = {
   DOUBLON_NON_FUSIONNABLE:
     "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles. Transférez-les manuellement avant de la supprimer.",
   DOSSIER_INCOMPLET:
-    "Impossible de valider l'inscription : le dossier documentaire n'est pas complet ou aucune action de paiement n'a encore été enregistrée.",
+    "Impossible de valider l'inscription : le dossier documentaire n'est pas complet ou aucun dossier de paiement n'a été ouvert pour cet étudiant.",
 };
 
 const STATUT_DOCUMENT_LABELS: Record<StatutDocumentRequis, string> = {
@@ -357,12 +357,11 @@ export default async function EtudiantDetailPage({
 
   // Conditions pour autoriser la validation de l'inscription (bouton
   // "Valider l'inscription" ci-dessous) : dossier documentaire complet (voir
-  // dossierComplet) ET au moins une action de paiement entreprise (chèque
-  // reçu, prélèvement mis en place ou paiement partiel enregistré) — pas
-  // nécessairement soldé, voir statutCotisation utilisé plus bas pour ça.
-  const paiementEntame = etudiant.dossiersAnnuels.some((d) =>
-    d.echeances.some((e) => e.paiements.length > 0),
-  );
+  // dossierComplet) ET un dossier de paiement ouvert (même règle que
+  // validerInscriptionAction, voir ce fichier pour le détail — un paiement
+  // réellement encaissé n'est jamais exigé ici, voir statutCotisation
+  // utilisé plus bas pour le suivi de l'encaissement).
+  const dossierPaiementOuvert = etudiant.dossiersAnnuels.length > 0;
   const motifsBlocageValidation: string[] = [];
   if (!dossierComplet) {
     for (const type of TYPES_DOCUMENTS_REQUIS) {
@@ -373,8 +372,8 @@ export default async function EtudiantDetailPage({
       }
     }
   }
-  if (!paiementEntame) {
-    motifsBlocageValidation.push("Aucun paiement (chèque, prélèvement ou versement) encore enregistré");
+  if (!dossierPaiementOuvert) {
+    motifsBlocageValidation.push("Aucun dossier de paiement ouvert");
   }
   const validationPossible = motifsBlocageValidation.length === 0;
 

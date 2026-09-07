@@ -4,12 +4,21 @@ import { prisma } from "@/lib/prisma";
 import { Civilite } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
+import {
+  trouverCorrespondancesContact,
+  type CritereCorrespondanceDoublon,
+} from "@/lib/doublons-etudiant";
 
 export type Doublon = {
   id: string;
   nom: string;
   prenom: string;
   dateNaissance: string | null;
+  // Absent = correspondance par nom+prénom exact (comportement historique,
+  // voir plus bas) ; présent = correspondance e-mail/téléphone indépendante
+  // du nom (voir lib/doublons-etudiant.ts#trouverCorrespondancesContact et
+  // LIBELLE_CRITERE_DOUBLON pour l'affichage).
+  critere?: CritereCorrespondanceDoublon;
 };
 
 function champTexte(formData: FormData, nom: string): string | null {
@@ -75,30 +84,57 @@ export async function rechercherEtudiantsAction(recherche: string): Promise<Doub
   }));
 }
 
-export async function rechercherDoublonsAction(
-  nom: string,
-  prenom: string,
-): Promise<Doublon[]> {
+// Deux axes de correspondance combinés (voir lib/doublons-etudiant.ts) : nom
+// + prénom exacts (comportement historique, inchangé) et e-mail/téléphone
+// indépendant du nom (nouveau — coordonnées de l'étudiant lui-même ET de
+// ses éventuels responsables). Toujours purement informatif : aucun des
+// deux axes ne bloque la création, `soumettre()` (etudiant-form.tsx) permet
+// de continuer malgré tout ("forcer"). La limite de 5 résultats déjà en
+// place est conservée, appliquée sur l'ensemble combiné.
+export async function rechercherDoublonsAction(formData: FormData): Promise<Doublon[]> {
   await requireModule(Module.ETUDIANTS, "LECTURE");
-  const nomNettoye = nom.trim();
-  const prenomNettoye = prenom.trim();
-  if (!nomNettoye || !prenomNettoye) return [];
+  const nom = champTexte(formData, "nom");
+  const prenom = champTexte(formData, "prenom");
+  if (!nom || !prenom) return [];
 
-  const trouves = await prisma.etudiant.findMany({
-    where: {
-      nom: { equals: nomNettoye, mode: "insensitive" },
-      prenom: { equals: prenomNettoye, mode: "insensitive" },
-    },
-    select: { id: true, nom: true, prenom: true, dateNaissance: true },
-    take: 5,
-  });
+  const responsable1 = responsableDepuisFormulaire(formData, 1);
+  const responsable2 = responsableDepuisFormulaire(formData, 2);
 
-  return trouves.map((d) => ({
-    id: d.id,
-    nom: d.nom,
-    prenom: d.prenom,
-    dateNaissance: d.dateNaissance ? d.dateNaissance.toISOString() : null,
-  }));
+  const [parIdentite, correspondancesContact] = await Promise.all([
+    prisma.etudiant.findMany({
+      where: {
+        nom: { equals: nom, mode: "insensitive" },
+        prenom: { equals: prenom, mode: "insensitive" },
+      },
+      select: { id: true, nom: true, prenom: true, dateNaissance: true },
+      take: 5,
+    }),
+    trouverCorrespondancesContact({
+      emails: [champTexte(formData, "email"), responsable1?.email, responsable2?.email],
+      telephones: [
+        champTexte(formData, "telephoneMobile"),
+        champTexte(formData, "telephoneFixe"),
+        responsable1?.telephone,
+        responsable2?.telephone,
+      ],
+    }),
+  ]);
+
+  const idsDejaTrouves = new Set(parIdentite.map((d) => d.id));
+
+  const doublons: Doublon[] = [
+    ...parIdentite.map((d) => ({
+      id: d.id,
+      nom: d.nom,
+      prenom: d.prenom,
+      dateNaissance: d.dateNaissance ? d.dateNaissance.toISOString() : null,
+    })),
+    ...correspondancesContact
+      .filter((c) => !idsDejaTrouves.has(c.id))
+      .map((c) => ({ id: c.id, nom: c.nom, prenom: c.prenom, dateNaissance: null, critere: c.critere })),
+  ];
+
+  return doublons.slice(0, 5);
 }
 
 export async function creerEtudiantAction(

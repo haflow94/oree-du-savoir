@@ -51,3 +51,8 @@ next-env.d.ts
 # production le Dockerfile installe le paquet système "chromium" à la place
 # (voir src/lib/dossier/browser.ts et PUPPETEER_EXECUTABLE_PATH).
 /.cache-chromium
+
+# Certificat de signature Documenso (clé privée protégée par
+# DOCUMENSO_SIGNING_PASSPHRASE) — jamais versionné, à régénérer sur chaque
+# environnement (voir DEPLOIEMENT.md).
+/documenso-cert

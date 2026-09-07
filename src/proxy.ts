@@ -96,6 +96,11 @@ export function proxy(request: NextRequest) {
     pathname === "/login" ||
     pathname === "/preinscription" ||
     pathname === "/accueil-preinscription" ||
+    // Page publique de vérification/signature du dossier (voir
+    // src/app/dossier/[token]/) : accès porté entièrement par le token de
+    // l'URL (lib/acces-dossier.ts), jamais par un cookie de session — même
+    // principe que /preinscription.
+    pathname.startsWith("/dossier/") ||
     pathname.startsWith("/_next/static/") ||
     pathname.startsWith("/_next/image") ||
     pathname === "/favicon.ico" ||
@@ -114,6 +119,13 @@ export function proxy(request: NextRequest) {
     // pas d'une redirection HTML vers /login qui casserait tout appel
     // machine (n8n ne suit pas de redirection vers une page de connexion).
     if (pathname.startsWith("/api/internal/n8n/")) {
+      return NextResponse.next();
+    }
+    // Webhook Documenso (voir src/app/api/webhooks/documenso/route.ts) :
+    // authentifié par son propre secret partagé (en-tête
+    // X-Documenso-Secret), jamais par cookie — même raison que ci-dessus,
+    // Documenso ne suit pas de redirection vers /login.
+    if (pathname.startsWith("/api/webhooks/")) {
       return NextResponse.next();
     }
     const loginUrl = new URL("/login", request.url);

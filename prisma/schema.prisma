@@ -136,20 +136,22 @@ model Utilisateur {
   creeLe         DateTime  @default(now())
   dernierLogin   DateTime?
 
-  sessions                    Session[]
-  journalAudit                JournalAudit[]
-  classesEnseignees           ClasseEnseignant[]
-  seancesValidees             Seance[]
-  documentsAjoutes            Document[]
-  activitesCreees             Activite[]
-  activitesResponsable        ActiviteResponsable[]
-  documentsAssociationAjoutes DocumentAssociation[]
-  codesPreinscriptionCrees    CodePreinscription[]
+  sessions                            Session[]
+  journalAudit                        JournalAudit[]
+  classesEnseignees                   ClasseEnseignant[]
+  seancesValidees                     Seance[]
+  documentsAjoutes                    Document[]
+  activitesCreees                     Activite[]
+  activitesResponsable                ActiviteResponsable[]
+  documentsAssociationAjoutes         DocumentAssociation[]
+  codesPreinscriptionCrees            CodePreinscription[]
+  lecturesNotificationsPreinscription LecturePreinscription[]
+  demandesCorrectionTraitees          DemandeCorrection[]
   // Spécialités déclarées d'un enseignant (Section dans laquelle il peut
   // intervenir), affectées à la création/modification du compte — sert à
   // filtrer les enseignants proposés lors de la création d'une classe (voir
   // lib/enseignants.ts), indépendamment de tout historique d'affectation.
-  specialites                 Section[]             @relation("EnseignantSpecialites")
+  specialites                         Section[]               @relation("EnseignantSpecialites")
 
   @@map("utilisateurs")
 }
@@ -350,6 +352,17 @@ model Etudiant {
   // inscrireEtudiantAction, même geste que sectionSouhaiteeId).
   creneauSouhaiteId              String?
   creneauSouhaite                CreneauSection?   @relation(fields: [creneauSouhaiteId], references: [id], onDelete: SetNull)
+  // Niveau/année déclaré librement par la famille à la préinscription (ex.
+  // "Débutant", "2e année", "Je ne sais pas") — jamais une FK vers Cohorte
+  // (la famille ne connaît pas le catalogue interne des cohortes) ni une
+  // notion d'affectation : c'est une simple déclaration, affichée sur le
+  // dossier généré. Le niveau réellement retenu et la classe effective sont
+  // toujours l'affaire du staff (voir AffectationCohorte/InscriptionClasse),
+  // jamais déduits automatiquement de ce champ — en particulier pour les
+  // sections nécessitant une évaluation de niveau sur place (Arabe/Coran),
+  // volontairement hors périmètre de cette version (voir CLAUDE.md/analyse
+  // de conversation sur le parcours préinscription → signature).
+  niveauDeclare                  String?
   // Renseigné quand le Bureau anonymise manuellement un dossier inactif
   // depuis longtemps (RGPD — voir src/lib/rgpd.ts). Volontairement pas de
   // purge/tâche automatique : le CA n'a pas encore validé de politique de
@@ -381,12 +394,13 @@ model Etudiant {
   creeLe                         DateTime          @default(now())
   misAJourLe                     DateTime          @updatedAt
 
-  responsables        ResponsableLegal[]
-  dossiersAnnuels     DossierAnnuel[]
-  inscriptions        InscriptionClasse[]
-  presences           Presence[]
-  documents           Document[]
-  affectationsCohorte AffectationCohorte[]
+  responsables                ResponsableLegal[]
+  dossiersAnnuels             DossierAnnuel[]
+  inscriptions                InscriptionClasse[]
+  presences                   Presence[]
+  documents                   Document[]
+  affectationsCohorte         AffectationCohorte[]
+  notificationsPreinscription NotificationPreinscription[]
 
   @@index([nom, prenom])
   @@index([doublonPotentielId])
@@ -467,10 +481,63 @@ model Document {
   // de l'étudiant (toujours filtré à chequeId = null pour ce calcul).
   chequeId          String?
   cheque            Cheque?            @relation(fields: [chequeId], references: [id], onDelete: Cascade)
+  // Non nul uniquement pour type = DOSSIER_GENERE/DOSSIER_SIGNE : rattache
+  // explicitement chaque génération au DossierAnnuel (année) qu'elle
+  // représente — manquant jusqu'ici (une génération n'était retrouvable que
+  // par etudiantId + tri par date, ambigu pour un étudiant réinscrit
+  // plusieurs années). `numeroVersion` incrémente à chaque régénération
+  // (correction d'un champ ordinaire, voir DossierAnnuel.versionConfirmeeNumero) ;
+  // l'historique complet reste consultable, jamais écrasé (voir principe
+  // "PDF = représentation générée, jamais source de vérité").
+  dossierAnnuelId   String?
+  dossierAnnuel     DossierAnnuel?     @relation(fields: [dossierAnnuelId], references: [id], onDelete: SetNull)
+  numeroVersion     Int?
 
   @@index([etudiantId])
   @@index([chequeId])
+  @@index([dossierAnnuelId])
   @@map("documents")
+}
+
+// Lien sécurisé donnant à la famille l'accès à SON dossier, sans compte ni
+// mot de passe — même principe que CodePreinscription/JetonPreinscriptionPermanent
+// (seul le hash du token est stocké, jamais le token en clair), mais scopé
+// à un DossierAnnuel précis plutôt qu'à l'entrée générale du formulaire.
+// Un seul lien actif par dossier : une régénération (relance, fuite
+// suspectée) réécrit ce tokenHash plutôt que d'empiler des lignes.
+model AccesDossier {
+  id              String        @id @default(cuid())
+  dossierAnnuelId String        @unique
+  dossierAnnuel   DossierAnnuel @relation(fields: [dossierAnnuelId], references: [id], onDelete: Cascade)
+  tokenHash       String        @unique
+  expireLe        DateTime
+  // Non nul = lien invalidé manuellement par le staff (fuite suspectée) ou
+  // remplacé par une régénération — distinct d'une simple expiration.
+  revoqueLe       DateTime?
+  dernierAccesLe  DateTime?
+  creeLe          DateTime      @default(now())
+
+  @@map("acces_dossier")
+}
+
+// Demande de correction sur un champ sensible (identité, date de naissance,
+// responsable légal, etc. — voir liste figée côté application) qu'un
+// étudiant/parent ne peut jamais modifier lui-même depuis /dossier/[token] :
+// file d'exception traitée par le staff (voir Administration → Inscriptions),
+// jamais un champ éditable directement en ligne. `message` = texte libre
+// décrivant la correction souhaitée, saisi par la famille.
+model DemandeCorrection {
+  id              String        @id @default(cuid())
+  dossierAnnuelId String
+  dossierAnnuel   DossierAnnuel @relation(fields: [dossierAnnuelId], references: [id], onDelete: Cascade)
+  message         String
+  creeLe          DateTime      @default(now())
+  traiteeLe       DateTime?
+  traiteeParId    String?
+  traiteePar      Utilisateur?  @relation(fields: [traiteeParId], references: [id], onDelete: SetNull)
+
+  @@index([dossierAnnuelId])
+  @@map("demandes_correction")
 }
 
 // Code d'accès pour la préinscription publique (voir /preinscription?code=...
@@ -496,19 +563,19 @@ model Document {
 //   (ex. fuite suspectée) via `invaliderCodeAccueilAutoEnCours`, qui avance
 //   `expireLe` à maintenant sans rien créer lui-même.
 model CodePreinscription {
-  id            String       @id @default(cuid())
-  codeHash      String       @unique
+  id             String       @id @default(cuid())
+  codeHash       String       @unique
   // Libellé libre (ex. "Relance rentrée 2026" pour un code email, "Accueil
   // (rotation automatique)" pour un code accueil) : sert uniquement au staff
   // pour se repérer dans Prisma Studio (pas d'écran de liste dédié, voir
   // CLAUDE.md sur l'absence de sur-ingénierie), aucun usage fonctionnel.
-  campagneLabel String
-  expireLe      DateTime
+  campagneLabel  String
+  expireLe       DateTime
   // true = généré automatiquement par GET /accueil-preinscription ; false =
   // généré à la main depuis *Inscriptions* pour une campagne email. Défaut à
   // false : un code existant (créé avant ce champ) reste un code email,
   // comportement inchangé.
-  estAccueilAuto Boolean     @default(false)
+  estAccueilAuto Boolean      @default(false)
   // Gouverne la consommation à la soumission (voir tenterConsommerCode) :
   // true = invalidé dès la première soumission réussie (`utiliseLe` posé) ;
   // false = jamais consommé, seule `expireLe` invalide le code — plusieurs
@@ -516,16 +583,16 @@ model CodePreinscription {
   // qu'il n'a pas expiré. Défaut à true : un code existant (créé avant ce
   // champ, donc forcément un code email) garde son comportement usage
   // unique inchangé. Toujours false pour un code accueil (estAccueilAuto).
-  usageUnique   Boolean      @default(true)
+  usageUnique    Boolean      @default(true)
   // Non nul dès la première soumission réussie de preinscrireAction avec un
   // code `usageUnique` (voir preinscription/actions.ts) — invalide le code
   // pour toute soumission suivante. Reste toujours null pour un code
   // `usageUnique = false` (accueil) : la présence de ce champ n'est donc
   // significative que combinée à `usageUnique`.
-  utiliseLe     DateTime?
-  creeLe        DateTime     @default(now())
-  creeParId     String?
-  creePar       Utilisateur? @relation(fields: [creeParId], references: [id], onDelete: SetNull)
+  utiliseLe      DateTime?
+  creeLe         DateTime     @default(now())
+  creeParId      String?
+  creePar        Utilisateur? @relation(fields: [creeParId], references: [id], onDelete: SetNull)
 
   @@index([expireLe])
   @@map("codes_preinscription")
@@ -555,6 +622,60 @@ model JetonPreinscriptionPermanent {
   creeLe    DateTime @default(now())
 
   @@map("jetons_preinscription_permanents")
+}
+
+// Notification persistante d'une nouvelle préinscription (voir
+// preinscription/actions.ts et (app)/inscriptions) — créée dans la même
+// opération que l'Etudiant (écriture imbriquée Prisma, donc la même requête
+// que l'INSERT de l'étudiant), jamais par un job séparé qui « découvrirait »
+// après coup les nouvelles préinscriptions : Postgres reste la seule source
+// de vérité, exactement comme le reste de l'app.
+//
+// État de lecture INDIVIDUEL par utilisateur (voir LecturePreinscription
+// ci-dessous), volontairement pas un simple champ `luLe` global sur cette
+// table : deux membres du staff doivent pouvoir avoir chacun leur propre
+// état de lecture sur la même préinscription (voir src/lib/notifications-preinscription.ts).
+//
+// Les destinataires ne sont jamais stockés ici, ni sur aucune table : ils
+// sont déterminés dynamiquement à la lecture via la grille de permissions
+// (peutAccederModule(role, Module.INSCRIPTIONS, "LECTURE")), exactement
+// comme la visibilité du menu ((app)/layout.tsx) — pas de liste
+// d'utilisateurs codée en dur, pas de table de fan-out à la création.
+model NotificationPreinscription {
+  id                String    @id @default(cuid())
+  etudiantId        String
+  etudiant          Etudiant  @relation(fields: [etudiantId], references: [id], onDelete: Cascade)
+  creeLe            DateTime  @default(now())
+  // Marqueur d'idempotence pour le flux n8n « alerte staff nouvelle
+  // préinscription » (même patron que Etudiant.notificationBienvenueEnvoyeeLe
+  // plus haut) : posé par POST .../email-envoye après envoi réussi, jamais
+  // par l'application elle-même — l'app ne dépend jamais de ce champ pour
+  // fonctionner (voir CLAUDE.md, l'app doit fonctionner intégralement sans
+  // n8n). Distinct du flux existant `inscriptions-a-notifier` : celui-ci
+  // notifie la FAMILLE après validation du dossier, celui-ci alerte le
+  // STAFF dès l'arrivée d'une préinscription — deux flux indépendants.
+  notifieParEmailLe DateTime?
+
+  lectures LecturePreinscription[]
+
+  @@index([notifieParEmailLe])
+  @@map("notifications_preinscription")
+}
+
+// Une ligne = « cet utilisateur a lu cette notification ». Absence de ligne
+// = non lue pour lui. Modélise volontairement un état DE LECTURE PAR
+// UTILISATEUR plutôt qu'un simple champ luLe global sur
+// NotificationPreinscription (voir son commentaire ci-dessus).
+model LecturePreinscription {
+  id             String                     @id @default(cuid())
+  notificationId String
+  notification   NotificationPreinscription @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  utilisateurId  String
+  utilisateur    Utilisateur                @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  luLe           DateTime                   @default(now())
+
+  @@unique([notificationId, utilisateurId])
+  @@map("lectures_notification_preinscription")
 }
 
 // Les 4 sections de l'association (Jeunes, Études Islamiques, Langue Arabe,
@@ -991,10 +1112,53 @@ model DossierAnnuel {
   nombreRelancesEnvoyees   Int           @default(0)
   derniereRelanceEnvoyeeLe DateTime?
 
-  echeances Echeance[]
+  // --- Parcours dossier → vérification → signature (Documenso) ---
+  // Version confirmée par la famille (voir Document.numeroVersion pour
+  // l'historique complet des PDF générés) : la signature ne peut jamais
+  // porter sur une version différente de celle-ci. Remise à null par toute
+  // modification d'un champ ordinaire après confirmation (voir
+  // src/app/dossier/[token]/actions.ts) — invalide la confirmation
+  // précédente, oblige une nouvelle vérification avant de pouvoir signer à
+  // nouveau.
+  versionConfirmeeNumero            Int?
+  versionConfirmeeLe                DateTime?
+  statutSignature                   StatutSignature @default(A_GENERER)
+  // Identifiant numérique du document côté Documenso (voir
+  // src/lib/documenso.ts) — Documenso reste le seul moteur de signature,
+  // l'app ne fait jamais confiance à un statut local sans confirmation par
+  // webhook (voir api/webhooks/documenso).
+  documensoDocumentId               Int?            @unique
+  envoyeSignatureLe                 DateTime?
+  signeLe                           DateTime?
+  // Idempotence du flux n8n "dossier prêt à vérifier" (même patron que
+  // NotificationPreinscription.notifieParEmailLe) : posé uniquement par
+  // POST /api/internal/n8n/dossiers-a-verifier/.../notifie après envoi
+  // réussi.
+  notificationVerificationEnvoyeeLe DateTime?
+
+  echeances          Echeance[]
+  documents          Document[]
+  accesDossier       AccesDossier?
+  demandesCorrection DemandeCorrection[]
 
   @@unique([etudiantId, anneeScolaireId])
   @@map("dossiers_annuels")
+}
+
+// Trois familles d'états volontairement séparées plutôt qu'un seul gros
+// enum (voir CLAUDE.md/analyse de conversation) :
+// - StatutInscription (Etudiant, déjà existant) : validation administrative
+//   finale, indépendante de la signature ;
+// - StatutSignature (ici) : cycle du dossier généré jusqu'à la signature
+//   Documenso ;
+// - AffectationCohorte.statut (déjà existant) : affectation pédagogique.
+// Ces trois axes peuvent avancer dans n'importe quel ordre (voir règle
+// "signature ≠ validation finale").
+enum StatutSignature {
+  A_GENERER // pas encore de dossier généré, ou contrôles pas encore passés
+  A_VERIFIER // dossier généré, en attente de vérification/confirmation famille
+  ENVOYEE_SIGNATURE // confirmé par la famille, transmis à Documenso
+  SIGNEE
 }
 
 model Echeance {

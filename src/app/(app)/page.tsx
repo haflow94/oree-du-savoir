@@ -17,10 +17,12 @@ import {
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, Role } from "@/lib/roles";
+import { peutAccederModule, Module } from "@/lib/permissions";
 import { formaterMontant, statutCotisation } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { dossierDocumentaireComplet } from "@/lib/documents";
 import { activitesARappeler } from "@/lib/activites";
+import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-preinscription";
 import { aujourdhuiUTC, ajouterJoursUTC } from "@/lib/calendrier";
 import { Card } from "@/components/ui/card";
 import { IconChip, type Accent } from "@/components/ui/icon-chip";
@@ -49,9 +51,22 @@ export default async function DashboardPage() {
     redirect("/presences");
   }
 
-  const [anneeActive, rappels] = await Promise.all([
+  // Destinataires jamais codés en dur (voir NotificationPreinscription,
+  // prisma/schema.prisma) : seul un rôle ayant LECTURE sur Module.INSCRIPTIONS
+  // voit le badge « nouvelles préinscriptions » sur la carte "Dossiers à
+  // traiter" ci-dessous — même règle que la cloche du Topbar.
+  const peutVoirNotificationsPreinscription = await peutAccederModule(
+    session.role,
+    Module.INSCRIPTIONS,
+    "LECTURE",
+  );
+
+  const [anneeActive, rappels, nbNotificationsPreinscriptionNonLues] = await Promise.all([
     prisma.anneeScolaire.findFirst({ where: { active: true } }),
     activitesARappeler(),
+    peutVoirNotificationsPreinscription
+      ? nombreNotificationsPreinscriptionNonLues(session.id)
+      : Promise.resolve(0),
   ]);
   const aujourdhui = aujourdhuiUTC();
 
@@ -153,6 +168,8 @@ export default async function DashboardPage() {
     valeur: string | number;
     href: string;
     accent: Accent;
+    /** Pastille de compte non lu (voir cloche du Topbar) — absent ou 0 = rien affiché. */
+    badge?: number;
   }[] = [
     { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
     { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage" },
@@ -176,6 +193,7 @@ export default async function DashboardPage() {
       valeur: nbPreinscrits,
       href: "/inscriptions",
       accent: "sky",
+      badge: nbNotificationsPreinscriptionNonLues,
     },
     {
       label: "Doublons potentiels",
@@ -253,7 +271,12 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {metrics.map((m) => (
           <Link key={m.label} href={m.href}>
-            <Card className="transition-colors hover:border-border-strong">
+            <Card className="relative transition-colors hover:border-border-strong">
+              {!!m.badge && (
+                <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-ochre px-1.5 text-[11px] font-semibold text-on-accent">
+                  {m.badge > 9 ? "9+" : m.badge}
+                </span>
+              )}
               <div className="flex items-center gap-1.5 text-sm text-ink-muted">
                 <m.icon aria-hidden size={14} className="shrink-0" />
                 {m.label}

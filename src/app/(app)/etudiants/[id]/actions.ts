@@ -10,7 +10,7 @@ import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/c
 import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
 import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
 import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
-import { affecterEtudiantACohorte } from "@/lib/cohortes";
+import { affecterEtudiantACohorte, synchroniserInscriptionsClasse } from "@/lib/cohortes";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -147,19 +147,29 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
     where: { id: etudiantId },
     include: {
       documents: true,
-      dossiersAnnuels: { include: { echeances: { include: { paiements: true } } } },
+      _count: { select: { dossiersAnnuels: true } },
     },
   });
   if (!etudiant) redirect("/etudiants");
 
   // Même règle que le bouton "Valider l'inscription" côté page (voir
-  // etudiants/[id]/page.tsx) : dossier documentaire complet ET au moins une
-  // action de paiement entreprise (pas forcément soldée) — vérifiée aussi
-  // ici pour ne pas dépendre uniquement du bouton désactivé côté client.
-  const paiementEntame = etudiant.dossiersAnnuels.some((d) =>
-    d.echeances.some((e) => e.paiements.length > 0),
-  );
-  if (!dossierDocumentaireComplet(etudiant.documents) || !paiementEntame) {
+  // etudiants/[id]/page.tsx) : dossier documentaire complet (dont le
+  // dossier signé, voir TYPES_DOCUMENTS_REQUIS) ET un dossier de paiement
+  // ouvert — vérifiée aussi ici pour ne pas dépendre uniquement du bouton
+  // désactivé côté client.
+  //
+  // "Dossier de paiement ouvert" = un DossierAnnuel existe pour cet
+  // étudiant (voir prisma/schema.prisma) : c'est exactement l'objet que le
+  // staff crée depuis "Nouveau dossier de paiement" (paiements/nouveau/page.tsx),
+  // montantDu y étant obligatoire dès la création — la configuration
+  // financière minimale attendue est donc déjà posée par sa seule
+  // existence. Un paiement réellement encaissé n'est jamais exigé ici (voir
+  // lib/paiements.ts#statutCotisation pour le suivi de l'encaissement, un
+  // sujet séparé de la validation administrative — voir bilan d'audit du
+  // 07/09/2026, qui a corrigé cette règle : elle exigeait auparavant au
+  // moins un paiement enregistré, ce qui n'était pas la règle voulue).
+  const dossierPaiementOuvert = etudiant._count.dossiersAnnuels > 0;
+  if (!dossierDocumentaireComplet(etudiant.documents) || !dossierPaiementOuvert) {
     retour(etudiantId, "DOSSIER_INCOMPLET");
   }
 
@@ -177,6 +187,13 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
       },
     }),
   ]);
+
+  // Règle "signature ≠ validation finale" : un étudiant devenu VALIDE peut
+  // déjà avoir une Cohorte choisie (AFFECTE) dont le fan-out InscriptionClasse
+  // avait été bloqué faute de validation (voir
+  // lib/cohortes.ts#affecterEtudiantACohorte) — rattrapage symétrique ici,
+  // idempotent, jamais bloquant pour la validation elle-même.
+  await synchroniserInscriptionsClasse(etudiantId);
 
   // Génère et persiste tout de suite le dossier rempli pour la section
   // demandée à la préinscription (voir Etudiant.sectionSouhaiteeId), pour
@@ -361,6 +378,19 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
     ...(documentsASupprimer.length > 0
       ? [prisma.document.deleteMany({ where: { id: { in: documentsASupprimer.map((d) => d.id) } } })]
       : []),
+    // Rattache les notifications de préinscription du doublon supprimé à la
+    // fiche conservée, AVANT la suppression ci-dessous — sans ça,
+    // `NotificationPreinscription.etudiantId` (onDelete: Cascade, voir
+    // prisma/schema.prisma) supprimerait silencieusement leur historique en
+    // même temps que la fiche, alors qu'il ne doit jamais être perdu (voir
+    // lib/notifications-preinscription.ts). Même logique que les
+    // reparentages ci-dessus (inscriptions, responsables, documents) :
+    // aucune donnée propre au doublon ne doit disparaître à la fusion,
+    // seule la fiche elle-même (redondante) l'est.
+    prisma.notificationPreinscription.updateMany({
+      where: { etudiantId },
+      data: { etudiantId: existantId },
+    }),
     prisma.etudiant.delete({ where: { id: etudiantId } }),
     prisma.journalAudit.create({
       data: {

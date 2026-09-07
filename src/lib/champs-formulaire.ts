@@ -43,3 +43,31 @@ export function estCodePostalValide(valeur: string): boolean {
 export function estEmailValide(valeur: string): boolean {
   return REGEX_EMAIL.test(valeur);
 }
+
+// Normalise un numéro de téléphone français POUR COMPARAISON UNIQUEMENT
+// (voir lib/doublons-etudiant.ts) : ne réécrit jamais une valeur stockée en
+// base, ne valide pas non plus le format (voir estTelephoneValide) — sert
+// seulement à reconnaître que "06 12 34 56 78", "06.12.34.56.78",
+// "06-12-34-56-78", "+33 6 12 34 56 78" et "+33612345678" désignent le même
+// numéro, alors qu'aujourd'hui rien n'harmonise leur écriture à la saisie.
+// Supprime espaces/points/tirets puis ramène un préfixe international +33 à
+// l'écriture nationale (0) — au-delà de ces deux formes, tolérées côté
+// validation (voir SOURCE_TELEPHONE ci-dessus), rien d'autre à normaliser.
+export function normaliserTelephone(brut: string): string {
+  const sansSeparateurs = brut.replace(/[\s.\-]/g, "");
+  return sansSeparateurs.startsWith("+33") ? `0${sansSeparateurs.slice(3)}` : sansSeparateurs;
+}
+
+// Critère ayant déclenché le signalement d'un doublon potentiel (voir
+// lib/doublons-etudiant.ts) — type + libellés définis ici plutôt que dans
+// doublons-etudiant.ts (qui a `import "server-only"`) pour rester
+// importables depuis un composant client (voir etudiant-form.tsx, qui
+// affiche ces libellés dans sa liste de doublons potentiels).
+export type CritereCorrespondanceDoublon = "NOM_DATE" | "EMAIL" | "TELEPHONE" | "EMAIL_ET_TELEPHONE";
+
+export const LIBELLE_CRITERE_DOUBLON: Record<CritereCorrespondanceDoublon, string> = {
+  NOM_DATE: "même nom, prénom et date de naissance",
+  EMAIL: "même e-mail",
+  TELEPHONE: "même téléphone",
+  EMAIL_ET_TELEPHONE: "même e-mail et téléphone",
+};

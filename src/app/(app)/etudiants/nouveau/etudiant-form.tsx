@@ -12,7 +12,7 @@ import {
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
-import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
+import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL, LIBELLE_CRITERE_DOUBLON } from "@/lib/champs-formulaire";
 
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
@@ -132,9 +132,7 @@ export function EtudiantForm() {
     startTransition(async () => {
       try {
         if (!forcer) {
-          const nom = String(formData.get("nom") ?? "");
-          const prenom = String(formData.get("prenom") ?? "");
-          const trouves = await rechercherDoublonsAction(nom, prenom);
+          const trouves = await rechercherDoublonsAction(formData);
           if (trouves.length > 0) {
             setDoublons(trouves);
             return;
@@ -177,6 +175,11 @@ export function EtudiantForm() {
                 </Link>
                 {d.dateNaissance &&
                   ` — né(e) le ${new Date(d.dateNaissance).toLocaleDateString("fr-FR")}`}
+                {/* d.critere absent = correspondance par nom+prénom exact
+                    (évident, pas besoin de l'expliciter) ; présent = trouvé
+                    uniquement par e-mail/téléphone, moins évident à deviner
+                    en comparant les fiches — voir champs-formulaire.ts. */}
+                {d.critere && ` — ${LIBELLE_CRITERE_DOUBLON[d.critere]}`}
               </li>
             ))}
           </ul>

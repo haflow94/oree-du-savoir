@@ -14,6 +14,8 @@ import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { GenererCodeForm } from "./generer-code-form";
 import { InvaliderCodeAccueilButton } from "./invalider-code-accueil-button";
 import { obtenirOuCreerJetonPermanent } from "@/lib/preinscription-token";
+import { etudiantsValidesSansClasse } from "@/lib/cohortes";
+import { traiterDemandeCorrectionAction } from "./actions";
 
 export default async function InscriptionsPage({
   searchParams,
@@ -62,6 +64,22 @@ export default async function InscriptionsPage({
     ? await QRCode.toString(urlPreinscriptionPermanente, { type: "svg", margin: 1, width: 160 })
     : null;
 
+  // Exceptions à traiter par le staff (voir CLAUDE.md/analyse de
+  // conversation — "l'administration ne doit intervenir que lorsqu'une
+  // action administrative est réellement nécessaire") : demandes de
+  // correction sensible déposées depuis /dossier/[token], et étudiants déjà
+  // validés administrativement mais sans aucune classe effective (règle
+  // "signature ≠ validation finale" — voir lib/cohortes.ts).
+  const [demandesCorrection, anneeActive] = await Promise.all([
+    prisma.demandeCorrection.findMany({
+      where: { traiteeLe: null },
+      include: { dossierAnnuel: { include: { etudiant: { select: { id: true, nom: true, prenom: true } } } } },
+      orderBy: { creeLe: "asc" },
+    }),
+    prisma.anneeScolaire.findFirst({ where: { active: true } }),
+  ]);
+  const validesSansClasse = anneeActive ? await etudiantsValidesSansClasse(anneeActive.id) : [];
+
   const preinscrits = await prisma.etudiant.findMany({
     where: {
       statutInscription: "PREINSCRIT",
@@ -89,6 +107,67 @@ export default async function InscriptionsPage({
           </p>
         </div>
       </div>
+
+      {(demandesCorrection.length > 0 || validesSansClasse.length > 0) && (
+        <Card>
+          <CardTitle>Dossiers à traiter</CardTitle>
+          <p className="mt-1 text-sm text-ink-muted">
+            Exceptions nécessitant une intervention du staff — le reste du parcours (génération du
+            dossier, vérification, signature) se fait sans vous.
+          </p>
+
+          {demandesCorrection.length > 0 && (
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="text-sm font-medium text-ink">
+                Demandes de correction ({demandesCorrection.length})
+              </p>
+              <ul className="mt-2 space-y-2">
+                {demandesCorrection.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border bg-bg-sunken/40 px-3 py-2"
+                  >
+                    <div>
+                      <Link href={`/etudiants/${d.dossierAnnuel.etudiant.id}`} className="text-sm font-medium text-ink hover:underline">
+                        {d.dossierAnnuel.etudiant.prenom} {d.dossierAnnuel.etudiant.nom}
+                      </Link>
+                      <p className="text-sm text-ink-muted">{d.message}</p>
+                      <p className="text-xs text-ink-faint">{new Date(d.creeLe).toLocaleDateString("fr-FR")}</p>
+                    </div>
+                    <form action={traiterDemandeCorrectionAction}>
+                      <input type="hidden" name="demandeId" value={d.id} />
+                      <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+                        Marquer traitée
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {validesSansClasse.length > 0 && (
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="text-sm font-medium text-ink">
+                Validés sans classe ({validesSansClasse.length})
+              </p>
+              <p className="mt-1 text-xs text-ink-faint">
+                Inscription validée administrativement, mais aucune classe ne leur a encore été
+                affectée pour l&apos;année active.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {validesSansClasse.map((e) => (
+                  <li key={e.id}>
+                    <Link href={`/etudiants/${e.id}`} className="text-sm text-ink hover:underline">
+                      {e.prenom} {e.nom}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card>
         <CardTitle>QR permanent officiel (accès Internet)</CardTitle>

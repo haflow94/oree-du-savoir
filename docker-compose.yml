@@ -82,6 +82,14 @@ services:
       # Les séances du jour et le délai de correction des présences seraient
       # alors calculés sur le mauvais jour.
       TZ: ${TZ:-Europe/Paris}
+      # Même raison que DATABASE_URL ci-dessus : recalculée vers le nom de
+      # service Docker "documenso" (port interne 3000), jamais vers
+      # DOCUMENSO_API_URL tel quel (qui, dans .env, cible localhost:3100 —
+      # correct pour un outil lancé depuis l'hôte, mais désignerait ce
+      # conteneur "app" lui-même vu de l'intérieur, pas Documenso).
+      DOCUMENSO_API_URL: "http://documenso:3000/api/v1"
+      DOCUMENSO_API_TOKEN: ${DOCUMENSO_API_TOKEN:?DOCUMENSO_API_TOKEN manquant}
+      DOCUMENSO_WEBHOOK_SECRET: ${DOCUMENSO_WEBHOOK_SECRET:?DOCUMENSO_WEBHOOK_SECRET manquant}
     ports:
       - "3000:3000"
     # Bind mount plutôt que volume nommé : même dossier physique qu'en
@@ -113,6 +121,123 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
 
+  # --- Documenso self-hébergé (signature électronique des dossiers) ---
+  # Base Postgres et stockage (MinIO) dédiés, isolés de `db` (Postgres de
+  # l'application) : Documenso gère son propre schéma Prisma, aucune raison
+  # de le mélanger avec les données métier. Voir src/lib/documenso.ts pour
+  # le client API utilisé par l'application (jamais l'inverse : Documenso ne
+  # touche jamais Postgres/le stockage de l'application — même principe que
+  # n8n, voir CLAUDE.md).
+  documenso-db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DOCUMENSO_POSTGRES_USER:?DOCUMENSO_POSTGRES_USER manquant}
+      POSTGRES_PASSWORD: ${DOCUMENSO_POSTGRES_PASSWORD:?DOCUMENSO_POSTGRES_PASSWORD manquant}
+      POSTGRES_DB: ${DOCUMENSO_POSTGRES_DB:?DOCUMENSO_POSTGRES_DB manquant}
+    volumes:
+      - documenso_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOCUMENSO_POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Stockage S3-compatible requis pour que l'API v1 de Documenso puisse
+  # exposer un lien de téléchargement du PDF signé (GET
+  # /api/v1/documents/:id/download) : ce endpoint refuse de fonctionner avec
+  # le transport "database" par défaut (vérifié dans son code source), d'où
+  # ce service supplémentaire plutôt qu'une option de config.
+  documenso-minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${DOCUMENSO_MINIO_ROOT_USER:?DOCUMENSO_MINIO_ROOT_USER manquant}
+      MINIO_ROOT_PASSWORD: ${DOCUMENSO_MINIO_ROOT_PASSWORD:?DOCUMENSO_MINIO_ROOT_PASSWORD manquant}
+    volumes:
+      - documenso_minio_data:/data
+    ports:
+      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:9003:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Capture SMTP locale (aucun serveur mail réel configuré pour l'instant,
+  # voir bilan de session) : Documenso peut démarrer et tenter d'envoyer ses
+  # emails internes sans échouer ni bloquer le parcours — l'application
+  # n'utilise de toute façon jamais l'email natif de Documenso pour inviter à
+  # signer (elle redirige directement vers le `signingUrl` retourné par
+  # l'API, voir src/lib/documenso.ts), donc l'absence de SMTP réel ici n'a
+  # aucun impact sur le parcours de signature lui-même.
+  documenso-mail:
+    image: maildev/maildev:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1080:1080"
+
+  documenso:
+    image: documenso/documenso:latest
+    restart: unless-stopped
+    depends_on:
+      documenso-db:
+        condition: service_healthy
+      documenso-minio:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      NEXTAUTH_SECRET: ${DOCUMENSO_NEXTAUTH_SECRET:?DOCUMENSO_NEXTAUTH_SECRET manquant}
+      NEXT_PRIVATE_ENCRYPTION_KEY: ${DOCUMENSO_ENCRYPTION_KEY:?DOCUMENSO_ENCRYPTION_KEY manquant}
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: ${DOCUMENSO_ENCRYPTION_SECONDARY_KEY:?DOCUMENSO_ENCRYPTION_SECONDARY_KEY manquant}
+      NEXT_PUBLIC_WEBAPP_URL: ${DOCUMENSO_WEBAPP_URL:?DOCUMENSO_WEBAPP_URL manquant}
+      # Sans ceci, Documenso construit l'URL de ses appels internes (jobs —
+      # notamment le scellement du document après signature, voir
+      # packages/lib/jobs/client/local.ts#submitJobToEndpoint) à partir de
+      # NEXT_PUBLIC_WEBAPP_URL ci-dessus, qui vaut localhost:3100 — le port
+      # PUBLIÉ sur l'hôte, injoignable depuis l'intérieur même du conteneur
+      # (qui écoute en interne sur le port 3000, voir PORT ci-dessous).
+      # Chaque job se soumet donc lui-même à une URL qui refuse la connexion,
+      # avec l'erreur avalée en silence (fetch avec .catch(() => null) et un
+      # timeout de 150ms côté Documenso) : la seule conséquence observable
+      # est qu'un document signé reste bloqué en PENDING indéfiniment, sans
+      # jamais déclencher le webhook DOCUMENT_COMPLETED — constaté en session
+      # (voir bilan) avant l'ajout de cette variable.
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: "http://localhost:3000"
+      NEXT_PRIVATE_DATABASE_URL: "postgres://${DOCUMENSO_POSTGRES_USER}:${DOCUMENSO_POSTGRES_PASSWORD}@documenso-db:5432/${DOCUMENSO_POSTGRES_DB}"
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: "postgres://${DOCUMENSO_POSTGRES_USER}:${DOCUMENSO_POSTGRES_PASSWORD}@documenso-db:5432/${DOCUMENSO_POSTGRES_DB}"
+      NEXT_PRIVATE_SIGNING_TRANSPORT: local
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /opt/documenso/cert.p12
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: ${DOCUMENSO_SIGNING_PASSPHRASE:?DOCUMENSO_SIGNING_PASSPHRASE manquant}
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: s3
+      NEXT_PRIVATE_UPLOAD_ENDPOINT: "http://documenso-minio:9000"
+      NEXT_PRIVATE_UPLOAD_FORCE_PATH_STYLE: "true"
+      NEXT_PRIVATE_UPLOAD_REGION: "us-east-1"
+      NEXT_PRIVATE_UPLOAD_BUCKET: "documenso"
+      NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID: ${DOCUMENSO_MINIO_ROOT_USER}
+      NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY: ${DOCUMENSO_MINIO_ROOT_PASSWORD}
+      # Autorise le webhook à cibler l'app en développement (adresse privée,
+      # bloquée par défaut contre le SSRF) : la gateway du réseau Docker
+      # compose (172.19.0.1, voir bilan de session) le temps d'itérer avec
+      # `npm run dev`, et le nom de service interne `app` pour le
+      # déploiement conteneurisé réel (voir DOCUMENSO_WEBHOOK_SSRF_BYPASS_HOSTS
+      # dans .env, à ajuster si le sous-réseau Docker change).
+      NEXT_PRIVATE_WEBHOOK_SSRF_BYPASS_HOSTS: ${DOCUMENSO_WEBHOOK_SSRF_BYPASS_HOSTS:-172.19.0.1,app}
+      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
+      NEXT_PRIVATE_SMTP_HOST: documenso-mail
+      NEXT_PRIVATE_SMTP_PORT: "1025"
+      NEXT_PRIVATE_SMTP_FROM_NAME: "L'Orée du Savoir"
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: "inscriptions@loreedusavoir.local"
+      DOCUMENSO_DISABLE_TELEMETRY: "true"
+    volumes:
+      - ./documenso-cert/cert.p12:/opt/documenso/cert.p12:ro
+    ports:
+      - "127.0.0.1:3100:3000"
+
 volumes:
   db_data:
   n8n_data:
+  documenso_db_data:
+  documenso_minio_data:

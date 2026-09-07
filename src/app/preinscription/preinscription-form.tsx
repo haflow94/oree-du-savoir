@@ -272,6 +272,12 @@ export function PreinscriptionForm({
         >
           + Ajouter un autre cours ou section
         </button>
+        <Champ
+          label="Niveau déclaré (facultatif)"
+          name="niveauDeclare"
+          placeholder="ex. débutant, 2e année, je ne sais pas…"
+          hint="Une simple indication : le niveau réel et la classe seront confirmés par l'association."
+        />
       </Card>
 
       <fieldset id="section-identite" className={FIELDSET_CLASSES}>

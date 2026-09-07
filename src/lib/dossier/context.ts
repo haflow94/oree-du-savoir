@@ -68,12 +68,17 @@ function contexteSection(section: SectionAvecCreneaux) {
 
 type ClasseSuivie = { jour: JourSemaine; heureDebut: string; heureFin: string };
 
-// "Cours"/"Classe"/"Horaires retenus" : dérivés des inscriptions réelles de
-// l'étudiant sur la section demandée pour l'année active, pas d'un choix
-// saisi séparément — même logique que l'ancien horaireChoisi de
-// src/app/(app)/etudiants/[id]/dossier/route.ts. `classes` (jour/heures
-// bruts) sert ensuite à cocher automatiquement la bonne carte de créneau
-// (voir estCreneauChoisi) — jamais utilisé pour le dossier vierge.
+// "Cours"/"Classe"/"Horaires retenus" : dérivés en priorité des inscriptions
+// EFFECTIVES de l'étudiant (InscriptionClasse), qui ne sont créées qu'à la
+// validation finale (voir lib/cohortes.ts — règle "signature ≠ validation
+// finale"). Un dossier peut désormais être généré et signé AVANT ce moment
+// (voir bilan de session) : à défaut d'inscription effective, on retombe
+// sur l'AffectationCohorte déjà choisie (proposée par une réinscription
+// déterministe ou par le staff), qui donne au moins le niveau/la Cohorte —
+// les horaires précis (propres à la Classe) restent alors vides plutôt que
+// devinés (règle non négociable "ne jamais deviner"). `classes` (jour/heures
+// bruts) sert à cocher automatiquement la bonne carte de créneau (voir
+// estCreneauChoisi) — jamais utilisé pour le dossier vierge.
 async function contexteInscription(
   etudiantId: string,
   sectionId: string,
@@ -86,17 +91,34 @@ async function contexteInscription(
     include: { classe: { include: { cohorte: true, cours: true } } },
   });
 
+  if (inscriptions.length > 0) {
+    return {
+      cours: [...new Set(inscriptions.map((i) => i.classe.cours.nom))].join(" ; "),
+      classe: [...new Set(inscriptions.map((i) => i.classe.cohorte.niveau).filter((n): n is string => !!n))].join(
+        " ; ",
+      ),
+      horaires: inscriptions
+        .map((i) => `${JOUR_LABELS[i.classe.cohorte.jour]} ${i.classe.heureDebut}-${i.classe.heureFin}`)
+        .join(" ; "),
+      classes: inscriptions.map((i) => ({
+        jour: i.classe.cohorte.jour,
+        heureDebut: i.classe.heureDebut,
+        heureFin: i.classe.heureFin,
+      })),
+    };
+  }
+
+  const affectations = await prisma.affectationCohorte.findMany({
+    where: { etudiantId, anneeScolaireId: anneeActive.id, cohorte: { sectionId } },
+    include: { cohorte: { include: { coursLies: { include: { cours: true }, orderBy: { ordre: "asc" } } } } },
+  });
+  if (affectations.length === 0) return { cours: "", classe: "", horaires: "", classes: [] };
+
   return {
-    cours: [...new Set(inscriptions.map((i) => i.classe.cours.nom))].join(" ; "),
-    classe: [...new Set(inscriptions.map((i) => i.classe.cohorte.niveau).filter((n): n is string => !!n))].join(" ; "),
-    horaires: inscriptions
-      .map((i) => `${JOUR_LABELS[i.classe.cohorte.jour]} ${i.classe.heureDebut}-${i.classe.heureFin}`)
-      .join(" ; "),
-    classes: inscriptions.map((i) => ({
-      jour: i.classe.cohorte.jour,
-      heureDebut: i.classe.heureDebut,
-      heureFin: i.classe.heureFin,
-    })),
+    cours: [...new Set(affectations.flatMap((a) => a.cohorte.coursLies.map((cl) => cl.cours.nom)))].join(" ; "),
+    classe: [...new Set(affectations.map((a) => a.cohorte.niveau).filter((n): n is string => !!n))].join(" ; "),
+    horaires: "",
+    classes: [],
   };
 }
 
@@ -192,6 +214,12 @@ export async function construireContexteDossierEtudiant({
     sexeF: etudiant.sexe === "F",
     sexeM: etudiant.sexe === "M",
     niveau_scolaire: v(etudiant.niveauScolaire),
+    // Déclaré librement par la famille à la préinscription (voir
+    // Etudiant.niveauDeclare) — jamais confondu avec le niveau réellement
+    // retenu (Cohorte.niveau via AffectationCohorte, voir `classe`
+    // ci-dessus, dans `...inscription`) ni avec niveau_admission
+    // (réservé à l'administration, dossier Jeunes).
+    niveau_declare: v(etudiant.niveauDeclare),
 
     niveau_admission: v(dossierAnnuel?.niveauAdmission),
 

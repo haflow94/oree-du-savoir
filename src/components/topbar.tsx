@@ -1,10 +1,30 @@
 "use client";
 
-import { Menu, Search, LogOut } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { useEffect, useTransition } from "react";
+import { Menu, Search, LogOut, Bell } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { NAV_ITEMS } from "@/lib/nav";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import { logoutAction } from "@/app/(app)/logout-action";
+import { marquerNotificationPreinscriptionLueAction } from "@/app/(app)/inscriptions/actions";
+
+// Intervalle de rafraîchissement léger (voir plus bas) : assez court pour
+// qu'une nouvelle préinscription apparaisse « automatiquement » dans un
+// onglet déjà ouvert sans attendre une action de l'utilisateur, assez long
+// pour rester négligeable en charge sur une petite appli associative — pas
+// de WebSocket/SSE nécessaire à ce volume (voir l'audit du flux
+// "nouvelle préinscription").
+const INTERVALLE_RAFRAICHISSEMENT_MS = 25_000;
+
+export type NotificationPreinscriptionTopbar = {
+  id: string;
+  etudiantId: string;
+  nom: string;
+  prenom: string;
+  creeLe: Date;
+  lue: boolean;
+};
 
 type TopbarProps = {
   nom: string;
@@ -18,15 +38,42 @@ type TopbarProps = {
    */
   hrefsVisibles: string[];
   anneeActive: string | null;
+  /** Compte non lu POUR CET UTILISATEUR (voir (app)/layout.tsx) — jamais un état partagé entre membres du staff. */
+  nombreNotificationsNonLues: number;
+  /** Dernières notifications (lues ou non), état de lecture déjà calculé pour cet utilisateur. */
+  dernieresNotifications: NotificationPreinscriptionTopbar[];
 };
 
-export function Topbar({ nom, prenom, role, hrefsVisibles, anneeActive }: TopbarProps) {
+export function Topbar({
+  nom,
+  prenom,
+  role,
+  hrefsVisibles,
+  anneeActive,
+  nombreNotificationsNonLues,
+  dernieresNotifications,
+}: TopbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [, startTransition] = useTransition();
   const items = NAV_ITEMS.filter((item) => hrefsVisibles.includes(item.href));
   const current =
     items.find((item) =>
       item.href === "/" ? pathname === "/" : pathname.startsWith(item.href),
     ) ?? items[0];
+
+  // Polling léger : router.refresh() ré-exécute les Server Components de la
+  // route courante (layout inclus), sans rechargement navigateur — c'est ce
+  // qui fait apparaître une nouvelle préinscription sur un onglet /inscriptions
+  // déjà ouvert, et met à jour ce compteur partout dans l'app. Ne dépend ni
+  // de n8n ni d'aucune connexion persistante (pas de WebSocket/SSE) : un
+  // simple minuteur, qui se contente de redemander l'état actuel à
+  // intervalles réguliers — se remet de lui-même après un redémarrage du
+  // conteneur ou une coupure réseau passagère, sans reconnexion à gérer.
+  useEffect(() => {
+    const id = setInterval(() => router.refresh(), INTERVALLE_RAFRAICHISSEMENT_MS);
+    return () => clearInterval(id);
+  }, [router]);
 
   return (
     <header className="sticky top-0 z-10 flex flex-col border-b border-border bg-bg-elevated">
@@ -81,6 +128,84 @@ export function Topbar({ nom, prenom, role, hrefsVisibles, anneeActive }: Topbar
               Année active : {anneeActive}
             </span>
           )}
+
+          {/* Cloche de notifications (préinscriptions) : disclosure HTML pur
+              (même mécanisme que le menu mobile ci-dessus), pas de state
+              React nécessaire pour ouvrir/fermer. N'apparaît que pour les
+              rôles ayant LECTURE sur Module.INSCRIPTIONS — voir
+              (app)/layout.tsx, qui passe alors des tableaux non vides. */}
+          {(dernieresNotifications.length > 0 || nombreNotificationsNonLues > 0) && (
+            <details className="relative">
+              <summary
+                className="relative flex list-none cursor-pointer items-center rounded-md border border-border p-1.5 text-ink-muted transition-colors hover:bg-bg-sunken"
+                aria-label="Notifications"
+              >
+                <Bell aria-hidden size={16} />
+                {nombreNotificationsNonLues > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ochre px-1 text-[10px] font-semibold text-on-accent">
+                    {nombreNotificationsNonLues > 9 ? "9+" : nombreNotificationsNonLues}
+                  </span>
+                )}
+              </summary>
+              <div className="absolute right-0 top-full z-20 mt-2 w-80 rounded-lg border border-border bg-bg-elevated shadow-elevated">
+                <div className="border-b border-border px-4 py-2.5 text-xs font-semibold text-ink-muted">
+                  Nouvelles préinscriptions
+                </div>
+                <ul className="max-h-96 overflow-y-auto">
+                  {dernieresNotifications.length === 0 && (
+                    <li className="px-4 py-6 text-center text-xs text-ink-faint">
+                      Aucune notification pour l&apos;instant.
+                    </li>
+                  )}
+                  {dernieresNotifications.map((notif) => (
+                    <li key={notif.id} className="border-b border-border last:border-b-0">
+                      <Link
+                        href={`/etudiants/${notif.etudiantId}`}
+                        onClick={() => {
+                          // Fire-and-forget : la navigation ne doit pas
+                          // attendre la confirmation serveur. Le compteur se
+                          // met ensuite à jour via le polling ci-dessus
+                          // (router.refresh()), pas par un revalidatePath
+                          // dédié ici.
+                          startTransition(() => {
+                            marquerNotificationPreinscriptionLueAction(notif.id);
+                          });
+                        }}
+                        className={`flex items-start gap-2 px-4 py-2.5 text-sm hover:bg-bg-sunken ${
+                          notif.lue ? "text-ink-muted" : "text-ink"
+                        }`}
+                      >
+                        {!notif.lue && (
+                          <span
+                            aria-hidden
+                            className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ochre"
+                          />
+                        )}
+                        <span className={notif.lue ? "ml-3.5" : ""}>
+                          <span className="font-medium">
+                            {notif.prenom} {notif.nom}
+                          </span>
+                          <span className="block text-xs text-ink-faint">
+                            {notif.creeLe.toLocaleString("fr-FR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/inscriptions"
+                  className="block border-t border-border px-4 py-2.5 text-center text-xs font-medium text-pine-strong hover:bg-bg-sunken"
+                >
+                  Voir toutes les préinscriptions
+                </Link>
+              </div>
+            </details>
+          )}
+
           <div className="hidden text-right text-xs leading-tight sm:block">
             <div className="font-medium text-ink">
               {prenom} {nom}

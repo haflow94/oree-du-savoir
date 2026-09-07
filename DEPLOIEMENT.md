@@ -38,6 +38,55 @@ générer les dossiers d'inscription en PDF (`src/lib/dossier/`) — ajoute
 environ 300 Mo à l'image, aucune variable à configurer (`PUPPETEER_EXECUTABLE_PATH`
 est fixée dans le Dockerfile).
 
+## Documenso (signature électronique des dossiers)
+
+Instance Documenso self-hébergée (services `documenso`, `documenso-db`,
+`documenso-minio`, `documenso-mail` dans `docker-compose.yml`) — voir
+`CLAUDE.md` et `src/lib/documenso.ts`. Toutes les variables `DOCUMENSO_*`
+sont documentées dans `.env.example`.
+
+**Important — l'app doit tourner dans Docker, pas via `npm run dev` sur
+l'hôte, dès que Documenso est utilisé.** Documenso génère des URL
+d'upload/téléchargement présignées vers `http://documenso-minio:9000` (nom
+de service Docker) ; l'application (`src/lib/documenso.ts`) doit pouvoir
+résoudre ce nom, ce qui n'est vrai que si elle tourne sur le même réseau
+Compose (service `app`). Un `npm run dev` lancé directement sur l'hôte
+échoue avec `getaddrinfo EAI_AGAIN documenso-minio` dès la tentative
+d'upload du PDF vers Documenso.
+
+### Premier démarrage
+
+```bash
+# 1. Générer le certificat de signature (une fois), passphrase = DOCUMENSO_SIGNING_PASSPHRASE
+mkdir -p documenso-cert
+openssl req -x509 -newkey rsa:2048 -keyout /tmp/documenso-key.pem -out /tmp/documenso-cert.pem \
+  -days 3650 -nodes -subj "/CN=L'Oree du Savoir - Signature"
+openssl pkcs12 -export -out documenso-cert/cert.p12 \
+  -inkey /tmp/documenso-key.pem -in /tmp/documenso-cert.pem \
+  -passout pass:VOTRE_DOCUMENSO_SIGNING_PASSPHRASE
+rm /tmp/documenso-key.pem /tmp/documenso-cert.pem
+
+# 2. Démarrer la stack (app comprise, --build pour prendre le code courant)
+docker compose up -d --build
+
+# 3. Créer le premier compte Documenso (interface web, une fois) :
+#    ouvrir DOCUMENSO_WEBAPP_URL (http://<hôte>:3100 par défaut) et s'inscrire.
+
+# 4. Générer le token API : Documenso > Paramètres de l'équipe > Tokens API
+#    -> reporter la valeur dans DOCUMENSO_API_TOKEN (.env), puis redémarrer app :
+docker compose up -d app
+
+# 5. Configurer le webhook Documenso -> application (interface web Documenso,
+#    Paramètres > Webhooks) :
+#    URL      : http://app:3000/api/webhooks/documenso   (nom de service Docker interne)
+#    Événements : DOCUMENT_COMPLETED (au minimum)
+#    En-tête  : X-Documenso-Secret = DOCUMENSO_WEBHOOK_SECRET (valeur exacte du .env)
+```
+
+`documenso-cert/` n'est jamais committé (voir `.gitignore`) : à régénérer
+sur chaque environnement, ou à sauvegarder séparément si l'on souhaite
+conserver le même certificat.
+
 ## Volumes persistants
 
 | Volume    | Contenu                                   |
