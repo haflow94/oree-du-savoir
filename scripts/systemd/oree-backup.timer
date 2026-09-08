@@ -1,0 +1,10 @@
+[Unit]
+Description=Déclenche la sauvegarde quotidienne L'Orée du Savoir
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=oree-backup.service
+
+[Install]
+WantedBy=timers.target

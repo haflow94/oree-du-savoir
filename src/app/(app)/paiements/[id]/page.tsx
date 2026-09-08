@@ -47,6 +47,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   PAIEMENT_INTROUVABLE: "Ce paiement n'existe plus.",
   CHEQUE_INTROUVABLE: "Ce chèque n'existe plus.",
   PRELEVEMENT_INTROUVABLE: "Ce prélèvement n'existe plus.",
+  MONTANT_INVALIDE: "Le montant doit être un nombre strictement positif.",
+  TRANSITION_INVALIDE: "Ce changement de statut n'est pas autorisé depuis le statut actuel.",
 };
 
 export default async function DossierPaiementPage({

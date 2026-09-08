@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 const ERROR_MESSAGES: Record<string, string> = {
   IDENTIFIANTS_INVALIDES: "Email ou mot de passe incorrect.",
   COMPTE_DESACTIVE: "Ce compte a été désactivé. Contactez un administrateur.",
+  TROP_DE_TENTATIVES: "Trop de tentatives pour ce compte. Réessayez dans quelques minutes.",
 };
 
 export default async function LoginPage({

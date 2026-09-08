@@ -126,6 +126,16 @@ describe("proxy (middleware Edge)", () => {
       ).toBe(404);
     });
 
+    it("autorise /dossier/[token] et /dossier/[token]/pdf depuis le hostname public (accès porté par le token de l'URL, pas par la session)", () => {
+      process.env.PREINSCRIPTION_PUBLIC_HOSTNAME = HOTE_PUBLIC;
+      expect(
+        proxy(requete("/dossier/un-token", { host: HOTE_PUBLIC })).status,
+      ).toBe(200);
+      expect(
+        proxy(requete("/dossier/un-token/pdf", { host: HOTE_PUBLIC })).status,
+      ).toBe(200);
+    });
+
     it("laisse '/' intact sur le hostname LAN (tableau de bord protégé par la session, non affecté par le cloisonnement public)", () => {
       process.env.PREINSCRIPTION_PUBLIC_HOSTNAME = HOTE_PUBLIC;
       const sansCookie = proxy(requete("/", { host: "localhost" }));

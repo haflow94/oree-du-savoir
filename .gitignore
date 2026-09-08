@@ -47,6 +47,15 @@ next-env.d.ts
 /data
 /backups
 
+# Filet de sécurité en plus de /backups ci-dessus : exports/dumps manuels de
+# production (pg_dump, tar de volumes) parfois posés par erreur à la racine
+# du dépôt au lieu de /backups — jamais versionnés, quel que soit l'endroit
+# où ils atterrissent (audit du 2026-09-08, voir oree-*.dump trouvés à la
+# racine).
+*.dump
+*.dump.gz
+oree-*.tar.gz
+
 # Chromium local pour tester la génération PDF en dev (npm run dev) — en
 # production le Dockerfile installe le paquet système "chromium" à la place
 # (voir src/lib/dossier/browser.ts et PUPPETEER_EXECUTABLE_PATH).

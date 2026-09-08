@@ -1,0 +1,12 @@
+[Unit]
+Description=Sauvegarde complète L'Orée du Savoir (DB app, DB Documenso, documents, n8n, config) vers le NAS
+After=docker.service mnt-nas-Administration.mount
+Requires=docker.service
+RequiresMountsFor=/mnt/nas/Administration
+
+[Service]
+Type=oneshot
+User=admin-asso
+WorkingDirectory=/opt/oree
+ExecStart=/opt/oree/scripts/backup.sh /mnt/nas/Administration/Sauvegardes-Oree
+ExecStart=/opt/oree/scripts/backup-rotate.sh /mnt/nas/Administration/Sauvegardes-Oree 14 8

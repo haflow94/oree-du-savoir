@@ -13,7 +13,18 @@ import { SESSION_COOKIE_NAME } from "@/lib/session-token";
 // ne font pas partie de « l'expérience publique de préinscription » et n'ont
 // donc rien à faire joignables depuis Internet.
 function cheminAutoriseSurHotePublicPreinscription(pathname: string): boolean {
-  return pathname.startsWith("/_next/static/") || pathname === "/favicon.ico";
+  return (
+    pathname.startsWith("/_next/static/") ||
+    pathname === "/favicon.ico" ||
+    // Page de vérification/correction/signature du dossier (voir
+    // src/app/dossier/[token]/) : accès entièrement porté par le token de
+    // l'URL (lib/acces-dossier.ts), jamais par un cookie de session, même
+    // principe que /preinscription?code=... ci-dessous — la famille y
+    // accède depuis chez elle après réception du lien, donc depuis le
+    // hostname public. Couvre aussi /dossier/[token]/pdf (aperçu du PDF,
+    // même token, voir src/app/dossier/[token]/pdf/route.ts).
+    pathname.startsWith("/dossier/")
+  );
 }
 
 // Garde-fou rapide (Edge runtime) : redirige vers /login si aucun cookie de

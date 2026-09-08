@@ -101,6 +101,24 @@ services:
     volumes:
       - ./data/documents:/data/documents
 
+  # Connecteur du tunnel Cloudflare existant "oree-preinscription" (voir
+  # CONFIGURATION-CLOUDFLARE-PREINSCRIPTION.md) : c'est lui qui rend
+  # /preinscription et /dossier/* joignables depuis Internet sans ouvrir
+  # aucun port entrant sur ce serveur — le tunnel et le hostname public sont
+  # configurés côté Cloudflare Zero Trust, ce service ne fait que faire
+  # tourner le connecteur. Documenté ici pour que la stack soit reconstructible
+  # depuis ce dépôt (voir audit du 2026-09-08) ; ne crée, ne modifie ni ne
+  # remplace aucun tunnel/DNS/hostname/token. Le token reste exclusivement
+  # dans .env (jamais dans Git, voir .env.example).
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    depends_on:
+      - app
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?CLOUDFLARE_TUNNEL_TOKEN manquant}
+
   n8n:
     image: n8nio/n8n:latest
     restart: unless-stopped

@@ -15,6 +15,45 @@ function champTexte(formData: FormData, nom: string): string | null {
   return nettoye.length > 0 ? nettoye : null;
 }
 
+// Un montant financier ne peut être ni négatif ni nul (une échéance ou un
+// paiement à 0€ n'a pas de sens métier et ne serait qu'une saisie erronée) —
+// retourne la chaîne d'origine (jamais un Number rearrondi) pour que Prisma
+// continue de la convertir lui-même en Decimal, comme avant.
+function champMontantPositif(formData: FormData, nom: string): string | null {
+  const valeur = champTexte(formData, nom);
+  if (!valeur) return null;
+  const nombre = Number(valeur);
+  return Number.isFinite(nombre) && nombre > 0 ? valeur : null;
+}
+
+// Le montant dû d'un dossier peut légitimement être 0 (exonération totale
+// décidée par le Bureau) — seule une valeur négative est une erreur de
+// saisie, contrairement à une échéance ou un paiement (toujours > 0).
+function champMontantNonNegatif(formData: FormData, nom: string): string | null {
+  const valeur = champTexte(formData, nom);
+  if (!valeur) return null;
+  const nombre = Number(valeur);
+  return Number.isFinite(nombre) && nombre >= 0 ? valeur : null;
+}
+
+// Transitions valides des statuts de chèque/prélèvement — un encaissement ou
+// un rejet est définitif, et un chèque ne peut pas sauter une étape (ex.
+// RECU -> ENCAISSE sans passage par DEPOSE). Rester sur le statut actuel
+// (resoumission du même formulaire) est traité comme un no-op plus bas,
+// jamais comme une transition à valider ici.
+const TRANSITIONS_CHEQUE: Record<StatutCheque, StatutCheque[]> = {
+  RECU: ["DEPOSE", "REJETE"],
+  DEPOSE: ["ENCAISSE", "REJETE"],
+  ENCAISSE: [],
+  REJETE: [],
+};
+
+const TRANSITIONS_PRELEVEMENT: Record<StatutPrelevement, StatutPrelevement[]> = {
+  EMIS: ["ENCAISSE", "REJETE"],
+  ENCAISSE: [],
+  REJETE: [],
+};
+
 function retour(dossierAnnuelId: string, erreur?: string): never {
   redirect(
     erreur ? `/paiements/${dossierAnnuelId}?error=${erreur}` : `/paiements/${dossierAnnuelId}?ok=1`,
@@ -25,10 +64,12 @@ export async function ajouterEcheanceAction(formData: FormData): Promise<void> {
   await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
-  const montant = champTexte(formData, "montant");
+  const montantBrut = champTexte(formData, "montant");
   const dateEcheance = champTexte(formData, "dateEcheance");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!montant || !dateEcheance) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  if (!montantBrut || !dateEcheance) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  const montant = champMontantPositif(formData, "montant");
+  if (!montant) retour(dossierAnnuelId, "MONTANT_INVALIDE");
 
   await prisma.echeance.create({
     data: {
@@ -48,12 +89,14 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
-  const montant = champTexte(formData, "montant");
+  const montantBrut = champTexte(formData, "montant");
   const moyenBrut = champTexte(formData, "moyen");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!echeanceId || !montant || !moyenBrut || !(moyenBrut in MoyenPaiement)) {
+  if (!echeanceId || !montantBrut || !moyenBrut || !(moyenBrut in MoyenPaiement)) {
     retour(dossierAnnuelId, "CHAMPS_INVALIDES");
   }
+  const montant = champMontantPositif(formData, "montant");
+  if (!montant) retour(dossierAnnuelId, "MONTANT_INVALIDE");
   const moyen = moyenBrut as MoyenPaiement;
 
   const echeance = await prisma.echeance.findUnique({
@@ -178,10 +221,12 @@ export async function modifierEcheanceAction(formData: FormData): Promise<void> 
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
-  const montant = champTexte(formData, "montant");
+  const montantBrut = champTexte(formData, "montant");
   const dateEcheance = champTexte(formData, "dateEcheance");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!echeanceId || !montant || !dateEcheance) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  if (!echeanceId || !montantBrut || !dateEcheance) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  const montant = champMontantPositif(formData, "montant");
+  if (!montant) retour(dossierAnnuelId, "MONTANT_INVALIDE");
 
   const cible = await prisma.echeance.findUnique({ where: { id: echeanceId } });
   if (!cible) retour(dossierAnnuelId, "ECHEANCE_INTROUVABLE");
@@ -253,9 +298,11 @@ export async function modifierMontantDuAction(formData: FormData): Promise<void>
   const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
-  const montantDu = champTexte(formData, "montantDu");
+  const montantDuBrut = champTexte(formData, "montantDu");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!montantDu) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  if (!montantDuBrut) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  const montantDu = champMontantNonNegatif(formData, "montantDu");
+  if (!montantDu) retour(dossierAnnuelId, "MONTANT_INVALIDE");
 
   const cible = await prisma.dossierAnnuel.findUnique({ where: { id: dossierAnnuelId } });
   if (!cible) retour(dossierAnnuelId, "DOSSIER_INTROUVABLE");
@@ -314,9 +361,11 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const paiementId = champTexte(formData, "paiementId");
-  const montant = champTexte(formData, "montant");
+  const montantBrut = champTexte(formData, "montant");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!paiementId || !montant) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  if (!paiementId || !montantBrut) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+  const montant = champMontantPositif(formData, "montant");
+  if (!montant) retour(dossierAnnuelId, "MONTANT_INVALIDE");
 
   const cible = await prisma.paiement.findUnique({
     where: { id: paiementId },
@@ -348,7 +397,7 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
 }
 
 export async function mettreAJourChequeAction(formData: FormData): Promise<void> {
-  await requireModule(Module.PAIEMENTS, "ECRITURE");
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const chequeId = champTexte(formData, "chequeId");
@@ -365,22 +414,43 @@ export async function mettreAJourChequeAction(formData: FormData): Promise<void>
   });
   if (!cible) retour(dossierAnnuelId, "CHEQUE_INTROUVABLE");
 
-  await prisma.cheque.update({
-    where: { id: chequeId },
-    data: {
-      statut,
-      motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
-      dateDepot: statut === "DEPOSE" || statut === "ENCAISSE" ? new Date() : undefined,
-      dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
-    },
-  });
+  // Resoumission du même statut (formulaire renvoyé sans changement) : no-op
+  // silencieux, jamais une erreur. Sinon, seule une transition listée dans
+  // TRANSITIONS_CHEQUE est autorisée — un encaissement/rejet est définitif,
+  // et on ne saute pas d'étape (ex. RECU -> ENCAISSE directement).
+  if (statut !== cible.statut) {
+    if (!TRANSITIONS_CHEQUE[cible.statut].includes(statut)) {
+      retour(cible.paiement.echeance.dossierAnnuelId, "TRANSITION_INVALIDE");
+    }
+
+    await prisma.$transaction([
+      prisma.cheque.update({
+        where: { id: chequeId },
+        data: {
+          statut,
+          motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
+          dateDepot: statut === "DEPOSE" || statut === "ENCAISSE" ? new Date() : undefined,
+          dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
+        },
+      }),
+      prisma.journalAudit.create({
+        data: {
+          utilisateurId: session.id,
+          action: "changement_statut_cheque",
+          entite: "Cheque",
+          entiteId: chequeId,
+          details: { avant: cible.statut, apres: statut },
+        },
+      }),
+    ]);
+  }
 
   revalidatePath(`/paiements/${cible.paiement.echeance.dossierAnnuelId}`);
   retour(cible.paiement.echeance.dossierAnnuelId);
 }
 
 export async function mettreAJourPrelevementAction(formData: FormData): Promise<void> {
-  await requireModule(Module.PAIEMENTS, "ECRITURE");
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const prelevementId = champTexte(formData, "prelevementId");
@@ -397,14 +467,31 @@ export async function mettreAJourPrelevementAction(formData: FormData): Promise<
   });
   if (!cible) retour(dossierAnnuelId, "PRELEVEMENT_INTROUVABLE");
 
-  await prisma.prelevement.update({
-    where: { id: prelevementId },
-    data: {
-      statut,
-      motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
-      dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
-    },
-  });
+  if (statut !== cible.statut) {
+    if (!TRANSITIONS_PRELEVEMENT[cible.statut].includes(statut)) {
+      retour(cible.paiement.echeance.dossierAnnuelId, "TRANSITION_INVALIDE");
+    }
+
+    await prisma.$transaction([
+      prisma.prelevement.update({
+        where: { id: prelevementId },
+        data: {
+          statut,
+          motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
+          dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
+        },
+      }),
+      prisma.journalAudit.create({
+        data: {
+          utilisateurId: session.id,
+          action: "changement_statut_prelevement",
+          entite: "Prelevement",
+          entiteId: prelevementId,
+          details: { avant: cible.statut, apres: statut },
+        },
+      }),
+    ]);
+  }
 
   revalidatePath(`/paiements/${cible.paiement.echeance.dossierAnnuelId}`);
   retour(cible.paiement.echeance.dossierAnnuelId);

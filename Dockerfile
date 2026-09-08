@@ -38,5 +38,14 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
+# Le conteneur tourne en "node" (uid/gid 1000, voir docker-compose.yml
+# `user: "1000:1000"`), mais chaque COPY --from ci-dessus a copié les
+# fichiers appartenant à root (comportement par défaut de COPY) : sans ce
+# chown, Next.js ne peut pas créer /app/.next/cache/images/ à la demande
+# (cache d'optimisation d'image, créé au premier accès, pas au build) et
+# échoue avec EACCES à chaque image optimisée — constaté en production le
+# 2026-09-08 (voir bilan de clôture).
+RUN chown -R node:node /app
+
 EXPOSE 3000
 ENTRYPOINT ["./entrypoint.sh"]
