@@ -102,8 +102,14 @@ services:
       DOCUMENSO_API_URL: "http://documenso:3000/api/v1"
       DOCUMENSO_API_TOKEN: ${DOCUMENSO_API_TOKEN:?DOCUMENSO_API_TOKEN manquant}
       DOCUMENSO_WEBHOOK_SECRET: ${DOCUMENSO_WEBHOOK_SECRET:?DOCUMENSO_WEBHOOK_SECRET manquant}
+    # Lié à 127.0.0.1 uniquement (jamais 0.0.0.0) : le tunnel Cloudflare
+    # (service `cloudflared` ci-dessous) joint ce service via le réseau
+    # Docker interne (hostname "app", port 3000 du conteneur), jamais via ce
+    # port publié sur l'hôte — donc aucun impact sur /preinscription public.
+    # Publier sur toutes les interfaces exposait l'app en clair sur le
+    # réseau local sans aucun besoin (même raison que db.ports/n8n.ports).
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     # Stockage documentaire actif migré vers le NAS (audit du 2026-09-09) :
     # aucun changement de code nécessaire, DOCUMENTS_DIR (voir src/lib/documents.ts)
     # ne connaît que des chemins relatifs opaques ("etudiants/<id>/...",
