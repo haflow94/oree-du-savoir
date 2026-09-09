@@ -476,6 +476,16 @@ export default async function DossierPaiementPage({
                             className={`w-28 ${CONTROL_SM_CLASSES}`}
                           />
                         </div>
+                        <div>
+                          <label className={LABEL_XS_CLASSES}>Date du paiement</label>
+                          <input
+                            type="date"
+                            name="datePaiement"
+                            required
+                            defaultValue={new Date().toISOString().slice(0, 10)}
+                            className={CONTROL_SM_CLASSES}
+                          />
+                        </div>
                         <ChampsMoyenPaiement
                           etudiantNom={dossier.etudiant.nom}
                           etudiantPrenom={dossier.etudiant.prenom}

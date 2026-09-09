@@ -91,13 +91,20 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
   const echeanceId = champTexte(formData, "echeanceId");
   const montantBrut = champTexte(formData, "montant");
   const moyenBrut = champTexte(formData, "moyen");
+  const datePaiementBrut = champTexte(formData, "datePaiement");
   if (!dossierAnnuelId) redirect("/paiements");
-  if (!echeanceId || !montantBrut || !moyenBrut || !(moyenBrut in MoyenPaiement)) {
+  if (!echeanceId || !montantBrut || !moyenBrut || !(moyenBrut in MoyenPaiement) || !datePaiementBrut) {
     retour(dossierAnnuelId, "CHAMPS_INVALIDES");
   }
   const montant = champMontantPositif(formData, "montant");
   if (!montant) retour(dossierAnnuelId, "MONTANT_INVALIDE");
   const moyen = moyenBrut as MoyenPaiement;
+  // Distincte de Echeance.dateEcheance (date prévue) : la date réelle à
+  // laquelle le paiement a été effectué/reçu, saisie par l'utilisateur —
+  // jamais implicitement "aujourd'hui" (voir Paiement.datePaiement, dont le
+  // défaut Prisma @default(now()) ne s'applique que si ce champ est omis).
+  const datePaiement = new Date(datePaiementBrut);
+  if (Number.isNaN(datePaiement.getTime())) retour(dossierAnnuelId, "CHAMPS_INVALIDES");
 
   const echeance = await prisma.echeance.findUnique({
     where: { id: echeanceId },
@@ -123,6 +130,7 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
       echeanceId,
       montant,
       moyen,
+      datePaiement,
       ...(moyen === "CHEQUE"
         ? {
             cheque: {
