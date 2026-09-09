@@ -50,10 +50,17 @@ export async function GET(request: NextRequest) {
     take: LIMITE,
   });
 
-  // Même variable que GET .../preinscriptions-a-notifier (voir ce fichier) :
-  // adresse LAN/hostname réellement joignable par la famille, construite
-  // hors de toute requête navigateur.
-  const base = process.env.PUBLIC_HOST ? `http://${process.env.PUBLIC_HOST}` : "";
+  // PREINSCRIPTION_PUBLIC_HOSTNAME (jamais PUBLIC_HOST) : ce lien part par
+  // e-mail à la FAMILLE, qui n'est ni sur le LAN ni sur le tailnet de
+  // l'association — seul le hostname du tunnel Cloudflare public est
+  // réellement joignable pour elle. /dossier/* est servi par ce même tunnel
+  // (voir CLAUDE.md, proxy.ts#cheminAutoriseSurHotePublicPreinscription) et
+  // toujours en HTTPS, même pattern que (app)/inscriptions/page.tsx pour le
+  // QR d'inscription publique. PUBLIC_HOST reste réservé aux liens internes
+  // au staff (QR de salle/classe, voir .../preinscriptions-a-notifier).
+  const base = process.env.PREINSCRIPTION_PUBLIC_HOSTNAME
+    ? `https://${process.env.PREINSCRIPTION_PUBLIC_HOSTNAME}`
+    : "";
 
   const candidats: CandidatDossierAVerifier[] = [];
   for (const dossier of dossiers) {
