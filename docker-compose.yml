@@ -50,8 +50,20 @@ services:
     # DOCUMENTS_DIR=./data/documents) : l'image officielle node fournit déjà
     # un user "node" à ce même uid/gid, donc les fichiers créés par le
     # conteneur (dossiers PDF générés, uploads) restent modifiables sans
-    # sudo côté hôte, sur le même dossier que le mode dev.
+    # sudo côté hôte, sur le même dossier que le mode dev. Gardé tel quel
+    # (jamais passé à 1001, l'uid du montage NAS) car le Dockerfile chown
+    # /app vers node:node (1000:1000) au build pour le cache Next.js — voir
+    # sa note "constaté en production le 2026-09-08".
     user: "1000:1000"
+    # Groupe supplémentaire correspondant à l'uid/gid du montage CIFS du NAS
+    # (voir /etc/fstab sur l'hôte : uid=1001,gid=1001,dir_mode=0770). Les
+    # partages sont montés par l'utilisateur "admin-asso" (1001) ; sans ce
+    # group_add, le conteneur (uid 1000, non membre du groupe 1001) reçoit un
+    # Permission denied sur les 3 bind mounts ci-dessous — vérifié par un
+    # test dédié (audit du 2026-09-09) avant d'adopter cette solution plutôt
+    # qu'un chown/remount qui aurait cassé l'accès hôte ou le cache Next.js.
+    group_add:
+      - "1001"
     depends_on:
       db:
         condition: service_healthy
@@ -92,14 +104,26 @@ services:
       DOCUMENSO_WEBHOOK_SECRET: ${DOCUMENSO_WEBHOOK_SECRET:?DOCUMENSO_WEBHOOK_SECRET manquant}
     ports:
       - "3000:3000"
-    # Bind mount plutôt que volume nommé : même dossier physique qu'en
-    # `npm run dev` (DOCUMENTS_DIR=./data/documents), pour ne plus avoir deux
-    # stockages de documents divergents selon le mode d'exécution (voir audit
-    # du 2026-08-31). Migration vers un NAS plus tard = changer uniquement ce
-    # chemin source, sans toucher au code. L'ancien volume nommé app_data
-    # reste déclaré plus bas (non supprimé, simplement plus utilisé).
+    # Stockage documentaire actif migré vers le NAS (audit du 2026-09-09) :
+    # aucun changement de code nécessaire, DOCUMENTS_DIR (voir src/lib/documents.ts)
+    # ne connaît que des chemins relatifs opaques ("etudiants/<id>/...",
+    # "association/...", et l'historique "organisation/logo.png") — seule la
+    # racine physique change. Trois bind mounts distincts (et non un seul sur
+    # DOCUMENTS_DIR) pour respecter la séparation Étudiant/Administration
+    # voulue côté NAS, chacun vers le sous-dossier attendu par le code :
+    #   - etudiants/    -> partage NAS "Etudiant"
+    #   - organisation/ -> partage NAS "Administration" (logo, chemin hérité)
+    #   - association/  -> partage NAS "Administration" (PV/statuts/RI, cible
+    #                       actuelle de enregistrerDocumentAssociation)
+    # Sauvegardes-Oree (scripts/backup.sh) reste un dossier frère, jamais
+    # monté ici : le stockage documentaire applicatif et les sauvegardes
+    # restent deux choses distinctes même si elles vivent sur le même NAS.
+    # L'ancien bind mount local (./data/documents) est conservé sur disque
+    # (non supprimé) comme filet de sécurité, mais n'est plus monté ici.
     volumes:
-      - ./data/documents:/data/documents
+      - /mnt/nas/Etudiant/etudiants:/data/documents/etudiants
+      - /mnt/nas/Administration/organisation:/data/documents/organisation
+      - /mnt/nas/Administration/association:/data/documents/association
 
   # Connecteur du tunnel Cloudflare existant "oree-preinscription" (voir
   # CONFIGURATION-CLOUDFLARE-PREINSCRIPTION.md) : c'est lui qui rend
