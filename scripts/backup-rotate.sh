@@ -3,7 +3,7 @@
 # de rétention "quotidien + hebdomadaire", sans jamais toucher à un fichier
 # qui ne correspond pas exactement au motif de nommage de backup.sh.
 #
-# Un "run" = les 5 fichiers d'une même exécution, identifiés par
+# Un "run" = les 6 fichiers d'une même exécution, identifiés par
 # l'horodatage AAAAMMJJ-HHMMSS présent dans leur nom (db-app-<horodatage>.dump
 # sert de référence pour lister les runs existants).
 #
@@ -73,6 +73,7 @@ for run in "${RUNS[@]}"; do
     echo "[rotate] Suppression du run $run"
     rm -f "$DEST"/db-app-"$run".dump \
           "$DEST"/db-documenso-"$run".dump \
+          "$DEST"/documenso-minio-"$run".tar.gz \
           "$DEST"/documents-"$run".tar.gz \
           "$DEST"/n8n-"$run".tar.gz \
           "$DEST"/config-"$run".tar.gz
