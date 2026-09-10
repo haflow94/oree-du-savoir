@@ -5,8 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { supprimerClasseAction } from "./[id]/actions";
-import { CoursDialog } from "./cours-dialog";
-import { CohorteDialog } from "./cohorte-dialog";
+import { StructureDialog } from "./structure-dialog";
 import { DupliquerClassesDialog } from "./dupliquer-classes-dialog";
 import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -139,6 +138,22 @@ export default async function ClassesPage({
     prisma.organisation.findFirst({ select: { joursActifs: true } }),
   ]);
   const joursActifs = organisation?.joursActifs ?? JOURS_ORDONNES;
+
+  // Liste d'attente = notion de Cohorte (bloc), pas de Classe individuelle
+  // (voir classes/cohortes/[id]/page.tsx) — un simple groupBy sur l'année
+  // active (même défaut que cette page) suffit pour afficher un badge sur
+  // l'en-tête de groupe ci-dessous, sans dupliquer la gestion (promotion) qui
+  // reste exclusivement sur la page Cohorte.
+  const enAttenteParCohorteBrut = anneeActive
+    ? await prisma.affectationCohorte.groupBy({
+        by: ["cohorteId"],
+        where: { anneeScolaireId: anneeActive.id, statut: "EN_ATTENTE" },
+        _count: { _all: true },
+      })
+    : [];
+  const enAttenteParCohorteId = new Map(
+    enAttenteParCohorteBrut.map((g) => [g.cohorteId, g._count._all]),
+  );
   const cohortes = cohortesBrutes.map((c) => ({
     id: c.id,
     section: c.section,
@@ -266,19 +281,19 @@ export default async function ClassesPage({
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       <div className="flex flex-wrap items-center gap-2">
-        <CoursDialog
+        <StructureDialog
           cours={cours}
-          sections={sections}
-          peutGerer={peutGerer}
-          ouvrirAuChargement={!!error && ERREURS_COURS.includes(error)}
-        />
-        <CohorteDialog
           cohortes={cohortes}
-          cours={cours}
           sections={sections}
           joursActifs={joursActifs}
           peutGerer={peutGerer}
-          ouvrirAuChargement={!!error && ERREURS_COHORTE.includes(error)}
+          ongletAuChargement={
+            error && ERREURS_COURS.includes(error)
+              ? "cours"
+              : error && ERREURS_COHORTE.includes(error)
+                ? "cohortes"
+                : null
+          }
         />
         {peutGerer && anneeActive && annees.some((a) => a.id !== anneeActive.id) && (
           <DupliquerClassesDialog
@@ -382,10 +397,19 @@ export default async function ClassesPage({
                         colSpan={peutGerer ? 6 : 5}
                         className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-faint"
                       >
-                        {cohorte.niveau ?? "Sans niveau"} · {JOUR_LABELS[cohorte.jour]}
+                        <Link href={`/classes/cohortes/${cohorte.id}`} className="hover:underline">
+                          {cohorte.niveau ?? "Sans niveau"} · {JOUR_LABELS[cohorte.jour]}
+                        </Link>
                         <span className="ml-2 normal-case font-normal text-ink-faint">
                           ({classesCohorte.length})
                         </span>
+                        {(enAttenteParCohorteId.get(cohorte.id) ?? 0) > 0 && (
+                          <span className="ml-2 normal-case">
+                            <Badge variant="warning">
+                              {enAttenteParCohorteId.get(cohorte.id)} en liste d&apos;attente
+                            </Badge>
+                          </span>
+                        )}
                       </td>
                     </tr>
                     {classesCohorte.map((c) => (

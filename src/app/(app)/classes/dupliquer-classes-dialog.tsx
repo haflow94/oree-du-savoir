@@ -10,9 +10,9 @@ import { CONTROL_CLASSES } from "@/components/ui/champ";
 type Annee = { id: string; libelle: string };
 
 // Section "Dupliquer des classes vers l'année active" : repliée dans une
-// popup pour la même raison que CoursDialog (voir classes/page.tsx) — elle
-// ne s'utilise qu'occasionnellement (bascule d'année scolaire) et n'a pas
-// besoin de rester dépliée en permanence au-dessus du tableau des classes.
+// popup pour la même raison que StructureDialog (voir classes/page.tsx) —
+// elle ne s'utilise qu'occasionnellement (bascule d'année scolaire) et n'a
+// pas besoin de rester dépliée en permanence au-dessus du tableau des classes.
 export function DupliquerClassesDialog({
   annees,
   anneeActive,

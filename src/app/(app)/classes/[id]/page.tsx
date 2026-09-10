@@ -102,6 +102,15 @@ export default async function ClasseDetailPage({
   const administratif = estAdministratif(session.role);
   const peutInscrire = await peutAccederModule(session.role, Module.ETUDIANTS, "ECRITURE");
 
+  // Capacité/liste d'attente restent une notion de Cohorte (bloc), gérées
+  // exclusivement sur classes/cohortes/[id] (voir ce fichier) — ici on ne
+  // fait que signaler qu'il y en a une, scopée à l'année de CETTE classe
+  // (pas l'année active globale : une classe archivée d'une année passée ne
+  // doit jamais afficher la liste d'attente de l'année en cours).
+  const enAttenteCohorte = await prisma.affectationCohorte.count({
+    where: { cohorteId: classe.cohorteId, anneeScolaireId: classe.anneeScolaireId, statut: "EN_ATTENTE" },
+  });
+
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
   const enseignantsDisponibles = peutGerer ? await enseignantsActifsAvecSections() : [];
   const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
@@ -179,6 +188,19 @@ export default async function ClasseDetailPage({
                 .map((e) => `${e.utilisateur.prenom} ${e.utilisateur.nom}`)
                 .join(", ")
             : "—"}
+        </p>
+        <p className="mt-1 text-sm">
+          <Link
+            href={`/classes/cohortes/${classe.cohorteId}?anneeScolaireId=${classe.anneeScolaireId}`}
+            className="text-ink-muted hover:underline"
+          >
+            Voir la cohorte (bloc)
+          </Link>
+          {enAttenteCohorte > 0 && (
+            <span className="ml-2">
+              <Badge variant="warning">{enAttenteCohorte} en liste d&apos;attente</Badge>
+            </span>
+          )}
         </p>
       </div>
 
