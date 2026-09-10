@@ -17,6 +17,9 @@ const MESSAGES: Record<string, string> = {
   EMAIL_DEJA_UTILISE: "Un compte utilise déjà cette adresse email.",
   EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
   INTROUVABLE: "Ce compte n'existe plus.",
+  AUTO_SUPPRESSION: "Vous ne pouvez pas supprimer votre propre compte.",
+  DERNIER_BUREAU:
+    "Impossible : ce compte est le dernier Bureau actif. Sans lui, plus personne ne pourrait gérer les comptes.",
 };
 
 export default async function EnseignantsPage({

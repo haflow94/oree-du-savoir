@@ -193,6 +193,61 @@ export async function changerRoleAction(formData: FormData): Promise<void> {
   retour(formData);
 }
 
+// Contrairement aux autres champs (rôle, mot de passe, activation), nom /
+// prénom / email n'étaient éditables nulle part après la création du compte
+// — seule échappatoire jusqu'ici : aucune (voir aussi supprimerUtilisateurAction
+// ci-dessous, qui ne remplace pas ce besoin mais répond à la même demande).
+export async function modifierIdentiteAction(formData: FormData): Promise<void> {
+  const session = await requireRole([Role.BUREAU]);
+
+  const utilisateurId = champTexte(formData, "utilisateurId");
+  const email = champTexte(formData, "email")?.toLowerCase();
+  const nom = champTexte(formData, "nom");
+  const prenom = champTexte(formData, "prenom");
+  if (!utilisateurId || !email || !nom || !prenom) {
+    retour(formData, "CHAMPS_MANQUANTS");
+  }
+  if (!estEmailValide(email)) {
+    retour(formData, "EMAIL_INVALIDE");
+  }
+
+  const cible = await prisma.utilisateur.findUnique({ where: { id: utilisateurId } });
+  if (!cible) retour(formData, "INTROUVABLE");
+
+  const conflit = await prisma.utilisateur.findUnique({ where: { email } });
+  if (conflit && conflit.id !== utilisateurId) {
+    retour(formData, "EMAIL_DEJA_UTILISE");
+  }
+
+  if (cible.email === email && cible.nom === nom && cible.prenom === prenom) {
+    retour(formData);
+  }
+
+  await prisma.$transaction([
+    prisma.utilisateur.update({
+      where: { id: utilisateurId },
+      data: { email, nom, prenom },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "modification_identite",
+        entite: "Utilisateur",
+        entiteId: utilisateurId,
+        details: {
+          avant: { email: cible.email, nom: cible.nom, prenom: cible.prenom },
+          apres: { email, nom, prenom },
+        },
+      },
+    }),
+  ]);
+
+  revalidatePath("/administration");
+  revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
+  retour(formData);
+}
+
 export async function reinitialiserMotDePasseAction(
   formData: FormData,
 ): Promise<void> {
@@ -279,6 +334,53 @@ export async function revoquerSessionsAction(formData: FormData): Promise<void> 
         action: "revocation_sessions",
         entite: "Utilisateur",
         entiteId: utilisateurId,
+      },
+    }),
+  ]);
+
+  revalidatePath("/administration");
+  revalidatePath("/administration/enseignants");
+  revalidatePath("/administration/activites");
+  retour(formData);
+}
+
+// Suppression définitive, réservée au Bureau comme le reste de ce fichier
+// (requireRole([Role.BUREAU]), jamais le grid de permissions éditable — voir
+// CLAUDE.md). Le schéma anticipe déjà ce cas : chaque relation vers
+// Utilisateur ailleurs en base est soit onDelete: Cascade (sessions,
+// affectations vivantes — ClasseEnseignant, ActiviteResponsable,
+// LecturePreinscription), soit onDelete: SetNull (attribution "créé par" /
+// "validé par" sur un enregistrement métier qui doit survivre — Document,
+// Seance, Activite, JournalAudit...) : aucune contrainte à gérer ici.
+export async function supprimerUtilisateurAction(formData: FormData): Promise<void> {
+  const session = await requireRole([Role.BUREAU]);
+
+  const utilisateurId = champTexte(formData, "utilisateurId");
+  if (!utilisateurId) retour(formData, "CHAMPS_MANQUANTS");
+
+  if (utilisateurId === session.id) {
+    retour(formData, "AUTO_SUPPRESSION");
+  }
+
+  const cible = await prisma.utilisateur.findUnique({ where: { id: utilisateurId } });
+  if (!cible) retour(formData, "INTROUVABLE");
+
+  // Même verrou que la désactivation (voir bureauxActifsSauf) : supprimer le
+  // dernier Bureau actif condamnerait l'accès à cette page pour tout le
+  // monde.
+  if (cible.role === Role.BUREAU && (await bureauxActifsSauf(cible.id)) === 0) {
+    retour(formData, "DERNIER_BUREAU");
+  }
+
+  await prisma.$transaction([
+    prisma.utilisateur.delete({ where: { id: utilisateurId } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "suppression_compte",
+        entite: "Utilisateur",
+        entiteId: utilisateurId,
+        details: { email: cible.email, nom: cible.nom, prenom: cible.prenom, role: cible.role },
       },
     }),
   ]);

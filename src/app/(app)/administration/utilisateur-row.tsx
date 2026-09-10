@@ -6,11 +6,14 @@ import {
   changerActivationAction,
   changerRoleAction,
   changerSpecialitesAction,
+  modifierIdentiteAction,
   reinitialiserMotDePasseAction,
   revoquerSessionsAction,
+  supprimerUtilisateurAction,
 } from "./actions";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { CONTROL_SM_CLASSES } from "@/components/ui/champ";
 import { Role, ROLE_LABELS, ROLES_STAFF } from "@/lib/roles";
@@ -117,6 +120,44 @@ export function UtilisateurRow({
         }
       >
           <div className="mt-4 space-y-4">
+            <form action={modifierIdentiteAction} className="flex flex-wrap items-end gap-2">
+              {from && <input type="hidden" name="from" value={from} />}
+              <input type="hidden" name="utilisateurId" value={u.id} />
+              <div>
+                <label className={LABEL_XS_CLASSES}>Prénom</label>
+                <input
+                  type="text"
+                  name="prenom"
+                  required
+                  defaultValue={u.prenom}
+                  className={`w-32 ${CONTROL_SM_CLASSES}`}
+                />
+              </div>
+              <div>
+                <label className={LABEL_XS_CLASSES}>Nom</label>
+                <input
+                  type="text"
+                  name="nom"
+                  required
+                  defaultValue={u.nom}
+                  className={`w-32 ${CONTROL_SM_CLASSES}`}
+                />
+              </div>
+              <div>
+                <label className={LABEL_XS_CLASSES}>Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  defaultValue={u.email}
+                  className={`w-52 ${CONTROL_SM_CLASSES}`}
+                />
+              </div>
+              <SubmitButton variant="secondary" size="sm" pendingLabel="Enregistrement…">
+                Enregistrer
+              </SubmitButton>
+            </form>
+
             <form action={changerRoleAction} className="flex flex-wrap items-end gap-2">
               {from && <input type="hidden" name="from" value={from} />}
               <input type="hidden" name="utilisateurId" value={u.id} />
@@ -223,6 +264,19 @@ export function UtilisateurRow({
                   {u.actif ? "Désactiver" : "Réactiver"}
                 </button>
               </form>
+              <form id={`supprimer-compte-${u.id}`} action={supprimerUtilisateurAction}>
+                {from && <input type="hidden" name="from" value={from} />}
+                <input type="hidden" name="utilisateurId" value={u.id} />
+              </form>
+              <ConfirmDialog
+                formId={`supprimer-compte-${u.id}`}
+                triggerLabel="Supprimer"
+                title="Supprimer ce compte ?"
+                description={`Cette action supprime définitivement le compte de ${u.prenom} ${u.nom} (${u.email}) et ne peut pas être annulée.`}
+                confirmLabel="Supprimer définitivement"
+                disabled={soiMeme}
+                disabledTitle="Vous ne pouvez pas supprimer votre propre compte"
+              />
             </div>
           </div>
       </ModalShell>

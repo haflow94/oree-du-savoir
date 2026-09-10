@@ -16,6 +16,7 @@ const MESSAGES: Record<string, string> = {
   EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
   INTROUVABLE: "Ce compte n'existe plus.",
   AUTO_DESACTIVATION: "Vous ne pouvez pas désactiver votre propre compte.",
+  AUTO_SUPPRESSION: "Vous ne pouvez pas supprimer votre propre compte.",
   DERNIER_BUREAU:
     "Impossible : ce compte est le dernier Bureau actif. Sans lui, plus personne ne pourrait gérer les comptes.",
 };
