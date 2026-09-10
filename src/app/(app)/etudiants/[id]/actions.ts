@@ -1,10 +1,27 @@
 "use server";
 
+import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Civilite, Sexe, TypeDocument, TypePieceIdentite } from "@/generated/prisma/enums";
-import { enregistrerDocumentEtudiant, supprimerFichierDocument, dossierDocumentaireComplet } from "@/lib/documents";
+import {
+  enregistrerDocumentEtudiant,
+  supprimerFichierDocument,
+  dossierDocumentaireComplet,
+  deplacerDocumentVersEtudiant,
+  dossierPhysiqueEtudiant,
+  estDansDossierEtudiant,
+  formatSuffixeDesambiguisation,
+  formatSuffixeVersion,
+  nomFichierDocument,
+  renommerCheminBrut,
+  renommerDossierEtudiant,
+  renommerNomFichier,
+  renommerSegmentEtudiant,
+  sanitiserSegmentChemin,
+  suffixesDesambiguisation,
+} from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
@@ -90,6 +107,15 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
   const telephoneFixe = champTexte(formData, "telephoneFixe");
   if (telephoneFixe && !estTelephoneValide(telephoneFixe)) retour(etudiantId, "TELEPHONE_INVALIDE");
 
+  // Nécessaire au renommage best-effort du stockage physique ci-dessous
+  // (voir lib/documents-nommage.ts) : matricule (jamais modifié, sert
+  // d'ancre) + nom/prénom AVANT mise à jour, pour savoir si un renommage est
+  // seulement nécessaire et calculer l'ancien préfixe de chaque fichier.
+  const etudiantAvant = await prisma.etudiant.findUniqueOrThrow({
+    where: { id: etudiantId },
+    select: { matricule: true, nom: true, prenom: true },
+  });
+
   await prisma.$transaction([
     prisma.etudiant.update({
       where: { id: etudiantId },
@@ -131,6 +157,63 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
   // préinscription — voir redetecterDoublonApresModification.
   await redetecterDoublonApresModification(etudiantId);
 
+  // Renommage best-effort du stockage physique (voir lib/documents-nommage.ts) :
+  // le matricule reste l'ancre stable, seul le segment "NOM Prénom" change,
+  // pour TOUS les dossiers d'années où l'étudiant a des documents (pas
+  // seulement l'année courante — sinon un même matricule apparaîtrait sous
+  // plusieurs orthographes selon l'année consultée sur le NAS). Jamais
+  // bloquant pour cette action : un échec est journalisé, le staff reste
+  // averti que le rangement physique a pris du retard, à rattraper par le
+  // mécanisme de réconciliation.
+  if (nom !== etudiantAvant.nom || prenom !== etudiantAvant.prenom) {
+    const documents = await prisma.document.findMany({
+      where: { etudiantId, chequeId: null },
+      select: { id: true, cheminRelatif: true, nomFichier: true },
+    });
+    const parDossier = new Map<string, typeof documents>();
+    for (const document of documents) {
+      const dossier = path.posix.dirname(document.cheminRelatif.replace(/^etudiants\//, ""));
+      const groupe = parDossier.get(dossier) ?? [];
+      groupe.push(document);
+      parDossier.set(dossier, groupe);
+    }
+
+    for (const [ancienDossier, documentsDuDossier] of parDossier) {
+      const nouveauDossier = renommerSegmentEtudiant(ancienDossier, {
+        matricule: etudiantAvant.matricule,
+        nom,
+        prenom,
+      });
+      const succes = await renommerDossierEtudiant(ancienDossier, nouveauDossier);
+      if (!succes) {
+        await prisma.journalAudit.create({
+          data: {
+            utilisateurId: session.id,
+            action: "renommage_dossier_echoue",
+            entite: "Etudiant",
+            entiteId: etudiantId,
+            details: { ancienDossier, nouveauDossier },
+          },
+        });
+        continue;
+      }
+      for (const document of documentsDuDossier) {
+        const nouveauNomFichier = renommerNomFichier(
+          document.nomFichier,
+          { nom: etudiantAvant.nom, prenom: etudiantAvant.prenom },
+          { nom, prenom },
+        );
+        await prisma.document.update({
+          where: { id: document.id },
+          data: {
+            nomFichier: nouveauNomFichier,
+            cheminRelatif: path.posix.join("etudiants", nouveauDossier, nouveauNomFichier),
+          },
+        });
+      }
+    }
+  }
+
   revalidatePath(`/etudiants/${etudiantId}`);
   revalidatePath("/etudiants");
   revalidatePath("/etudiants/doublons");
@@ -148,6 +231,14 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
     include: {
       documents: true,
       _count: { select: { dossiersAnnuels: true } },
+      // Le plus récent : sert à ranger le dossier généré ci-dessous sous la
+      // bonne année physique (voir lib/documents-nommage.ts) — indépendant
+      // de dossierPaiementOuvert ci-dessus, qui ne regarde que le compte.
+      dossiersAnnuels: {
+        orderBy: { creeLe: "desc" },
+        take: 1,
+        select: { id: true, anneeScolaire: { select: { libelle: true } } },
+      },
     },
   });
   if (!etudiant) redirect("/etudiants");
@@ -205,17 +296,43 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
   // depuis la fiche étudiant.
   if (etudiant.sectionSouhaiteeId) {
     try {
-      const { modeleDossier, contexte, sectionNom } = await construireContexteDossierEtudiant({
-        etudiantId,
-        sectionId: etudiant.sectionSouhaiteeId,
-      });
+      const dossierAnnuel = etudiant.dossiersAnnuels[0] ?? null;
+      const [{ modeleDossier, contexte }, derniereVersion] = await Promise.all([
+        construireContexteDossierEtudiant({
+          etudiantId,
+          sectionId: etudiant.sectionSouhaiteeId,
+        }),
+        prisma.document.findFirst({
+          where: { dossierAnnuelId: dossierAnnuel?.id, type: "DOSSIER_GENERE" },
+          orderBy: { numeroVersion: "desc" },
+          select: { numeroVersion: true },
+        }),
+      ]);
       const html = await rendreDossierHtml(modeleDossier, contexte);
       const pdf = await rendreDossierPdf(html);
-      const nomFichier = `dossier-${sectionNom}-${etudiant.nom}-${etudiant.prenom}.pdf`;
-      const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, nomFichier, pdf);
+      const numeroVersion = (derniereVersion?.numeroVersion ?? 0) + 1;
+      const nomFichier = nomFichierDocument({
+        type: "DOSSIER_GENERE",
+        nom: etudiant.nom,
+        prenom: etudiant.prenom,
+        extension: "pdf",
+        suffixe: formatSuffixeVersion(numeroVersion),
+      });
+      const cheminRelatif = await enregistrerDocumentEtudiant(
+        {
+          matricule: etudiant.matricule,
+          nom: etudiant.nom,
+          prenom: etudiant.prenom,
+          anneeLibelle: dossierAnnuel?.anneeScolaire.libelle ?? null,
+        },
+        nomFichier,
+        pdf,
+      );
       await prisma.document.create({
         data: {
           etudiantId,
+          dossierAnnuelId: dossierAnnuel?.id,
+          numeroVersion,
           type: "DOSSIER_GENERE",
           nomFichier,
           cheminRelatif,
@@ -321,7 +438,18 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
   const existantId = doublon.doublonPotentielId;
   const existant = await prisma.etudiant.findUnique({
     where: { id: existantId },
-    include: { responsables: true, inscriptions: true, documents: true },
+    include: {
+      responsables: true,
+      inscriptions: true,
+      documents: true,
+      // Le plus récent : détermine où (quelle année) les documents reparentés
+      // du doublon atterrissent chez existant — voir lib/documents-nommage.ts.
+      dossiersAnnuels: {
+        orderBy: { creeLe: "desc" },
+        take: 1,
+        select: { anneeScolaire: { select: { libelle: true } } },
+      },
+    },
   });
   if (!existant) retour(etudiantId, "DOUBLON_INTROUVABLE");
 
@@ -342,6 +470,144 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
   const documentsASupprimer = doublon.documents.filter(
     (d) => !documentsAReparenter.some((r) => r.id === d.id),
   );
+
+  // Le doublon n'a par construction AUCUN DossierAnnuel (garde-fou
+  // DOUBLON_NON_FUSIONNABLE ci-dessus) : ses documents (le cas échéant) sont
+  // donc toujours de type non versionné (jamais DOSSIER_GENERE/DOSSIER_SIGNE,
+  // qui exigent un dossierAnnuelId), toujours sous _A_CLASSER.
+  //
+  // Réconciliation physique du stockage (voir lib/documents-nommage.ts),
+  // ENTIÈREMENT avant toute écriture en base : le matricule de `existant`
+  // ne change jamais (absent du payload de mise à jour ci-dessous), celui du
+  // doublon ne sera jamais réutilisé (ligne supprimée en base, séquence
+  // jamais réinitialisée). Un échec de déplacement annule toute la fusion —
+  // rien n'est écrit en base, rien n'est à moitié fusionné.
+  const nouveauNom = doublon.nom;
+  const nouveauPrenom = doublon.prenom;
+  const anneeLibelleCible = existant.dossiersAnnuels[0]?.anneeScolaire.libelle ?? null;
+  const contexteExistantActuel = {
+    matricule: existant.matricule,
+    nom: existant.nom,
+    prenom: existant.prenom,
+    anneeLibelle: anneeLibelleCible,
+  };
+  const dossierExistantActuel = dossierPhysiqueEtudiant(contexteExistantActuel);
+
+  type MiseAJourDocument = { id: string; cheminRelatif: string; nomFichier: string };
+  const misesAJourDocuments: MiseAJourDocument[] = [];
+
+  // Filet de rattrapage : chaque déplacement physique réussi (fichier ou
+  // dossier — chemins déjà complets, relatifs à DOCUMENTS_DIR, voir
+  // renommerCheminBrut) est mémorisé ici (ancien <- nouveau) pour pouvoir
+  // tout remettre en place si une étape ULTÉRIEURE échoue — la fusion doit
+  // rester tout-ou-rien, jamais un mélange d'un document déjà déplacé sur le
+  // disque mais dont la base pointe toujours vers l'ancien emplacement.
+  // N'est correct QUE parce que l'étape 2 (renommage de dossier) est
+  // toujours la DERNIÈRE opération physique tentée ci-dessous, jamais suivie
+  // d'une autre étape pouvant elle-même échouer : un rollback en ordre
+  // inverse après un renommage de dossier réussi déplacerait aussi les
+  // fichiers de l'étape 1 déjà entraînés dans ce renommage, sous un chemin
+  // différent de celui enregistré ici. Toute étape 3 future devrait revoir
+  // cette hypothèse.
+  const deplacementsEffectues: { ancien: string; nouveau: string }[] = [];
+  async function annulerEtAbandonner(idPourRetour: string): Promise<never> {
+    for (const d of [...deplacementsEffectues].reverse()) {
+      await renommerCheminBrut(d.nouveau, d.ancien);
+    }
+    retour(idPourRetour, "FUSION_DEPLACEMENT_ECHOUE");
+  }
+
+  // 1) Déplace chaque document reparenté vers le dossier ACTUEL de
+  // `existant` (avant tout renommage éventuel, voir étape 2), sous son nom
+  // final — désambiguïsation scopée à ce dossier précis, en tenant compte à
+  // la fois des documents déjà présents chez `existant` ET des autres
+  // documents reparentés du même type arrivant en même temps.
+  const documentsExistantParType = new Map<string, typeof existant.documents>();
+  for (const d of existant.documents) {
+    const groupe = documentsExistantParType.get(d.type) ?? [];
+    groupe.push(d);
+    documentsExistantParType.set(d.type, groupe);
+  }
+  const documentsAReparenterParType = new Map<string, typeof documentsAReparenter>();
+  for (const d of documentsAReparenter) {
+    const groupe = documentsAReparenterParType.get(d.type) ?? [];
+    groupe.push(d);
+    documentsAReparenterParType.set(d.type, groupe);
+  }
+  for (const [type, docsDeCeType] of documentsAReparenterParType) {
+    const siblingsExistant = (documentsExistantParType.get(type) ?? []).filter((d) =>
+      estDansDossierEtudiant(d.cheminRelatif, dossierExistantActuel),
+    );
+    const suffixes = suffixesDesambiguisation([
+      ...siblingsExistant.map((d) => ({ id: d.id, creeLe: d.creeLe })),
+      ...docsDeCeType.map((d) => ({ id: d.id, creeLe: d.creeLe })),
+    ]);
+    for (const document of docsDeCeType) {
+      const extension = document.nomFichier.split(".").pop() || "bin";
+      const nomFichierCible = nomFichierDocument({
+        type: type as TypeDocument,
+        nom: existant.nom,
+        prenom: existant.prenom,
+        extension,
+        suffixe: suffixes[document.id] ?? "",
+      });
+      const nouveauChemin = await deplacerDocumentVersEtudiant(
+        document.cheminRelatif,
+        contexteExistantActuel,
+        nomFichierCible,
+      );
+      if (!nouveauChemin) {
+        await annulerEtAbandonner(etudiantId);
+        return;
+      }
+      deplacementsEffectues.push({ ancien: document.cheminRelatif, nouveau: nouveauChemin });
+      misesAJourDocuments.push({ id: document.id, cheminRelatif: nouveauChemin, nomFichier: nomFichierCible });
+    }
+  }
+
+  // 2) `existant` peut lui-même changer de nom/prénom (la fusion privilégie
+  // doublon.nom/prenom ci-dessous) : si c'est le cas, un seul renommage du
+  // dossier ACTUEL de `existant` (qui contient déjà, depuis l'étape 1, les
+  // documents fraîchement reparentés) déplace tout son contenu d'un coup.
+  if (existant.nom !== nouveauNom || existant.prenom !== nouveauPrenom) {
+    const nouveauDossier = renommerSegmentEtudiant(dossierExistantActuel, {
+      matricule: existant.matricule,
+      nom: nouveauNom,
+      prenom: nouveauPrenom,
+    });
+    const succes = await renommerDossierEtudiant(dossierExistantActuel, nouveauDossier);
+    if (!succes) {
+      await annulerEtAbandonner(etudiantId);
+      return;
+    }
+    deplacementsEffectues.push({
+      ancien: path.posix.join("etudiants", dossierExistantActuel),
+      nouveau: path.posix.join("etudiants", nouveauDossier),
+    });
+
+    for (const maj of misesAJourDocuments) {
+      maj.nomFichier = renommerNomFichier(
+        maj.nomFichier,
+        { nom: existant.nom, prenom: existant.prenom },
+        { nom: nouveauNom, prenom: nouveauPrenom },
+      );
+      maj.cheminRelatif = path.posix.join("etudiants", nouveauDossier, maj.nomFichier);
+    }
+    for (const document of existant.documents.filter((d) =>
+      estDansDossierEtudiant(d.cheminRelatif, dossierExistantActuel),
+    )) {
+      const nouveauNomFichier = renommerNomFichier(
+        document.nomFichier,
+        { nom: existant.nom, prenom: existant.prenom },
+        { nom: nouveauNom, prenom: nouveauPrenom },
+      );
+      misesAJourDocuments.push({
+        id: document.id,
+        nomFichier: nouveauNomFichier,
+        cheminRelatif: path.posix.join("etudiants", nouveauDossier, nouveauNomFichier),
+      });
+    }
+  }
 
   await prisma.$transaction([
     prisma.etudiant.update({
@@ -367,14 +633,16 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
     ...responsablesAReparenter.map((r) =>
       prisma.responsableLegal.update({ where: { id: r.id }, data: { etudiantId: existantId } }),
     ),
-    ...(documentsAReparenter.length > 0
-      ? [
-          prisma.document.updateMany({
-            where: { id: { in: documentsAReparenter.map((d) => d.id) } },
-            data: { etudiantId: existantId },
-          }),
-        ]
-      : []),
+    ...misesAJourDocuments.map((maj) =>
+      prisma.document.update({
+        where: { id: maj.id },
+        data: {
+          ...(documentsAReparenter.some((d) => d.id === maj.id) ? { etudiantId: existantId } : {}),
+          cheminRelatif: maj.cheminRelatif,
+          nomFichier: maj.nomFichier,
+        },
+      }),
+    ),
     ...(documentsASupprimer.length > 0
       ? [prisma.document.deleteMany({ where: { id: { in: documentsASupprimer.map((d) => d.id) } } })]
       : []),
@@ -483,8 +751,65 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
     retour(etudiantId, "PIECE_IDENTITE_INCOMPLETE");
   }
 
+  // Contexte de nommage (voir lib/documents-nommage.ts) : l'année retenue
+  // pour le rangement physique est celle du DossierAnnuel le plus récent de
+  // l'étudiant, s'il en a un — sinon _A_CLASSER (voir BUCKET_SANS_ANNEE),
+  // jamais bloquant pour le téléversement lui-même.
+  const etudiant = await prisma.etudiant.findUniqueOrThrow({
+    where: { id: etudiantId },
+    include: {
+      dossiersAnnuels: {
+        orderBy: { creeLe: "desc" },
+        take: 1,
+        select: { anneeScolaire: { select: { libelle: true } } },
+      },
+    },
+  });
+  const contexteEtudiant = {
+    matricule: etudiant.matricule,
+    nom: etudiant.nom,
+    prenom: etudiant.prenom,
+    anneeLibelle: etudiant.dossiersAnnuels[0]?.anneeScolaire.libelle ?? null,
+  };
+  const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
+
+  // Désambiguïsation scopée au dossier physique CIBLE (pas à tout
+  // l'historique de l'étudiant) : deux documents du même type dans deux
+  // années différentes ne se côtoient jamais sur le NAS, donc ne peuvent pas
+  // entrer en collision de nom — voir estDansDossierEtudiant.
+  const documentsDuMemeType = (
+    await prisma.document.findMany({
+      where: { etudiantId, type, chequeId: null },
+      select: { id: true, creeLe: true, cheminRelatif: true },
+    })
+  ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
+
   const contenu = Buffer.from(await fichier.arrayBuffer());
-  const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, fichier.name, contenu);
+  const maintenant = new Date();
+  // DOSSIER_SIGNE (déposé à la main, ex. signature papier) suit la même
+  // désambiguïsation par version que DOSSIER_GENERE (voir
+  // lib/dossier/generation.ts) ; tous les autres types, par date — voir
+  // formatSuffixeDesambiguisation, calculé sur le groupe EXISTANT + ce
+  // nouveau document (id temporaire "nouveau", jamais persistée).
+  const suffixe =
+    type === "DOSSIER_SIGNE"
+      ? formatSuffixeVersion(documentsDuMemeType.length + 1)
+      : formatSuffixeDesambiguisation("nouveau", [
+          ...documentsDuMemeType,
+          { id: "nouveau", creeLe: maintenant },
+        ]);
+  const nomOriginalNettoye = sanitiserSegmentChemin(
+    fichier.name.replace(/\.[^.]+$/, ""),
+  );
+  const nomFichier = nomFichierDocument({
+    type,
+    nom: etudiant.nom,
+    prenom: etudiant.prenom,
+    extension: fichier.name.split(".").pop() || "bin",
+    suffixe,
+    nomOriginalNettoye,
+  });
+  const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, contenu);
 
   const cree = await prisma.document.create({
     data: {
@@ -493,11 +818,13 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
       typePieceIdentite: type === "PIECE_IDENTITE" ? (typePieceIdentite as TypePieceIdentite) : null,
       dateExpiration:
         type === "PIECE_IDENTITE" && dateExpirationBrute ? new Date(dateExpirationBrute) : null,
-      nomFichier: fichier.name,
+      numeroVersion: type === "DOSSIER_SIGNE" ? documentsDuMemeType.length + 1 : null,
+      nomFichier,
       cheminRelatif,
       mimeType: fichier.type || "application/octet-stream",
       tailleOctets: contenu.length,
       creeParId: session.id,
+      creeLe: maintenant,
     },
   });
 

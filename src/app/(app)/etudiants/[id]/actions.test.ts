@@ -51,11 +51,24 @@ vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidat
 
 const supprimerFichierDocument = vi.fn();
 const dossierDocumentaireComplet = vi.fn();
-vi.mock("@/lib/documents", () => ({
-  enregistrerDocumentEtudiant: vi.fn(),
-  supprimerFichierDocument: (...args: unknown[]) => supprimerFichierDocument(...args),
-  dossierDocumentaireComplet: (...args: unknown[]) => dossierDocumentaireComplet(...args),
-}));
+const renommerDossierEtudiant = vi.fn().mockResolvedValue(true);
+const deplacerDocumentVersEtudiant = vi.fn();
+const renommerCheminBrut = vi.fn().mockResolvedValue(true);
+// Fonctions PURES (voir lib/documents-nommage.ts) réimportées directement
+// depuis ce module sans "server-only" : celui-ci lève dès qu'il est exécuté
+// hors d'un composant serveur, y compris dans ce contexte de test.
+vi.mock("@/lib/documents", async () => {
+  const nommage = await import("@/lib/documents-nommage");
+  return {
+    ...nommage,
+    enregistrerDocumentEtudiant: vi.fn(),
+    supprimerFichierDocument: (...args: unknown[]) => supprimerFichierDocument(...args),
+    dossierDocumentaireComplet: (...args: unknown[]) => dossierDocumentaireComplet(...args),
+    renommerDossierEtudiant: (...args: unknown[]) => renommerDossierEtudiant(...args),
+    deplacerDocumentVersEtudiant: (...args: unknown[]) => deplacerDocumentVersEtudiant(...args),
+    renommerCheminBrut: (...args: unknown[]) => renommerCheminBrut(...args),
+  };
+});
 
 vi.mock("@/lib/doublons-etudiant", () => ({ redetecterDoublonApresModification: vi.fn() }));
 vi.mock("@/lib/dossier/context", () => ({ construireContexteDossierEtudiant: vi.fn() }));
@@ -96,9 +109,16 @@ describe("fusionnerDoublonAction — conservation de l'historique des notificati
       })
       .mockResolvedValueOnce({
         id: "existant1",
+        // Même nom/prénom que le doublon : aucun renommage physique déclenché
+        // par ce test, qui porte sur le reparentage des notifications — voir
+        // les tests dédiés au renommage/déplacement physique.
+        matricule: "000001",
+        nom: "Dupont",
+        prenom: "Ali",
         responsables: [],
         inscriptions: [],
         documents: [],
+        dossiersAnnuels: [],
       });
 
     etudiantUpdate.mockResolvedValue({});

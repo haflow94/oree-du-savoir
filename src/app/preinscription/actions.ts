@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Civilite, Sexe, TypePieceIdentite } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant, LIBELLE_CRITERE_DOUBLON } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, nomFichierDocument } from "@/lib/documents";
 import { detecterTypeMimeReel, TAILLE_MAX_FICHIER_MO, TAILLE_MAX_FICHIER_OCTETS } from "@/lib/fichiers-uploades";
 import {
   tenterConsommerCode,
@@ -411,52 +411,15 @@ export async function preinscrireAction(
   // pousse rien vers un onglet déjà ouvert.
   revalidatePath("/inscriptions");
 
-  // Écriture des fichiers hors transaction (même pattern que
-  // televerserDocumentAction, etudiants/[id]/actions.ts) : le fichier vit
-  // sur DOCUMENTS_DIR, jamais en base, la ligne Document ne référence que le
-  // chemin une fois le fichier réellement écrit. mimeType est toujours le
-  // type détecté à partir du contenu réel (validé plus haut), jamais celui
-  // déclaré par le navigateur — voir lib/fichiers-uploades.ts.
-  if (contenuPhoto && photo instanceof File) {
-    const typeMimeReel = detecterTypeMimeReel(contenuPhoto)!;
-    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, photo.name, contenuPhoto);
-    await prisma.document.create({
-      data: {
-        etudiantId: etudiant.id,
-        type: "PHOTO",
-        nomFichier: photo.name,
-        cheminRelatif,
-        mimeType: typeMimeReel,
-        tailleOctets: contenuPhoto.length,
-      },
-    });
-  }
-  if (contenuPieceIdentite && pieceIdentite instanceof File) {
-    const typeMimeReel = detecterTypeMimeReel(contenuPieceIdentite)!;
-    const cheminRelatif = await enregistrerDocumentEtudiant(etudiant.id, pieceIdentite.name, contenuPieceIdentite);
-    await prisma.document.create({
-      data: {
-        etudiantId: etudiant.id,
-        type: "PIECE_IDENTITE",
-        typePieceIdentite: typePieceIdentite as TypePieceIdentite,
-        dateExpiration: new Date(dateExpirationPieceBrute!),
-        nomFichier: pieceIdentite.name,
-        cheminRelatif,
-        mimeType: typeMimeReel,
-        tailleOctets: contenuPieceIdentite.length,
-      },
-    });
-  }
-
-  // Génération automatique du dossier V1 + lien sécurisé de vérification
-  // (voir CLAUDE.md/analyse de conversation — parcours préinscription →
-  // signature) : le dossier doit exister dès la préinscription pour CHAQUE
-  // étudiant créé, y compris un homonyme légitime (voir CLAUDE.md, Problème 3
-  // "deux élèves ayant le même nom et prénom doivent pouvoir coexister sans
-  // risque de mélange") — seul le critère NOM_DATE (même nom, prénom ET date
-  // de naissance, voir doublons-etudiant.ts) désigne un probable VRAI doublon
-  // (double soumission de la même personne) : dans ce seul cas, on attend que
-  // le staff tranche (fusion ou confirmation d'homonymie, voir
+  // Ouverture best-effort du DossierAnnuel AVANT l'écriture des fichiers
+  // ci-dessous (réordonnancement délibéré, voir lib/documents-nommage.ts —
+  // BUCKET_SANS_ANNEE) : range directement la photo/pièce d'identité sous la
+  // bonne année physique dans le cas nominal, plutôt que de les faire
+  // transiter par _A_CLASSER puis dépendre d'une réconciliation ultérieure.
+  // Seul le critère NOM_DATE (même nom, prénom ET date de naissance, voir
+  // doublons-etudiant.ts) désigne un probable VRAI doublon (double soumission
+  // de la même personne) : dans ce seul cas, on attend que le staff tranche
+  // (fusion ou confirmation d'homonymie, voir
   // etudiants/[id]/actions.ts#fusionnerDoublonAction/confirmerHomonymeAction)
   // avant de créer un DossierAnnuel, pour ne pas ouvrir un second dossier de
   // paiement pour ce qui pourrait n'être qu'une seule et même personne — ce
@@ -473,6 +436,9 @@ export async function preinscrireAction(
   // génération best-effort déjà existante à la validation finale (voir
   // etudiants/[id]/actions.ts#validerInscriptionAction) — le staff peut
   // toujours déclencher/relancer ce parcours à la main depuis la fiche.
+  let dossierAnnuelId: string | null = null;
+  let anneeLibelle: string | null = null;
+  let sectionPrincipaleId: string | null = null;
   if (!doublon || doublon.critere !== "NOM_DATE") {
     try {
       const sectionPrincipale = sectionsSouhaitees[0];
@@ -484,19 +450,86 @@ export async function preinscrireAction(
         const dossierAnnuel = await prisma.dossierAnnuel.create({
           data: { etudiantId: etudiant.id, anneeScolaireId: anneeActive.id, montantDu },
         });
-
-        await genererNouvelleVersionDossier({
-          etudiantId: etudiant.id,
-          sectionId: sectionPrincipale.id,
-          dossierAnnuelId: dossierAnnuel.id,
-        });
-        // Le lien sécurisé (AccesDossier) n'est PAS créé ici : le token brut
-        // ne pouvant jamais être relu une fois généré (seul son hash est
-        // stocké, même principe que Session/CodePreinscription), il doit
-        // être créé au moment où il sert réellement — voir GET
-        // /api/internal/n8n/dossiers-a-verifier, qui le génère à la lecture
-        // pour construire le lien de l'email "dossier prêt à vérifier".
+        dossierAnnuelId = dossierAnnuel.id;
+        anneeLibelle = anneeActive.libelle;
+        sectionPrincipaleId = sectionPrincipale.id;
       }
+    } catch (erreur) {
+      console.error("Ouverture automatique du dossier annuel à la préinscription :", erreur);
+    }
+  }
+  const contexteEtudiant = { matricule: etudiant.matricule, nom, prenom, anneeLibelle };
+
+  // Écriture des fichiers hors transaction (même pattern que
+  // televerserDocumentAction, etudiants/[id]/actions.ts) : le fichier vit
+  // sur DOCUMENTS_DIR, jamais en base, la ligne Document ne référence que le
+  // chemin une fois le fichier réellement écrit. mimeType est toujours le
+  // type détecté à partir du contenu réel (validé plus haut), jamais celui
+  // déclaré par le navigateur — voir lib/fichiers-uploades.ts. `anneeLibelle`
+  // reste null (donc BUCKET_SANS_ANNEE) seulement dans le cas exceptionnel
+  // ci-dessus (doublon NOM_DATE, aucune année active, échec best-effort).
+  if (contenuPhoto && photo instanceof File) {
+    const typeMimeReel = detecterTypeMimeReel(contenuPhoto)!;
+    const nomFichier = nomFichierDocument({
+      type: "PHOTO",
+      nom,
+      prenom,
+      extension: photo.name.split(".").pop() || "bin",
+      suffixe: "",
+    });
+    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, contenuPhoto);
+    await prisma.document.create({
+      data: {
+        etudiantId: etudiant.id,
+        type: "PHOTO",
+        nomFichier,
+        cheminRelatif,
+        mimeType: typeMimeReel,
+        tailleOctets: contenuPhoto.length,
+      },
+    });
+  }
+  if (contenuPieceIdentite && pieceIdentite instanceof File) {
+    const typeMimeReel = detecterTypeMimeReel(contenuPieceIdentite)!;
+    const nomFichier = nomFichierDocument({
+      type: "PIECE_IDENTITE",
+      nom,
+      prenom,
+      extension: pieceIdentite.name.split(".").pop() || "bin",
+      suffixe: "",
+    });
+    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, contenuPieceIdentite);
+    await prisma.document.create({
+      data: {
+        etudiantId: etudiant.id,
+        type: "PIECE_IDENTITE",
+        typePieceIdentite: typePieceIdentite as TypePieceIdentite,
+        dateExpiration: new Date(dateExpirationPieceBrute!),
+        nomFichier,
+        cheminRelatif,
+        mimeType: typeMimeReel,
+        tailleOctets: contenuPieceIdentite.length,
+      },
+    });
+  }
+
+  // Génération automatique du dossier PDF V1 (voir CLAUDE.md/analyse de
+  // conversation — parcours préinscription → signature), maintenant que le
+  // DossierAnnuel (ci-dessus) existe s'il a pu être ouvert — best-effort,
+  // hors du chemin critique, ne doit jamais faire échouer la préinscription.
+  if (dossierAnnuelId && sectionPrincipaleId) {
+    try {
+      await genererNouvelleVersionDossier({
+        etudiantId: etudiant.id,
+        sectionId: sectionPrincipaleId,
+        dossierAnnuelId,
+      });
+      // Le lien sécurisé (AccesDossier) n'est PAS créé ici : le token brut
+      // ne pouvant jamais être relu une fois généré (seul son hash est
+      // stocké, même principe que Session/CodePreinscription), il doit
+      // être créé au moment où il sert réellement — voir GET
+      // /api/internal/n8n/dossiers-a-verifier, qui le génère à la lecture
+      // pour construire le lien de l'email "dossier prêt à vérifier".
     } catch (erreur) {
       console.error("Génération automatique du dossier à la préinscription :", erreur);
     }

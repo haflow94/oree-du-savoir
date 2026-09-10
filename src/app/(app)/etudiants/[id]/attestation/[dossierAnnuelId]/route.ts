@@ -4,7 +4,13 @@ import { requireRole } from "@/lib/auth";
 import { Role } from "@/lib/roles";
 import { JOUR_LABELS } from "@/lib/planning";
 import { genererAttestationScolaritePdf } from "@/lib/pdf-documents";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import {
+  enregistrerDocumentEtudiant,
+  nomFichierDocument,
+  formatSuffixeDesambiguisation,
+  estDansDossierEtudiant,
+  dossierPhysiqueEtudiant,
+} from "@/lib/documents";
 
 // Même garde d'accès (Bureau/Administration en dur) et même principe de
 // régénération à chaque appel que la route reçu — voir son commentaire.
@@ -65,8 +71,36 @@ export async function GET(
     dateEdition: new Date(),
   });
 
-  const nomFichier = `attestation-${dossier.anneeScolaire.libelle.replace(/\//g, "-")}-${dossier.etudiant.nom}-${dossier.etudiant.prenom}.pdf`;
-  const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, nomFichier, pdf);
+  // Régénérée à chaque appel (voir commentaire ci-dessus) : désambiguïsation
+  // par date, scopée au dossier physique de cette année précise (voir
+  // lib/documents-nommage.ts), même principe que la route reçu.
+  const contexteEtudiant = {
+    matricule: dossier.etudiant.matricule,
+    nom: dossier.etudiant.nom,
+    prenom: dossier.etudiant.prenom,
+    anneeLibelle: dossier.anneeScolaire.libelle,
+  };
+  const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
+  const documentsExistants = (
+    await prisma.document.findMany({
+      where: { etudiantId, type: "ATTESTATION_SCOLARITE" },
+      select: { id: true, creeLe: true, cheminRelatif: true },
+    })
+  ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
+  const maintenant = new Date();
+  const suffixe = formatSuffixeDesambiguisation("nouveau", [
+    ...documentsExistants,
+    { id: "nouveau", creeLe: maintenant },
+  ]);
+
+  const nomFichier = nomFichierDocument({
+    type: "ATTESTATION_SCOLARITE",
+    nom: dossier.etudiant.nom,
+    prenom: dossier.etudiant.prenom,
+    extension: "pdf",
+    suffixe,
+  });
+  const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
 
   await prisma.document.create({
     data: {
@@ -77,6 +111,7 @@ export async function GET(
       mimeType: "application/pdf",
       tailleOctets: pdf.length,
       creeParId: session.id,
+      creeLe: maintenant,
     },
   });
 

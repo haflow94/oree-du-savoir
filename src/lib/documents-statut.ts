@@ -73,3 +73,74 @@ export function statutDocumentsRequis(
 export function dossierDocumentaireComplet(documents: DocumentPourStatut[]): boolean {
   return Object.values(statutDocumentsRequis(documents)).every((s) => s === "OK");
 }
+
+// "Statut dossier" affiché à l'accueil (voir /etudiants et /inscriptions) :
+// une lecture combinée, purement d'affichage, de trois statuts qui existent
+// déjà en base — Etudiant.statutInscription, DossierAnnuel.statutSignature
+// (voir prisma/schema.prisma#StatutSignature) et le dossier documentaire
+// (dossierDocumentaireComplet ci-dessus). Volontairement PAS un nouvel enum
+// ni une donnée stockée : juste une fonction pure qui les combine pour
+// donner au staff d'accueil une vision immédiate de l'avancement, sans rien
+// changer aux trois statuts sources ni à leurs transitions (voir CLAUDE.md —
+// "signature ≠ validation finale").
+export type StatutDossierAffiche =
+  | "RECUE_EN_COURS"
+  | "A_VERIFIER"
+  | "ENVOYE_SIGNATURE"
+  | "DOSSIER_SIGNE"
+  | "A_COMPLETER"
+  | "VALIDE_DEFINITIVEMENT";
+
+export const STATUT_DOSSIER_LABELS: Record<StatutDossierAffiche, string> = {
+  RECUE_EN_COURS: "Reçue / en cours",
+  A_VERIFIER: "À vérifier",
+  ENVOYE_SIGNATURE: "Envoyé en signature",
+  DOSSIER_SIGNE: "Dossier signé",
+  A_COMPLETER: "À compléter",
+  VALIDE_DEFINITIVEMENT: "Validé définitivement",
+};
+
+export const STATUT_DOSSIER_VARIANTS: Record<
+  StatutDossierAffiche,
+  "success" | "warning" | "danger" | "info" | "neutral"
+> = {
+  RECUE_EN_COURS: "neutral",
+  A_VERIFIER: "warning",
+  ENVOYE_SIGNATURE: "info",
+  DOSSIER_SIGNE: "success",
+  A_COMPLETER: "warning",
+  VALIDE_DEFINITIVEMENT: "success",
+};
+
+// `statutSignature` à null = aucun DossierAnnuel pour cet étudiant (ex. fiche
+// créée à la main par le staff sans dossier de paiement ouvert, voir
+// etudiants/nouveau/actions.ts, ou génération automatique à la préinscription
+// qui a échoué avant même de créer la ligne — voir preinscription/actions.ts)
+// : renvoie null, affiché à part par l'appelant (ex. "—") plutôt que de
+// forcer une des 6 étiquettes ci-dessus sur un cas qui n'en est aucun.
+//
+// statutInscription = VALIDE l'emporte toujours sur le cycle de signature :
+// une validation administrative peut intervenir sans que le dossier ait
+// suivi tout le circuit Documenso (règle "signature ≠ validation finale").
+export function statutDossierAffiche({
+  statutInscription,
+  statutSignature,
+  documents,
+}: {
+  statutInscription: string;
+  statutSignature: string | null;
+  documents: DocumentPourStatut[];
+}): StatutDossierAffiche | null {
+  if (statutInscription === "VALIDE") return "VALIDE_DEFINITIVEMENT";
+  if (statutSignature === null) return null;
+  switch (statutSignature) {
+    case "A_VERIFIER":
+      return "A_VERIFIER";
+    case "ENVOYEE_SIGNATURE":
+      return "ENVOYE_SIGNATURE";
+    case "SIGNEE":
+      return dossierDocumentaireComplet(documents) ? "DOSSIER_SIGNE" : "A_COMPLETER";
+    default:
+      return "RECUE_EN_COURS"; // A_GENERER
+  }
+}

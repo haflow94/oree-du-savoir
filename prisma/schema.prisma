@@ -308,6 +308,24 @@ enum StatutInscription {
 // (voir Projet/03_Analyse_existant_Excel.md, section 3.3). Ne pas deviner.
 model Etudiant {
   id                             String            @id @default(cuid())
+  // Identifiant métier stable, distinct du cuid technique ci-dessus (jamais
+  // utilisé comme nom de dossier/fichier NAS — illisible pour l'accueil,
+  // voir lib/documents-nommage.ts) : 6 chiffres, attribué une seule fois via
+  // la séquence Postgres `etudiant_matricule_seq` (voir migration
+  // ajoute_matricule_etudiant), jamais recalculé/réutilisé même après
+  // suppression ou fusion de doublon. Immuable après attribution — garanti
+  // par un trigger Postgres posé dans la même migration (pas seulement par
+  // discipline de code : voir la fonction empecher_modification_matricule),
+  // donc aucune action serveur ne doit jamais tenter de l'inclure dans un
+  // payload de mise à jour, y compris fusionnerDoublonAction
+  // (etudiants/[id]/actions.ts) où seule la fiche conservée compte, jamais
+  // celle du doublon supprimé.
+  // @default(dbgenerated(...)) plutôt qu'un défaut Prisma classique : la
+  // valeur DOIT être calculée par la séquence côté Postgres (voir la
+  // migration), jamais recalculée indépendamment côté application —
+  // indique aussi au client généré que ce champ est optionnel à la création
+  // (laissé au DEFAULT de la colonne), voir tous les `etudiant.create`.
+  matricule                      String            @unique @default(dbgenerated("lpad((nextval('etudiant_matricule_seq'::regclass))::text, 6, '0'::text)")) @db.Char(6)
   civilite                       Civilite?
   nom                            String
   prenom                         String

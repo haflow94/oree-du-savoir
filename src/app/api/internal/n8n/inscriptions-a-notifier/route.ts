@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifierAuthN8n } from "@/lib/auth-n8n";
+import { dossierDocumentaireComplet } from "@/lib/documents-statut";
 
 // Ce flux tourne sur une petite volumétrie associative : une limite basse
 // suffit et évite qu'une réponse grossisse sans borne si n8n reste arrêté
@@ -20,7 +21,9 @@ export type CandidatNotification = {
 // Étudiants validés dont le dossier a déjà été généré mais pas encore
 // notifiés (voir Etudiant.notificationBienvenueEnvoyeeLe) : source unique de
 // vérité pour l'idempotence du flux 1 (email de bienvenue). n8n ne lit
-// jamais Postgres directement — uniquement via cette route.
+// jamais Postgres directement — uniquement via cette route, qui revérifie
+// elle-même statutInscription/signature/dossier documentaire avant de rendre
+// un candidat (voir le verrou de sécurité fonctionnelle plus bas).
 export async function GET(request: NextRequest) {
   const nonAutorise = verifierAuthN8n(request);
   if (nonAutorise) return nonAutorise;
@@ -36,12 +39,15 @@ export async function GET(request: NextRequest) {
       nom: true,
       prenom: true,
       email: true,
+      statutInscription: true,
       documents: {
-        where: { type: "DOSSIER_GENERE" },
-        orderBy: { creeLe: "desc" },
-        take: 1,
-        select: { id: true, nomFichier: true },
+        select: { id: true, type: true, nomFichier: true, dateExpiration: true, creeLe: true },
       },
+      // Statut de signature Documenso par dossier annuel (voir
+      // prisma/schema.prisma#StatutSignature) — vérifié ci-dessous en plus du
+      // filtre déjà posé dans le `where`, voir le verrou de sécurité
+      // fonctionnelle juste en dessous.
+      dossiersAnnuels: { select: { statutSignature: true } },
       responsables: {
         where: { email: { not: null } },
         orderBy: { creeLe: "asc" },
@@ -55,7 +61,34 @@ export async function GET(request: NextRequest) {
 
   const candidats: CandidatNotification[] = [];
   for (const etudiant of etudiants) {
-    const document = etudiant.documents[0];
+    // Verrou de sécurité fonctionnelle redondant (Flux 1 — voir CLAUDE.md) :
+    // un email de bienvenue ne doit jamais partir tant que la validation
+    // n'est pas *réellement* complète. validerInscriptionAction
+    // ((app)/etudiants/[id]/actions.ts) bloque déjà la validation elle-même
+    // sur un dossier documentaire incomplet, mais cette route est le seul
+    // point que n8n consulte pour déclencher l'envoi : elle revérifie donc
+    // elle-même, indépendamment de tout autre chemin possible de
+    // création/modification d'un Etudiant/DossierAnnuel, que statutInscription
+    // est bien VALIDE, qu'au moins un DossierAnnuel est réellement SIGNEE
+    // (statut posé uniquement par le webhook Documenso, jamais par l'app —
+    // voir api/webhooks/documenso/route.ts) et que le dossier documentaire
+    // (pièce d'identité, photo, dossier signé) est complet. Un candidat qui
+    // échoue à ce contrôle est simplement exclu, jamais remonté en erreur :
+    // rien à notifier tant que ces conditions ne sont pas réunies.
+    const dossierReellementSigne = etudiant.dossiersAnnuels.some(
+      (d) => d.statutSignature === "SIGNEE",
+    );
+    if (
+      etudiant.statutInscription !== "VALIDE" ||
+      !dossierReellementSigne ||
+      !dossierDocumentaireComplet(etudiant.documents)
+    ) {
+      continue;
+    }
+
+    const document = etudiant.documents
+      .filter((d) => d.type === "DOSSIER_GENERE")
+      .sort((a, b) => b.creeLe.getTime() - a.creeLe.getTime())[0];
     const responsable = etudiant.responsables[0];
     // Destinataire : le responsable légal en priorité (cas Jeunes), sinon
     // l'étudiant lui-même (cas Adultes, sans responsable saisi). Un candidat

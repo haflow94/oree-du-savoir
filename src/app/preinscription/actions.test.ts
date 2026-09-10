@@ -45,9 +45,18 @@ vi.mock("@/lib/doublons-etudiant", () => ({
 }));
 
 const enregistrerDocumentEtudiant = vi.fn();
-vi.mock("@/lib/documents", () => ({
-  enregistrerDocumentEtudiant: (...args: unknown[]) => enregistrerDocumentEtudiant(...args),
-}));
+// N'utilise PAS importOriginal() ici : "@/lib/documents" porte
+// `import "server-only"`, qui lève dès que le module réel est exécuté hors
+// d'un composant serveur (y compris dans ce contexte de test) — on
+// réimporte donc les fonctions pures directement depuis
+// lib/documents-nommage.ts (sans cette garde), jamais depuis documents.ts.
+vi.mock("@/lib/documents", async () => {
+  const nommage = await import("@/lib/documents-nommage");
+  return {
+    ...nommage,
+    enregistrerDocumentEtudiant: (...args: unknown[]) => enregistrerDocumentEtudiant(...args),
+  };
+});
 
 const adresseIpClient = vi.fn();
 const limiteDebitDepassee = vi.fn();

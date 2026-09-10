@@ -24,9 +24,16 @@ vi.mock("@/lib/documenso", () => ({
 }));
 
 const enregistrerDocumentEtudiant = vi.fn();
-vi.mock("@/lib/documents", () => ({
-  enregistrerDocumentEtudiant: (...args: unknown[]) => enregistrerDocumentEtudiant(...args),
-}));
+// Fonctions pures (nomFichierDocument, formatSuffixeVersion...) réimportées
+// depuis lib/documents-nommage.ts, sans "server-only" — voir le même
+// contournement dans etudiants/[id]/actions.test.ts.
+vi.mock("@/lib/documents", async () => {
+  const nommage = await import("@/lib/documents-nommage");
+  return {
+    ...nommage,
+    enregistrerDocumentEtudiant: (...args: unknown[]) => enregistrerDocumentEtudiant(...args),
+  };
+});
 
 const { POST } = await import("./route");
 
@@ -90,9 +97,17 @@ describe("POST /api/webhooks/documenso", () => {
 
   it("scénario 9 — traite l'événement de complétion une seule fois : télécharge et stocke le PDF signé", async () => {
     updateMany.mockResolvedValue({ count: 1 });
-    findFirst.mockResolvedValue({ id: "dos1", etudiantId: "et1", versionConfirmeeNumero: 2 });
+    findFirst.mockResolvedValue({
+      id: "dos1",
+      etudiantId: "et1",
+      versionConfirmeeNumero: 2,
+      etudiant: { matricule: "000001", nom: "Dupont", prenom: "Léo" },
+      anneeScolaire: { libelle: "2026/2027" },
+    });
     telechargerDocumentSigne.mockResolvedValue(Buffer.from("pdf-signe"));
-    enregistrerDocumentEtudiant.mockResolvedValue("et1/dossier-signe-v2.pdf");
+    enregistrerDocumentEtudiant.mockResolvedValue(
+      "etudiants/2026-2027/DUPONT Léo — 000001/DUPONT Léo — Dossier inscription signé (v2).pdf",
+    );
 
     const reponse = await POST(requete(payloadComplete()));
 
@@ -126,7 +141,13 @@ describe("POST /api/webhooks/documenso", () => {
 
   it("pose le statut SIGNEE même si le téléchargement du PDF signé échoue ponctuellement", async () => {
     updateMany.mockResolvedValue({ count: 1 });
-    findFirst.mockResolvedValue({ id: "dos1", etudiantId: "et1", versionConfirmeeNumero: 1 });
+    findFirst.mockResolvedValue({
+      id: "dos1",
+      etudiantId: "et1",
+      versionConfirmeeNumero: 1,
+      etudiant: { matricule: "000001", nom: "Dupont", prenom: "Léo" },
+      anneeScolaire: { libelle: "2026/2027" },
+    });
     telechargerDocumentSigne.mockRejectedValue(new Error("Documenso indisponible"));
 
     const reponse = await POST(requete(payloadComplete()));

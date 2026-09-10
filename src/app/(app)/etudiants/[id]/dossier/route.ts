@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
 import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, nomFichierDocument, formatSuffixeVersion } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
 
 // Génère le dossier d'inscription en PDF pour une section donnée, à partir
@@ -27,24 +27,56 @@ export async function GET(
     return NextResponse.json({ error: "sectionId manquant" }, { status: 400 });
   }
 
-  const etudiant = await prisma.etudiant.findUnique({ where: { id: etudiantId } });
+  const etudiant = await prisma.etudiant.findUnique({
+    where: { id: etudiantId },
+    include: {
+      dossiersAnnuels: {
+        orderBy: { creeLe: "desc" },
+        take: 1,
+        select: { id: true, anneeScolaire: { select: { libelle: true } } },
+      },
+    },
+  });
   if (!etudiant) {
     return NextResponse.json({ error: "Introuvable" }, { status: 404 });
   }
+  const dossierAnnuel = etudiant.dossiersAnnuels[0] ?? null;
 
-  const { modeleDossier, contexte, sectionNom } = await construireContexteDossierEtudiant({
-    etudiantId,
-    sectionId,
-  });
+  const [{ modeleDossier, contexte }, derniereVersion] = await Promise.all([
+    construireContexteDossierEtudiant({ etudiantId, sectionId }),
+    prisma.document.findFirst({
+      where: { dossierAnnuelId: dossierAnnuel?.id, type: "DOSSIER_GENERE" },
+      orderBy: { numeroVersion: "desc" },
+      select: { numeroVersion: true },
+    }),
+  ]);
   const html = await rendreDossierHtml(modeleDossier, contexte);
   const pdf = await rendreDossierPdf(html);
+  const numeroVersion = (derniereVersion?.numeroVersion ?? 0) + 1;
 
-  const nomFichier = `dossier-${sectionNom}-${etudiant.nom}-${etudiant.prenom}.pdf`;
-  const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, nomFichier, pdf);
+  const nomFichier = nomFichierDocument({
+    type: "DOSSIER_GENERE",
+    nom: etudiant.nom,
+    prenom: etudiant.prenom,
+    extension: "pdf",
+    suffixe: formatSuffixeVersion(numeroVersion),
+  });
+  const cheminRelatif = await enregistrerDocumentEtudiant(
+    {
+      matricule: etudiant.matricule,
+      nom: etudiant.nom,
+      prenom: etudiant.prenom,
+      anneeLibelle: dossierAnnuel?.anneeScolaire.libelle ?? null,
+    },
+    nomFichier,
+    pdf,
+  );
 
   await prisma.document.create({
     data: {
       etudiantId,
+      dossierAnnuelId: dossierAnnuel?.id,
+      numeroVersion,
       type: "DOSSIER_GENERE",
       nomFichier,
       cheminRelatif,

@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { construireContexteDossierEtudiant } from "./context";
 import { rendreDossierHtml, rendreDossierPdfEtChampsSignature } from "./render";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, nomFichierDocument, formatSuffixeVersion } from "@/lib/documents";
 
 // Point d'entrée unique pour (re)générer le PDF d'un dossier et créer sa
 // nouvelle version — utilisé à la fois par la génération automatique après
@@ -26,7 +26,7 @@ export async function genererNouvelleVersionDossier({
   dossierAnnuelId: string;
   creeParId?: string;
 }): Promise<{ documentId: string; numeroVersion: number }> {
-  const [{ modeleDossier, contexte, sectionNom }, etudiant, derniereVersion] = await Promise.all([
+  const [{ modeleDossier, contexte }, etudiant, derniereVersion, dossierAnnuel] = await Promise.all([
     construireContexteDossierEtudiant({ etudiantId, sectionId }),
     prisma.etudiant.findUniqueOrThrow({ where: { id: etudiantId } }),
     prisma.document.findFirst({
@@ -34,13 +34,32 @@ export async function genererNouvelleVersionDossier({
       orderBy: { numeroVersion: "desc" },
       select: { numeroVersion: true },
     }),
+    prisma.dossierAnnuel.findUniqueOrThrow({
+      where: { id: dossierAnnuelId },
+      select: { anneeScolaire: { select: { libelle: true } } },
+    }),
   ]);
 
   const html = await rendreDossierHtml(modeleDossier, contexte);
   const { pdf, champsSignature } = await rendreDossierPdfEtChampsSignature(html);
   const numeroVersion = (derniereVersion?.numeroVersion ?? 0) + 1;
-  const nomFichier = `dossier-${sectionNom}-${etudiant.nom}-${etudiant.prenom}-v${numeroVersion}.pdf`;
-  const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, nomFichier, pdf);
+  const nomFichier = nomFichierDocument({
+    type: "DOSSIER_GENERE",
+    nom: etudiant.nom,
+    prenom: etudiant.prenom,
+    extension: "pdf",
+    suffixe: formatSuffixeVersion(numeroVersion),
+  });
+  const cheminRelatif = await enregistrerDocumentEtudiant(
+    {
+      matricule: etudiant.matricule,
+      nom: etudiant.nom,
+      prenom: etudiant.prenom,
+      anneeLibelle: dossierAnnuel.anneeScolaire.libelle,
+    },
+    nomFichier,
+    pdf,
+  );
 
   const [document] = await prisma.$transaction([
     prisma.document.create({

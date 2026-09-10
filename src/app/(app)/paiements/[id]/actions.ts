@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque, StatutPrelevement } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, nomFichierDocument } from "@/lib/documents";
 import { getOuCreerCategorieCotisations } from "@/lib/tresorerie";
 
 function champTexte(formData: FormData, nom: string): string | null {
@@ -108,7 +108,7 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
 
   const echeance = await prisma.echeance.findUnique({
     where: { id: echeanceId },
-    include: { dossierAnnuel: { include: { etudiant: true } } },
+    include: { dossierAnnuel: { include: { etudiant: true, anneeScolaire: true } } },
   });
   if (!echeance) retour(dossierAnnuelId, "ECHEANCE_INTROUVABLE");
 
@@ -172,9 +172,27 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
     pieceIdentiteTitulaire.size > 0
   ) {
     const contenu = Buffer.from(await pieceIdentiteTitulaire.arrayBuffer());
+    // Nommage distinct de la pièce d'identité de l'étudiant lui-même (voir
+    // lib/documents-nommage.ts) : jamais confondue avec la sienne — le
+    // dossierAnnuel de l'échéance payée donne directement l'année, jamais
+    // ambigu ici (contrairement à d'autres types sans dossierAnnuelId).
+    const nomFichier = nomFichierDocument({
+      type: "PIECE_IDENTITE",
+      nom: echeance.dossierAnnuel.etudiant.nom,
+      prenom: echeance.dossierAnnuel.etudiant.prenom,
+      extension: pieceIdentiteTitulaire.name.split(".").pop() || "bin",
+      suffixe: "",
+      titulaireChequeNom: titulaireNom ?? undefined,
+      titulaireChequePrenom: titulairePrenom ?? undefined,
+    });
     const cheminRelatif = await enregistrerDocumentEtudiant(
-      echeance.dossierAnnuel.etudiantId,
-      pieceIdentiteTitulaire.name,
+      {
+        matricule: echeance.dossierAnnuel.etudiant.matricule,
+        nom: echeance.dossierAnnuel.etudiant.nom,
+        prenom: echeance.dossierAnnuel.etudiant.prenom,
+        anneeLibelle: echeance.dossierAnnuel.anneeScolaire.libelle,
+      },
+      nomFichier,
       contenu,
     );
     await prisma.document.create({
@@ -182,7 +200,7 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
         etudiantId: echeance.dossierAnnuel.etudiantId,
         type: "PIECE_IDENTITE",
         chequeId: paiement.cheque.id,
-        nomFichier: pieceIdentiteTitulaire.name,
+        nomFichier,
         cheminRelatif,
         mimeType: pieceIdentiteTitulaire.type || "application/octet-stream",
         tailleOctets: contenu.length,

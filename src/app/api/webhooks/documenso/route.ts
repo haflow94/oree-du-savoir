@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { telechargerDocumentSigne } from "@/lib/documenso";
-import { enregistrerDocumentEtudiant } from "@/lib/documents";
+import { enregistrerDocumentEtudiant, nomFichierDocument, formatSuffixeVersion } from "@/lib/documents";
 
 // Reçoit directement les événements Documenso (jamais relayés par n8n — la
 // transition d'état "dossier signé" est une décision métier, elle reste
@@ -67,14 +67,35 @@ export async function POST(request: NextRequest) {
 
   const dossier = await prisma.dossierAnnuel.findFirst({
     where: { documensoDocumentId: documentId },
-    select: { id: true, etudiantId: true, versionConfirmeeNumero: true },
+    select: {
+      id: true,
+      etudiantId: true,
+      versionConfirmeeNumero: true,
+      etudiant: { select: { matricule: true, nom: true, prenom: true } },
+      anneeScolaire: { select: { libelle: true } },
+    },
   });
   if (!dossier) return NextResponse.json({ ok: true });
 
   try {
     const pdfSigne = await telechargerDocumentSigne(documentId);
-    const nomFichier = `dossier-signe-v${dossier.versionConfirmeeNumero ?? ""}.pdf`;
-    const cheminRelatif = await enregistrerDocumentEtudiant(dossier.etudiantId, nomFichier, pdfSigne);
+    const nomFichier = nomFichierDocument({
+      type: "DOSSIER_SIGNE",
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      extension: "pdf",
+      suffixe: formatSuffixeVersion(dossier.versionConfirmeeNumero),
+    });
+    const cheminRelatif = await enregistrerDocumentEtudiant(
+      {
+        matricule: dossier.etudiant.matricule,
+        nom: dossier.etudiant.nom,
+        prenom: dossier.etudiant.prenom,
+        anneeLibelle: dossier.anneeScolaire.libelle,
+      },
+      nomFichier,
+      pdfSigne,
+    );
 
     await prisma.$transaction([
       prisma.document.create({

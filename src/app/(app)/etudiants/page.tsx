@@ -22,7 +22,7 @@ import { AutoSubmitSelect } from "@/components/ui/auto-submit";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { IconChip } from "@/components/ui/icon-chip";
 import { statutCotisation, STATUT_COTISATION_VARIANTS } from "@/lib/paiements";
-import { dossierDocumentaireComplet } from "@/lib/documents";
+import { statutDossierAffiche, STATUT_DOSSIER_LABELS, STATUT_DOSSIER_VARIANTS } from "@/lib/documents";
 
 type Population = "adultes" | "jeunes";
 
@@ -292,7 +292,7 @@ export default async function EtudiantsPage({
           <th className="px-4 py-3">Prénom</th>
           <th className="px-4 py-3">Section(s)</th>
           <th className="px-4 py-3">Inscription</th>
-          <th className="px-4 py-3">Dossier</th>
+          <th className="px-4 py-3">Statut dossier</th>
           <th className="px-4 py-3">Cotisation</th>
           <th className="px-4 py-3">Téléphone</th>
           <th className="px-4 py-3">Email</th>
@@ -300,8 +300,12 @@ export default async function EtudiantsPage({
         <tbody className="divide-y divide-border">
           {etudiants.map((e) => {
             const sectionsEtudiant = sectionsDInscriptions(e.inscriptions);
-            const dossierComplet = dossierDocumentaireComplet(e.documents);
             const dossierActif = e.dossiersAnnuels[0];
+            const statutDossier = statutDossierAffiche({
+              statutInscription: e.statutInscription,
+              statutSignature: dossierActif?.statutSignature ?? null,
+              documents: e.documents,
+            });
             const cotisation = dossierActif ? statutCotisation(dossierActif) : null;
             return (
               <tr key={e.id} className="relative hover:bg-bg-sunken/40">
@@ -341,10 +345,12 @@ export default async function EtudiantsPage({
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  {dossierComplet ? (
-                    <Badge variant="success">Complet</Badge>
+                  {statutDossier ? (
+                    <Badge variant={STATUT_DOSSIER_VARIANTS[statutDossier]}>
+                      {STATUT_DOSSIER_LABELS[statutDossier]}
+                    </Badge>
                   ) : (
-                    <Badge variant="warning">Incomplet</Badge>
+                    <Badge variant="neutral">Aucun dossier</Badge>
                   )}
                 </td>
                 <td className="px-4 py-3">

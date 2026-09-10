@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { statutDocumentsRequis, dossierDocumentaireComplet } from "./documents-statut";
+import { statutDocumentsRequis, dossierDocumentaireComplet, statutDossierAffiche } from "./documents-statut";
 
 const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -72,5 +72,103 @@ describe("dossierDocumentaireComplet", () => {
         { type: "DOSSIER_SIGNE" },
       ]),
     ).toBe(true);
+  });
+});
+
+const dossierComplet = [
+  { type: "PIECE_IDENTITE", dateExpiration: d("2099-01-01") },
+  { type: "PHOTO" },
+  { type: "DOSSIER_SIGNE" },
+];
+
+describe("statutDossierAffiche", () => {
+  it("VALIDE l'emporte toujours, même sans DossierAnnuel", () => {
+    expect(
+      statutDossierAffiche({ statutInscription: "VALIDE", statutSignature: null, documents: [] }),
+    ).toBe("VALIDE_DEFINITIVEMENT");
+  });
+
+  it("VALIDE l'emporte même si le dossier de signature n'est pas terminé", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "VALIDE",
+        statutSignature: "A_GENERER",
+        documents: [],
+      }),
+    ).toBe("VALIDE_DEFINITIVEMENT");
+  });
+
+  it("renvoie null (aucun statut) quand il n'existe aucun DossierAnnuel", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: null,
+        documents: [],
+      }),
+    ).toBeNull();
+  });
+
+  it("A_GENERER -> 'Reçue / en cours'", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: "A_GENERER",
+        documents: [],
+      }),
+    ).toBe("RECUE_EN_COURS");
+  });
+
+  it("A_VERIFIER -> 'À vérifier'", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: "A_VERIFIER",
+        documents: [],
+      }),
+    ).toBe("A_VERIFIER");
+  });
+
+  it("ENVOYEE_SIGNATURE -> 'Envoyé en signature'", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: "ENVOYEE_SIGNATURE",
+        documents: [],
+      }),
+    ).toBe("ENVOYE_SIGNATURE");
+  });
+
+  it("SIGNEE + dossier documentaire complet -> 'Dossier signé'", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: "SIGNEE",
+        documents: dossierComplet,
+      }),
+    ).toBe("DOSSIER_SIGNE");
+  });
+
+  it("SIGNEE mais dossier documentaire incomplet -> 'À compléter'", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: "SIGNEE",
+        documents: [],
+      }),
+    ).toBe("A_COMPLETER");
+  });
+
+  it("SIGNEE avec une pièce d'identité expirée reste 'À compléter'", () => {
+    expect(
+      statutDossierAffiche({
+        statutInscription: "PREINSCRIT",
+        statutSignature: "SIGNEE",
+        documents: [
+          { type: "PIECE_IDENTITE", dateExpiration: d("2000-01-01") },
+          { type: "PHOTO" },
+          { type: "DOSSIER_SIGNE" },
+        ],
+      }),
+    ).toBe("A_COMPLETER");
   });
 });
