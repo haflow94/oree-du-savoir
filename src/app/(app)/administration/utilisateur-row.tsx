@@ -16,6 +16,7 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { CONTROL_SM_CLASSES } from "@/components/ui/champ";
+import { ChampMotDePasse } from "@/components/ui/champ-mot-de-passe";
 import { Role, ROLE_LABELS, ROLES_STAFF } from "@/lib/roles";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 
@@ -217,17 +218,14 @@ export function UtilisateurRow({
             <form action={reinitialiserMotDePasseAction} className="flex flex-wrap items-end gap-2">
               {from && <input type="hidden" name="from" value={from} />}
               <input type="hidden" name="utilisateurId" value={u.id} />
-              <div>
-                <label className={LABEL_XS_CLASSES}>Nouveau mot de passe</label>
-                <input
-                  type="password"
-                  name="motDePasse"
-                  required
-                  minLength={LONGUEUR_MIN_MOT_DE_PASSE}
-                  autoComplete="new-password"
-                  className={`w-44 ${CONTROL_SM_CLASSES}`}
-                />
-              </div>
+              <ChampMotDePasse
+                label="Nouveau mot de passe"
+                name="motDePasse"
+                required
+                minLength={LONGUEUR_MIN_MOT_DE_PASSE}
+                labelClassName={LABEL_XS_CLASSES}
+                inputClassName={`w-44 ${CONTROL_SM_CLASSES}`}
+              />
               <SubmitButton variant="secondary" size="sm" pendingLabel="Réinitialisation…">
                 Réinitialiser
               </SubmitButton>

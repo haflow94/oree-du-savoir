@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { creerUtilisateurAction } from "./actions";
 import { Champ, ChampSelect } from "@/components/ui/champ";
+import { ChampMotDePasse } from "@/components/ui/champ-mot-de-passe";
 import { buttonVariants } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -99,13 +100,11 @@ export function NouveauCompteDialog({
                 </div>
               </div>
             )}
-            <Champ
+            <ChampMotDePasse
               label={`Mot de passe initial (${LONGUEUR_MIN_MOT_DE_PASSE} caractères minimum)`}
               name="motDePasse"
-              type="password"
               required
               minLength={LONGUEUR_MIN_MOT_DE_PASSE}
-              autoComplete="new-password"
               hint="À communiquer à la personne concernée, qui devra le changer."
               className="sm:col-span-2"
             />
