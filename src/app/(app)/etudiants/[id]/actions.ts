@@ -203,12 +203,32 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
           { nom: etudiantAvant.nom, prenom: etudiantAvant.prenom },
           { nom, prenom },
         );
+        const nouveauCheminRelatif = path.posix.join("etudiants", nouveauDossier, nouveauNomFichier);
+        // Le renommage du DOSSIER ci-dessus ne renomme QUE le dossier : les
+        // fichiers qu'il contient gardent leur ancien nom une fois déplacés
+        // avec lui — il faut donc aussi renommer chaque fichier explicitement
+        // (sous son nouveau nom, dans le dossier déjà renommé) avant de
+        // mettre à jour cheminRelatif, sinon la base pointerait vers un
+        // fichier qui n'existe pas physiquement.
+        const succesFichier = await renommerCheminBrut(
+          path.posix.join("etudiants", nouveauDossier, document.nomFichier),
+          nouveauCheminRelatif,
+        );
+        if (!succesFichier) {
+          await prisma.journalAudit.create({
+            data: {
+              utilisateurId: session.id,
+              action: "renommage_fichier_echoue",
+              entite: "Document",
+              entiteId: document.id,
+              details: { ancienNomFichier: document.nomFichier, nouveauNomFichier },
+            },
+          });
+          continue;
+        }
         await prisma.document.update({
           where: { id: document.id },
-          data: {
-            nomFichier: nouveauNomFichier,
-            cheminRelatif: path.posix.join("etudiants", nouveauDossier, nouveauNomFichier),
-          },
+          data: { nomFichier: nouveauNomFichier, cheminRelatif: nouveauCheminRelatif },
         });
       }
     }
@@ -502,13 +522,13 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
   // tout remettre en place si une étape ULTÉRIEURE échoue — la fusion doit
   // rester tout-ou-rien, jamais un mélange d'un document déjà déplacé sur le
   // disque mais dont la base pointe toujours vers l'ancien emplacement.
-  // N'est correct QUE parce que l'étape 2 (renommage de dossier) est
-  // toujours la DERNIÈRE opération physique tentée ci-dessous, jamais suivie
-  // d'une autre étape pouvant elle-même échouer : un rollback en ordre
-  // inverse après un renommage de dossier réussi déplacerait aussi les
-  // fichiers de l'étape 1 déjà entraînés dans ce renommage, sous un chemin
-  // différent de celui enregistré ici. Toute étape 3 future devrait revoir
-  // cette hypothèse.
+  // L'ordre LIFO (dernier déplacement réussi défait en premier) reste
+  // correct même quand une opération suivante déplace de nouveau un chemin
+  // déjà déplacé (ex. étape 2 : renommage du dossier, PUIS renommage de
+  // chaque fichier qu'il contient sous son nouveau nom) : chaque entrée
+  // n'est jamais utilisée qu'une fois, dans l'ordre inverse exact de sa
+  // création, donc chaque "nouveau" enregistré correspond toujours à l'état
+  // réel du disque au moment où le rollback l'atteint.
   const deplacementsEffectues: { ancien: string; nouveau: string }[] = [];
   async function annulerEtAbandonner(idPourRetour: string): Promise<never> {
     for (const d of [...deplacementsEffectues].reverse()) {
@@ -585,13 +605,34 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
       nouveau: path.posix.join("etudiants", nouveauDossier),
     });
 
+    // Le renommage du DOSSIER ci-dessus ne renomme QUE le dossier : chaque
+    // fichier qu'il contient (ceux de `existant` comme ceux tout juste
+    // reparentés à l'étape 1) garde son ancien nom une fois déplacé avec
+    // lui — il faut donc aussi renommer chaque fichier individuellement,
+    // dans le dossier déjà renommé, avant de pouvoir mettre à jour
+    // cheminRelatif en base (voir même correction dans modifierEtudiantAction).
     for (const maj of misesAJourDocuments) {
-      maj.nomFichier = renommerNomFichier(
-        maj.nomFichier,
+      const ancienNomFichier = maj.nomFichier;
+      const nouveauNomFichier = renommerNomFichier(
+        ancienNomFichier,
         { nom: existant.nom, prenom: existant.prenom },
         { nom: nouveauNom, prenom: nouveauPrenom },
       );
-      maj.cheminRelatif = path.posix.join("etudiants", nouveauDossier, maj.nomFichier);
+      const nouveauCheminRelatif = path.posix.join("etudiants", nouveauDossier, nouveauNomFichier);
+      const succesFichier = await renommerCheminBrut(
+        path.posix.join("etudiants", nouveauDossier, ancienNomFichier),
+        nouveauCheminRelatif,
+      );
+      if (!succesFichier) {
+        await annulerEtAbandonner(etudiantId);
+        return;
+      }
+      deplacementsEffectues.push({
+        ancien: path.posix.join("etudiants", nouveauDossier, ancienNomFichier),
+        nouveau: nouveauCheminRelatif,
+      });
+      maj.nomFichier = nouveauNomFichier;
+      maj.cheminRelatif = nouveauCheminRelatif;
     }
     for (const document of existant.documents.filter((d) =>
       estDansDossierEtudiant(d.cheminRelatif, dossierExistantActuel),
@@ -601,10 +642,23 @@ export async function fusionnerDoublonAction(formData: FormData): Promise<void> 
         { nom: existant.nom, prenom: existant.prenom },
         { nom: nouveauNom, prenom: nouveauPrenom },
       );
+      const nouveauCheminRelatif = path.posix.join("etudiants", nouveauDossier, nouveauNomFichier);
+      const succesFichier = await renommerCheminBrut(
+        path.posix.join("etudiants", nouveauDossier, document.nomFichier),
+        nouveauCheminRelatif,
+      );
+      if (!succesFichier) {
+        await annulerEtAbandonner(etudiantId);
+        return;
+      }
+      deplacementsEffectues.push({
+        ancien: path.posix.join("etudiants", nouveauDossier, document.nomFichier),
+        nouveau: nouveauCheminRelatif,
+      });
       misesAJourDocuments.push({
         id: document.id,
         nomFichier: nouveauNomFichier,
-        cheminRelatif: path.posix.join("etudiants", nouveauDossier, nouveauNomFichier),
+        cheminRelatif: nouveauCheminRelatif,
       });
     }
   }
