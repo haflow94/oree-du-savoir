@@ -381,6 +381,22 @@ model Etudiant {
   // volontairement hors périmètre de cette version (voir CLAUDE.md/analyse
   // de conversation sur le parcours préinscription → signature).
   niveauDeclare                  String?
+  // Consentement à être filmé/photographié lors des activités de
+  // l'association (case "Engagement" du dossier généré, voir
+  // src/lib/dossier/context.ts et les templates .hbs) — question OBLIGATOIRE
+  // du formulaire public de préinscription (voir preinscription-form.tsx),
+  // toujours explicitement OUI ou NON, jamais un défaut implicite : ce champ
+  // reste donc null pour toute fiche créée avant l'introduction de cette
+  // question, ou créée manuellement par le staff (etudiants/nouveau/actions.ts,
+  // hors périmètre de cette question) — un null se traduit par AUCUNE des
+  // deux cases cochées sur le dossier (règle non négociable "ne jamais
+  // deviner"), jamais par une case cochée par défaut. Conservé tel quel après
+  // validation/signature du dossier : ce n'est pas un champ du cycle
+  // DossierAnnuel (qui se réouvre chaque année scolaire), c'est une
+  // information propre à l'étudiant, au même titre que sectionSouhaiteeId
+  // ci-dessus, mais jamais effacée (contrairement à ce dernier) : un
+  // consentement donné une fois reste valable, il n'est pas lié à une classe.
+  autorisationPhotoVideo         Boolean?
   // Renseigné quand le Bureau anonymise manuellement un dossier inactif
   // depuis longtemps (RGPD — voir src/lib/rgpd.ts). Volontairement pas de
   // purge/tâche automatique : le CA n'a pas encore validé de politique de

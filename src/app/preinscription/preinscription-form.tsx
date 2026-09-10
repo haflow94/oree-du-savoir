@@ -192,8 +192,11 @@ export function PreinscriptionForm({
             4. Responsable(s)
           </a>
         )}
+        <a href="#section-autorisation-image" className={STEP_NAV_LINK_CLASSES}>
+          {estJeunes ? "5." : "6."} Autorisation image
+        </a>
         <a href="#section-rgpd" className={STEP_NAV_LINK_CLASSES}>
-          {estJeunes ? "5." : "6."} Confidentialité
+          {estJeunes ? "6." : "7."} Confidentialité
         </a>
       </nav>
 
@@ -417,6 +420,37 @@ export function PreinscriptionForm({
           <BlocResponsable index={2} />
         </>
       )}
+
+      <fieldset id="section-autorisation-image" className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>Autorisation image</legend>
+        <p className="text-sm text-ink-muted">
+          {estJeunes
+            ? "J'accepte que mon enfant soit filmé et/ou photographié lors des activités organisées au sein de l'association."
+            : "J'accepte d'être filmé(e) et/ou photographié(e) lors des activités organisées au sein de l'association."}
+        </p>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="radio"
+              name="autorisationPhotoVideo"
+              value="oui"
+              required
+              className="h-4 w-4 border-border"
+            />
+            Oui, j&apos;accepte
+          </label>
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="radio"
+              name="autorisationPhotoVideo"
+              value="non"
+              required
+              className="h-4 w-4 border-border"
+            />
+            Non, je refuse
+          </label>
+        </div>
+      </fieldset>
 
       <fieldset id="section-rgpd" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Protection des données</legend>

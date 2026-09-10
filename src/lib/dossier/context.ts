@@ -4,7 +4,7 @@ import { getOrganisation, versDataUri } from "@/lib/organisation";
 import { formaterMontant } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { relationAutre } from "./relation-legale";
-import { estCreneauChoisi } from "./creneau-correspondance";
+import { estCreneauCoche } from "./creneau-correspondance";
 import type { ModeleDossier, JourSemaine } from "@/generated/prisma/enums";
 
 function v(valeur: string | null | undefined): string {
@@ -169,14 +169,24 @@ export async function construireContexteDossierEtudiant({
   const referenceSource = dossierAnnuel?.id ?? etudiant.id;
   const dateDepot = dossierAnnuel?.creeLe ?? etudiant.creeLe;
 
-  // Carte de créneau cochée automatiquement quand elle correspond à une
-  // classe réellement suivie par l'étudiant sur cette section (jamais sur
-  // le dossier vierge, qui reste entièrement manuscrit — voir
-  // construireContexteDossierVierge, non touché ici).
+  // Carte de créneau cochée automatiquement (jamais sur le dossier vierge,
+  // qui reste entièrement manuscrit — voir construireContexteDossierVierge,
+  // non touché ici) : priorité au choix explicite de la préinscription
+  // (Etudiant.creneauSouhaiteId), sinon la classe réellement suivie — voir
+  // estCreneauCoche pour l'ordre de priorité et pourquoi les deux sources ne
+  // sont jamais en concurrence. `sectionSouhaiteeId === sectionId` évite de
+  // cocher une carte d'une autre section quand la famille a demandé
+  // plusieurs sections à la préinscription (Etudiant ne garde qu'un seul
+  // couple section/créneau souhaité, voir preinscription/actions.ts).
+  const creneauSouhaiteId =
+    etudiant.sectionSouhaiteeId === sectionId ? etudiant.creneauSouhaiteId : null;
   const sectionCtx = contexteSection(section);
-  const creneauxAvecCoche = sectionCtx.creneaux.map((c) => ({
-    ...c,
-    coche: classesSuivies.some((classe) => estCreneauChoisi(c, classe)),
+  const creneauxAvecCoche = section.creneaux.map((c) => ({
+    code: c.code,
+    jour: c.jour,
+    horaire: c.horaire,
+    restriction: c.restriction,
+    coche: estCreneauCoche(c, { creneauSouhaiteId, classesSuivies }),
   }));
 
   const contexte: Record<string, unknown> = {
@@ -223,6 +233,15 @@ export async function construireContexteDossierEtudiant({
 
     niveau_admission: v(dossierAnnuel?.niveauAdmission),
 
+    // Consentement photo/vidéo (voir Etudiant.autorisationPhotoVideo) : deux
+    // drapeaux exclusifs, jamais tous les deux vrais ni un défaut implicite
+    // — ni l'un ni l'autre coché tant que la question n'a pas été répondue
+    // (fiche créée avant son introduction, ou par le staff hors
+    // préinscription), jamais une case cochée par défaut (règle non
+    // négociable "ne jamais deviner").
+    autorisation_photo_video_oui: etudiant.autorisationPhotoVideo === true,
+    autorisation_photo_video_non: etudiant.autorisationPhotoVideo === false,
+
     ...inscription,
   };
 
@@ -231,7 +250,7 @@ export async function construireContexteDossierEtudiant({
       ? {
           jour: section.creneaux[0].jour,
           horaire: section.creneaux[0].horaire,
-          coche: classesSuivies.some((classe) => estCreneauChoisi(section.creneaux[0], classe)),
+          coche: estCreneauCoche(section.creneaux[0], { creneauSouhaiteId, classesSuivies }),
         }
       : { jour: "", horaire: "", coche: false };
     const lienPrincipal = responsablePrincipal?.lien.trim().toLowerCase();

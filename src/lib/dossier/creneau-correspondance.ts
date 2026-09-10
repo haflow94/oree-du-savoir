@@ -29,3 +29,33 @@ export function estCreneauChoisi(
   const fin = versHeureLibelle(classe.heureFin).toLowerCase();
   return horaireCreneau.includes(debut) && horaireCreneau.includes(fin);
 }
+
+// Détermine la carte de créneau à cocher sur le dossier généré, avec le bon
+// ordre de priorité entre les deux seules sources possibles — jamais
+// simultanément actives pour une même section (voir Etudiant.creneauSouhaiteId,
+// prisma/schema.prisma) :
+// 1. Le choix explicite fait à la préinscription (creneauSouhaiteId) tant
+//    qu'aucune inscription effective n'a eu lieu — c'est le cas le plus
+//    fréquent : le dossier est généré et peut être signé dès la
+//    préinscription (voir preinscription/actions.ts), bien avant qu'une
+//    Classe réelle n'existe (règle "signature ≠ validation finale").
+// 2. À défaut (creneauSouhaiteId vaut null) : la classe réellement suivie
+//    (estCreneauChoisi ci-dessus) — inscrireEtudiantAction efface
+//    systématiquement creneauSouhaiteId au moment où il pose l'inscription
+//    effective (voir presences/actions.ts), donc les deux sources ne sont
+//    jamais en concurrence pour un même étudiant/section : pas de risque de
+//    cocher une carte périmée après un changement d'horaire décidé par
+//    l'administration.
+export function estCreneauCoche(
+  creneau: { id: string; jour: string; horaire: string },
+  {
+    creneauSouhaiteId,
+    classesSuivies,
+  }: {
+    creneauSouhaiteId: string | null;
+    classesSuivies: { jour: JourSemaine; heureDebut: string; heureFin: string }[];
+  },
+): boolean {
+  if (creneauSouhaiteId) return creneau.id === creneauSouhaiteId;
+  return classesSuivies.some((classe) => estCreneauChoisi(creneau, classe));
+}

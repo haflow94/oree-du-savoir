@@ -160,7 +160,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
     </div>
     <div style="margin-top:5mm;display:grid;grid-template-columns:repeat({{creneaux.length}},1fr);gap:4mm">
       {{#each creneaux}}
-      <div style="border:0.3mm solid #C9C3B6;border-top:0.8mm solid #1F3D2B;padding:3.5mm;display:flex;gap:3mm;align-items:flex-start">
+      <div data-creneau-code="{{code}}" data-creneau-coche="{{#if coche}}1{{else}}0{{/if}}" style="border:0.3mm solid #C9C3B6;border-top:0.8mm solid #1F3D2B;padding:3.5mm;display:flex;gap:3mm;align-items:flex-start">
         <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;margin-top:0.5mm;display:flex;align-items:center;justify-content:center;font-size:3.6mm;line-height:1;color:#1F3D2B">{{#if coche}}✓{{/if}}</span>
         <div>
           <div style="font-family:'IBM Plex Mono',monospace;font-size:8.5pt;font-weight:500;color:#1F3D2B">{{code}}</div>
@@ -236,9 +236,18 @@ html, body { margin: 0; padding: 0; background: #fff; }
     </div>
     <div style="margin-top:4.5mm;border:0.3mm solid #C9C3B6;border-left:0.9mm solid #1F3D2B;background:#FAF8F3;padding:4mm 5mm">
       <p style="margin:0;font-size:8.8pt;line-height:1.65;text-wrap:pretty">Je soussigné(e) <span style="font-family:'IBM Plex Mono',monospace;font-size:8pt;color:#1C1A17;border-bottom:0.3mm solid #B5AF9F;padding:0 10mm 0 1mm">{{nom_prenom}}</span> <span style="color:#3A362F">sollicite mon admission aux formations choisies et m'engage à verser les frais de formation et à respecter le règlement intérieur.</span></p>
-      <div style="margin-top:4mm;display:flex;gap:3mm;align-items:flex-start">
-        <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;margin-top:0.3mm"></span>
-        <p style="margin:0;font-size:8.3pt;line-height:1.55;color:#3A362F">J'accepte d'être filmé(e) et/ou photographié(e) lors des activités organisées au sein de l'association.</p>
+      <div style="margin-top:4mm">
+        <p style="margin:0;font-size:8.3pt;line-height:1.55;color:#3A362F">J'accepte d'être filmé(e) et/ou photographié(e) lors des activités organisées au sein de l'association :</p>
+        <div style="margin-top:2mm;display:flex;gap:6mm">
+          <span data-autorisation-photo-video="oui" data-autorisation-photo-video-coche="{{#if autorisation_photo_video_oui}}1{{else}}0{{/if}}" style="display:flex;align-items:center;gap:2mm;font-size:8.3pt;color:#3A362F">
+            <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;display:flex;align-items:center;justify-content:center;font-size:3.6mm;line-height:1;color:#1F3D2B">{{#if autorisation_photo_video_oui}}✓{{/if}}</span>
+            Oui, j'accepte
+          </span>
+          <span data-autorisation-photo-video="non" data-autorisation-photo-video-coche="{{#if autorisation_photo_video_non}}1{{else}}0{{/if}}" style="display:flex;align-items:center;gap:2mm;font-size:8.3pt;color:#3A362F">
+            <span style="flex:none;width:4.5mm;height:4.5mm;border:0.4mm solid #4A453D;display:flex;align-items:center;justify-content:center;font-size:3.6mm;line-height:1;color:#1F3D2B">{{#if autorisation_photo_video_non}}✓{{/if}}</span>
+            Non, je refuse
+          </span>
+        </div>
       </div>
     </div>
     <div style="margin-top:6mm;display:flex;justify-content:space-between;align-items:flex-end;gap:10mm">

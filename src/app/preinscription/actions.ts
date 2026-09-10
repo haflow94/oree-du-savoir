@@ -39,6 +39,18 @@ function estTypePieceIdentite(valeur: string | null): valeur is TypePieceIdentit
   return !!valeur && valeur in TypePieceIdentite;
 }
 
+// Question obligatoire (voir Etudiant.autorisationPhotoVideo) : toujours
+// explicitement "oui" ou "non" (boutons radio, aucun coché par défaut, voir
+// preinscription-form.tsx) — jamais de valeur implicite. Toute autre valeur
+// (champ absent, manipulé) est refusée, jamais interprétée comme un refus ou
+// un accord par défaut (règle non négociable "ne jamais deviner").
+function champAutorisationPhotoVideo(formData: FormData): boolean | null {
+  const valeur = champTexte(formData, "autorisationPhotoVideo");
+  if (valeur === "oui") return true;
+  if (valeur === "non") return false;
+  return null;
+}
+
 // Même jeu de champs que ResponsableLegal (voir prisma/schema.prisma) et que
 // le bloc "Ajouter un responsable" côté staff (etudiants/[id]/actions.ts) —
 // nécessaire pour que le dossier généré (src/lib/dossier/context.ts, modèle
@@ -136,6 +148,13 @@ export async function preinscrireAction(
   if (formData.get("rgpd") !== "on") {
     return {
       erreur: "Merci de confirmer avoir pris connaissance de l'information sur les données personnelles.",
+    };
+  }
+
+  const autorisationPhotoVideo = champAutorisationPhotoVideo(formData);
+  if (autorisationPhotoVideo === null) {
+    return {
+      erreur: "Merci d'indiquer si vous acceptez ou non d'être filmé(e)/photographié(e) lors des activités.",
     };
   }
 
@@ -384,6 +403,7 @@ export async function preinscrireAction(
       // analyse de conversation : "ne pas gérer les tests de niveau
       // maintenant"). Affichée telle quelle sur le dossier généré.
       niveauDeclare: champTexte(formData, "niveauDeclare"),
+      autorisationPhotoVideo,
       statutInscription: "PREINSCRIT",
       sectionSouhaiteeId: sectionsSouhaitees[0]?.id ?? null,
       creneauSouhaiteId: sectionsSouhaitees[0]?.creneau?.id ?? null,

@@ -89,6 +89,7 @@ function formulaireValide(): FormData {
   fd.set("prenom", "Ali");
   fd.set("dateNaissance", "2012-05-01");
   fd.set("villeNaissance", "Paris");
+  fd.set("autorisationPhotoVideo", "oui");
   fd.set("rgpd", "on");
   fd.set("ligneId", "1");
   fd.set("sectionId-1", "sec-jeunes");
@@ -185,6 +186,65 @@ describe("preinscrireAction — notification de préinscription", () => {
     const appel = trouverDoublonEtudiant.mock.calls[0][0];
     expect(appel.emails).toContain("fatima@example.com");
     expect(appel.telephones).toContain("0612345678");
+  });
+});
+
+// Régression : le PDF affichait la phrase d'autorisation photo/vidéo sans
+// aucune case cochée (ni "oui" ni "non") car aucune réponse n'était
+// collectée à la préinscription. Toujours explicite, jamais de valeur
+// implicite (règle non négociable "ne jamais deviner") — voir aussi
+// src/lib/dossier/context.ts.
+describe("preinscrireAction — autorisation photo/vidéo (OUI/NON explicite)", () => {
+  beforeEach(() => {
+    adresseIpClient.mockResolvedValue("1.2.3.4");
+    limiteDebitDepassee.mockReturnValue(false);
+    sectionFindMany.mockResolvedValue([{ id: "sec-jeunes", nom: "Jeunes" }]);
+    trouverDoublonEtudiant.mockResolvedValue(null);
+    etudiantCreate.mockResolvedValue({ id: "etu1" });
+    enregistrerDocumentEtudiant.mockResolvedValue("etu1/photo.jpg");
+    documentCreate.mockResolvedValue({});
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it("refuse la préinscription quand la question n'a pas de réponse (champ absent)", async () => {
+    const fd = formulaireValide();
+    fd.delete("autorisationPhotoVideo");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ erreur: expect.any(String) });
+    expect(etudiantCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuse toute valeur qui n'est ni 'oui' ni 'non' (jamais interprétée par défaut)", async () => {
+    const fd = formulaireValide();
+    fd.set("autorisationPhotoVideo", "peut-être");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ erreur: expect.any(String) });
+    expect(etudiantCreate).not.toHaveBeenCalled();
+  });
+
+  it("enregistre autorisationPhotoVideo = true quand la famille répond « oui »", async () => {
+    const fd = formulaireValide();
+    fd.set("autorisationPhotoVideo", "oui");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ ok: true });
+    expect(etudiantCreate.mock.calls[0][0].data.autorisationPhotoVideo).toBe(true);
+  });
+
+  it("enregistre autorisationPhotoVideo = false quand la famille répond « non » (jamais confondu avec « non renseigné »)", async () => {
+    const fd = formulaireValide();
+    fd.set("autorisationPhotoVideo", "non");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ ok: true });
+    expect(etudiantCreate.mock.calls[0][0].data.autorisationPhotoVideo).toBe(false);
   });
 });
 
