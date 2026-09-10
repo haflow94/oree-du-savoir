@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { resoudreAccesDossier } from "@/lib/acces-dossier";
 import { genererNouvelleVersionDossier } from "@/lib/dossier/generation";
 import { creerEtEnvoyerDocumentSignature, annulerDocumentSignature, obtenirLienSignature } from "@/lib/documenso";
+import type { ChampSignatureDossier } from "@/lib/dossier/render";
 import { lireDocument } from "@/lib/documents";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { adresseIpClient, limiteDebitDepassee } from "@/lib/rate-limit";
@@ -235,12 +236,14 @@ export async function confirmerEtSignerAction(formData: FormData): Promise<void>
   let signingUrl: string;
   try {
     const pdf = await lireDocument(derniereVersion.cheminRelatif);
+    const champsSignature = (derniereVersion.champsSignature as ChampSignatureDossier[] | null) ?? [];
     ({ documentId, signingUrl } = await creerEtEnvoyerDocumentSignature({
       titre: derniereVersion.nomFichier,
       pdf,
       signataireNom,
       signataireEmail,
       externalId: dossier.id,
+      champsSignature,
     }));
   } catch (erreur) {
     // La réservation a réussi mais l'envoi à Documenso a échoué — ou son

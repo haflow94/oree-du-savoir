@@ -492,6 +492,15 @@ model Document {
   dossierAnnuelId   String?
   dossierAnnuel     DossierAnnuel?     @relation(fields: [dossierAnnuelId], references: [id], onDelete: SetNull)
   numeroVersion     Int?
+  // Non nul uniquement pour type = DOSSIER_GENERE : position exacte (page +
+  // coordonnées en % de la page, voir lib/dossier/render.ts) des zones de
+  // signature du PDF, mesurée dans le DOM au moment du rendu Puppeteer
+  // (chaque .page étant une page fixe, jamais reflowée) plutôt que codée en
+  // dur — corrige un champ de signature Documenso posé à un endroit sans
+  // rapport avec les zones réelles du gabarit (voir lib/documenso.ts). Lu par
+  // dossier/[token]/actions.ts#confirmerEtSignerAction au moment de l'envoi
+  // à Documenso, sur la version exacte du PDF déjà confirmée par la famille.
+  champsSignature   Json?
 
   @@index([etudiantId])
   @@index([chequeId])

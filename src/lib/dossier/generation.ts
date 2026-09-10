@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { construireContexteDossierEtudiant } from "./context";
-import { rendreDossierHtml, rendreDossierPdf } from "./render";
+import { rendreDossierHtml, rendreDossierPdfEtChampsSignature } from "./render";
 import { enregistrerDocumentEtudiant } from "@/lib/documents";
 
 // Point d'entrée unique pour (re)générer le PDF d'un dossier et créer sa
@@ -37,7 +37,7 @@ export async function genererNouvelleVersionDossier({
   ]);
 
   const html = await rendreDossierHtml(modeleDossier, contexte);
-  const pdf = await rendreDossierPdf(html);
+  const { pdf, champsSignature } = await rendreDossierPdfEtChampsSignature(html);
   const numeroVersion = (derniereVersion?.numeroVersion ?? 0) + 1;
   const nomFichier = `dossier-${sectionNom}-${etudiant.nom}-${etudiant.prenom}-v${numeroVersion}.pdf`;
   const cheminRelatif = await enregistrerDocumentEtudiant(etudiantId, nomFichier, pdf);
@@ -54,6 +54,7 @@ export async function genererNouvelleVersionDossier({
         mimeType: "application/pdf",
         tailleOctets: pdf.length,
         creeParId,
+        champsSignature,
       },
     }),
     prisma.dossierAnnuel.update({

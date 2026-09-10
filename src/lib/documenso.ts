@@ -1,4 +1,5 @@
 import "server-only";
+import type { ChampSignatureDossier } from "./dossier/render";
 
 // Client HTTP minimal pour l'API REST v1 de Documenso self-hébergé (voir
 // docker-compose.yml, service `documenso`) — Documenso reste le seul moteur
@@ -58,24 +59,34 @@ type CreationDocumentReponse = {
 
 // Crée l'enveloppe Documenso (métadonnées + destinataire), obtient une URL
 // d'upload, y dépose le PDF confirmé par la famille, place un champ
-// signature en page 1, puis envoie le document — `sendEmail: false` : c'est
-// l'application (jamais Documenso lui-même, faute de SMTP réel configuré
-// pour l'instant) qui communique le lien vers la page de vérification, puis
-// redirige directement vers `signingUrl` au moment où l'utilisateur clique
-// "Signer" depuis /dossier/[token] — voir bilan de session pour ce choix.
+// signature sur chaque zone réellement présente dans le gabarit (voir
+// `champsSignature`, mesuré au rendu — lib/dossier/render.ts — un dossier a
+// toujours 2 zones à signer : engagement/admission et règlement intérieur,
+// jamais 1 seule ni sur la page 1), puis envoie le document — `sendEmail:
+// false` : c'est l'application (jamais Documenso lui-même, faute de SMTP
+// réel configuré pour l'instant) qui communique le lien vers la page de
+// vérification, puis redirige directement vers `signingUrl` au moment où
+// l'utilisateur clique "Signer" depuis /dossier/[token] — voir bilan de
+// session pour ce choix.
 export async function creerEtEnvoyerDocumentSignature({
   titre,
   pdf,
   signataireNom,
   signataireEmail,
   externalId,
+  champsSignature,
 }: {
   titre: string;
   pdf: Buffer;
   signataireNom: string;
   signataireEmail: string;
   externalId: string;
+  champsSignature: ChampSignatureDossier[];
 }): Promise<{ documentId: number; signingUrl: string }> {
+  if (champsSignature.length === 0) {
+    throw new Error("Aucune zone de signature mesurée pour ce dossier — voir lib/dossier/render.ts.");
+  }
+
   const creation = await appelDocumenso<CreationDocumentReponse>("/documents", {
     method: "POST",
     body: JSON.stringify({
@@ -100,19 +111,21 @@ export async function creerEtEnvoyerDocumentSignature({
 
   const signataire = creation.recipients[0];
 
-  await appelDocumenso(`/documents/${creation.documentId}/fields`, {
-    method: "POST",
-    body: JSON.stringify({
-      recipientId: signataire.recipientId,
-      type: "SIGNATURE",
-      pageNumber: 1,
-      pageX: 10,
-      pageY: 85,
-      pageWidth: 30,
-      pageHeight: 8,
-      fieldMeta: { type: "signature" },
-    }),
-  });
+  for (const champ of champsSignature) {
+    await appelDocumenso(`/documents/${creation.documentId}/fields`, {
+      method: "POST",
+      body: JSON.stringify({
+        recipientId: signataire.recipientId,
+        type: "SIGNATURE",
+        pageNumber: champ.pageNumber,
+        pageX: champ.pageX,
+        pageY: champ.pageY,
+        pageWidth: champ.pageWidth,
+        pageHeight: champ.pageHeight,
+        fieldMeta: { type: "signature" },
+      }),
+    });
+  }
 
   await appelDocumenso(`/documents/${creation.documentId}/send`, {
     method: "POST",
