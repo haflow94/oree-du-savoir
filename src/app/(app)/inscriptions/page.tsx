@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, QrCode } from "lucide-react";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -9,23 +9,48 @@ import { Alert } from "@/components/ui/alert";
 import { TableWrap, TableHead } from "@/components/ui/table";
 import { IconChip } from "@/components/ui/icon-chip";
 import { Badge } from "@/components/ui/badge";
+import { TabLinks } from "@/components/ui/tabs";
 import { buttonVariants } from "@/components/ui/button";
 import { CONTROL_SM_CLASSES, TOOLBAR_CLASSES } from "@/components/ui/champ";
 import { GenererCodeForm } from "./generer-code-form";
 import { InvaliderCodeAccueilButton } from "./invalider-code-accueil-button";
 import { obtenirOuCreerJetonPermanent } from "@/lib/preinscription-token";
 import { etudiantsValidesSansClasse } from "@/lib/cohortes";
+import { statutDossierAffiche, STATUT_DOSSIER_LABELS, STATUT_DOSSIER_VARIANTS } from "@/lib/documents";
+import type { StatutDossierAffiche } from "@/lib/documents";
 import { traiterDemandeCorrectionAction } from "./actions";
+
+// Étapes du parcours dossier pertinentes ici : cette page ne liste que des
+// PREINSCRIT (voir la requête plus bas), donc VALIDE_DEFINITIVEMENT ne peut
+// jamais y apparaître — inutile de lui donner un onglet de filtre.
+const ETAPES_STATUT_DOSSIER = [
+  "RECUE_EN_COURS",
+  "A_VERIFIER",
+  "ENVOYE_SIGNATURE",
+  "DOSSIER_SIGNE",
+  "A_COMPLETER",
+] as const satisfies readonly StatutDossierAffiche[];
+
+// "aucun" : aucun DossierAnnuel pour cet étudiant (génération automatique
+// échouée à la préinscription, voir preinscription/actions.ts) — un cas que
+// l'accueil doit pouvoir repérer pour relancer la génération à la main
+// depuis la fiche, distinct des 5 étapes normales du parcours.
+type CleStatutDossier = (typeof ETAPES_STATUT_DOSSIER)[number] | "aucun";
 
 export default async function InscriptionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; statutDossier?: string }>;
 }) {
   const session = await requireModule(Module.INSCRIPTIONS, "LECTURE");
   const peutGenererCode = await peutAccederModule(session.role, Module.INSCRIPTIONS, "ECRITURE");
-  const { q } = await searchParams;
+  const { q, statutDossier } = await searchParams;
   const recherche = q?.trim() ?? "";
+  const statutDossierFiltre: CleStatutDossier | null =
+    statutDossier === "aucun" ||
+    ETAPES_STATUT_DOSSIER.includes(statutDossier as (typeof ETAPES_STATUT_DOSSIER)[number])
+      ? (statutDossier as CleStatutDossier)
+      : null;
 
   // Même logique que le QR permanent de salle (voir
   // (app)/classes/[id]/page.tsx) : un scanner de téléphone n'ouvre un lien
@@ -80,7 +105,7 @@ export default async function InscriptionsPage({
   ]);
   const validesSansClasse = anneeActive ? await etudiantsValidesSansClasse(anneeActive.id) : [];
 
-  const preinscrits = await prisma.etudiant.findMany({
+  const preinscritsBruts = await prisma.etudiant.findMany({
     where: {
       statutInscription: "PREINSCRIT",
       ...(recherche
@@ -93,7 +118,52 @@ export default async function InscriptionsPage({
         : {}),
     },
     orderBy: { creeLe: "desc" },
+    include: {
+      // Le plus récent : une préinscription n'a jamais qu'un seul
+      // DossierAnnuel en pratique (créé une fois à la soumission, voir
+      // preinscription/actions.ts), mais `take: 1` couvre aussi le cas
+      // borderline où un second aurait été ouvert à la main.
+      dossiersAnnuels: { orderBy: { creeLe: "desc" }, take: 1, select: { statutSignature: true } },
+      documents: { where: { chequeId: null }, select: { type: true, dateExpiration: true } },
+    },
   });
+
+  // "Statut dossier" (voir lib/documents-statut.ts) calculé une fois ici pour
+  // servir à la fois aux compteurs/filtres ci-dessous et à la colonne du
+  // tableau — jamais stocké, purement dérivé des statuts existants.
+  const preinscrits = preinscritsBruts.map((e) => ({
+    ...e,
+    statutDossier: statutDossierAffiche({
+      statutInscription: e.statutInscription,
+      statutSignature: e.dossiersAnnuels[0]?.statutSignature ?? null,
+      documents: e.documents,
+    }),
+  }));
+
+  // VALIDE_DEFINITIVEMENT ne peut jamais sortir de statutDossierAffiche ici
+  // (population filtrée sur PREINSCRIT ci-dessus), mais le type de retour le
+  // permet toujours : la clé reste dans ce compteur par exhaustivité plutôt
+  // que de forcer un cast, sans jamais être affichée (voir ETAPES_STATUT_DOSSIER).
+  const comptesStatutDossier = preinscrits.reduce(
+    (comptes, e) => {
+      const cle = e.statutDossier ?? "aucun";
+      comptes[cle] += 1;
+      return comptes;
+    },
+    {
+      aucun: 0,
+      RECUE_EN_COURS: 0,
+      A_VERIFIER: 0,
+      ENVOYE_SIGNATURE: 0,
+      DOSSIER_SIGNE: 0,
+      A_COMPLETER: 0,
+      VALIDE_DEFINITIVEMENT: 0,
+    } as Record<StatutDossierAffiche | "aucun", number>,
+  );
+
+  const preinscritsAffiches = statutDossierFiltre
+    ? preinscrits.filter((e) => (e.statutDossier ?? "aucun") === statutDossierFiltre)
+    : preinscrits;
 
   return (
     <div className="space-y-6">
@@ -169,96 +239,8 @@ export default async function InscriptionsPage({
         </Card>
       )}
 
-      <Card>
-        <CardTitle>QR permanent officiel (accès Internet)</CardTitle>
-        <p className="mt-1 text-sm text-ink-muted">
-          À imprimer une seule fois pour affichage ou flyer public : ouvre
-          directement le formulaire de préinscription depuis n&apos;importe où
-          sur Internet, sans code à saisir. Le jeton embarqué dans ce lien est
-          permanent — ce QR reste valable indéfiniment, inutile de le
-          réimprimer.
-        </p>
-        <div className="mt-4 border-t border-border pt-4">
-          {urlPreinscriptionPermanente && qrPermanentSvg ? (
-            <div className="flex flex-wrap items-start gap-4">
-              <div
-                className="inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
-                // SVG produit côté serveur par la bibliothèque qrcode à partir
-                // d'une URL interne (hostname + jeton stocké en base) :
-                // aucune donnée utilisateur n'y transite.
-                dangerouslySetInnerHTML={{ __html: qrPermanentSvg }}
-              />
-              <div className="max-w-xs">
-                <p className="text-sm font-medium text-ink">QR permanent</p>
-                <p className="mt-1 break-all font-mono text-xs text-ink-faint">
-                  {urlPreinscriptionPermanente}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <Alert variant="warning">
-              Hostname public non configuré (<code className="rounded bg-bg-sunken px-1 py-0.5 text-xs">PREINSCRIPTION_PUBLIC_HOSTNAME</code>
-              ) : impossible de construire l&apos;URL officielle pour l&apos;instant.
-            </Alert>
-          )}
-        </div>
-      </Card>
-
-      <Card>
-        <CardTitle>Formulaire public</CardTitle>
-        <p className="mt-1 text-sm text-ink-muted">
-          Les futurs étudiants peuvent préremplir leur dossier sans compte
-          depuis{" "}
-          <code className="rounded bg-bg-sunken px-1.5 py-0.5 text-xs">/preinscription</code>.
-        </p>
-        <div className="mt-4 flex flex-wrap items-start gap-4 border-t border-border pt-4">
-          <div
-            className="inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
-            // SVG produit côté serveur par la bibliothèque qrcode à partir
-            // d'un chemin interne : aucune donnée utilisateur n'y transite.
-            dangerouslySetInnerHTML={{ __html: qrSvg }}
-          />
-          <div className="max-w-xs">
-            <p className="text-sm font-medium text-ink">QR d&apos;accueil</p>
-            <p className="mt-1 text-xs text-ink-faint">
-              À afficher ou imprimer à l&apos;accueil : plusieurs familles
-              présentes le même jour peuvent le scanner pour ouvrir
-              directement le formulaire de préinscription sur leur
-              téléphone, sans que le staff ait à le saisir à leur place. Le
-              code d&apos;accès est valable jusqu&apos;à minuit puis
-              régénéré automatiquement au scan suivant — ce QR reste valable
-              durablement, inutile de le réimprimer.
-            </p>
-            <p className="mt-2 break-all font-mono text-xs text-ink-faint">{urlAccueilPreinscription}</p>
-            {peutGenererCode && (
-              <div className="mt-3 border-t border-border pt-3">
-                <InvaliderCodeAccueilButton />
-              </div>
-            )}
-          </div>
-        </div>
-      </Card>
-
-      {peutGenererCode && (
-        <Card>
-          <CardTitle>Code d&apos;accès à usage unique</CardTitle>
-          <p className="mt-1 text-sm text-ink-muted">
-            Pour une campagne email ciblée (famille déjà contactée) : le code
-            généré ci-dessous n&apos;est valable qu&apos;une fois et devient
-            inutilisable dès la première préinscription soumise avec. Le lien
-            complet (
-            <code className="rounded bg-bg-sunken px-1.5 py-0.5 text-xs">
-              /preinscription?code=...
-            </code>
-            ) est à coller directement dans l&apos;e-mail envoyé à la famille.
-          </p>
-          <div className="mt-4 border-t border-border pt-4">
-            <GenererCodeForm />
-          </div>
-        </Card>
-      )}
-
       <form className={TOOLBAR_CLASSES} action="/inscriptions" method="GET">
+        {statutDossierFiltre && <input type="hidden" name="statutDossier" value={statutDossierFiltre} />}
         <div>
           <label htmlFor="q" className="sr-only">
             Rechercher par nom ou prénom
@@ -275,21 +257,38 @@ export default async function InscriptionsPage({
         <button type="submit" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           Rechercher
         </button>
-        {recherche && (
+        {(recherche || statutDossierFiltre) && (
           <Link href="/inscriptions" className="text-xs font-medium text-ink-muted hover:underline">
             Réinitialiser
           </Link>
         )}
       </form>
 
+      <TabLinks
+        tabs={(["tous", "aucun", ...ETAPES_STATUT_DOSSIER] as const).map((id) => {
+          const params = new URLSearchParams(recherche ? { q: recherche } : {});
+          if (id !== "tous") params.set("statutDossier", id);
+          return {
+            id,
+            label:
+              id === "tous"
+                ? `Tous (${preinscrits.length})`
+                : `${id === "aucun" ? "Aucun dossier" : STATUT_DOSSIER_LABELS[id]} (${comptesStatutDossier[id]})`,
+            href: `/inscriptions?${params}`,
+            active: id === "tous" ? !statutDossierFiltre : statutDossierFiltre === id,
+          };
+        })}
+      />
+
       <TableWrap>
         <TableHead>
           <th className="px-4 py-3">Nom</th>
           <th className="px-4 py-3">Reçu le</th>
+          <th className="px-4 py-3">Statut dossier</th>
           <th className="px-4 py-3">Remarque</th>
         </TableHead>
         <tbody className="divide-y divide-border">
-          {preinscrits.map((e) => (
+          {preinscritsAffiches.map((e) => (
             <tr key={e.id} className="hover:bg-bg-sunken/40">
               <td className="px-4 py-3 font-medium text-ink">
                 <Link href={`/etudiants/${e.id}`} className="hover:underline">
@@ -304,20 +303,112 @@ export default async function InscriptionsPage({
               <td className="px-4 py-3 text-ink-muted">
                 {new Date(e.creeLe).toLocaleDateString("fr-FR")}
               </td>
+              <td className="px-4 py-3">
+                {e.statutDossier ? (
+                  <Badge variant={STATUT_DOSSIER_VARIANTS[e.statutDossier]}>
+                    {STATUT_DOSSIER_LABELS[e.statutDossier]}
+                  </Badge>
+                ) : (
+                  <Badge variant="neutral">Aucun dossier</Badge>
+                )}
+              </td>
               <td className="px-4 py-3 text-ink-muted">{e.remarque ?? "—"}</td>
             </tr>
           ))}
-          {preinscrits.length === 0 && (
+          {preinscritsAffiches.length === 0 && (
             <tr>
-              <td colSpan={3} className="px-4 py-8 text-center text-ink-faint">
-                {recherche
-                  ? "Aucune préinscription ne correspond à cette recherche."
+              <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
+                {recherche || statutDossierFiltre
+                  ? "Aucune préinscription ne correspond à cette recherche/ce filtre."
                   : "Aucune préinscription en attente."}
               </td>
             </tr>
           )}
         </tbody>
       </TableWrap>
+
+      {/* Regroupe les 3 canaux d'accès au formulaire public (QR d'accueil
+          local, QR permanent Internet, code à usage unique) — jusqu'ici 3
+          Card pleine largeur affichées avant la liste elle-même, reléguant
+          le vrai travail du jour (contrôler les préinscriptions en attente)
+          en bas de page. Repliée par défaut : consultée seulement quand il
+          faut réimprimer/régénérer un accès, jamais pour le suivi quotidien. */}
+      <details className="group rounded-xl border border-border bg-surface">
+        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+          <IconChip icon={QrCode} accent="sky" />
+          <span className="font-display text-lg font-semibold text-pine-strong">
+            Accès au formulaire de préinscription
+          </span>
+          <span className="ml-auto text-ink-faint transition-transform group-open:rotate-180">▾</span>
+        </summary>
+        <div className="grid gap-4 border-t border-border p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-sm font-medium text-ink">QR d&apos;accueil (réseau local)</p>
+            <p className="mt-1 text-xs text-ink-muted">
+              À afficher sur place : plusieurs familles peuvent le scanner le
+              même jour. Se renouvelle seul chaque jour, jamais besoin de le
+              réimprimer.
+            </p>
+            <div
+              className="mt-2 inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
+              // SVG produit côté serveur par la bibliothèque qrcode à partir
+              // d'un chemin interne : aucune donnée utilisateur n'y transite.
+              dangerouslySetInnerHTML={{ __html: qrSvg }}
+            />
+            <p className="mt-2 break-all font-mono text-xs text-ink-faint">{urlAccueilPreinscription}</p>
+            {peutGenererCode && (
+              <div className="mt-2">
+                <InvaliderCodeAccueilButton />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-border p-3">
+            <p className="text-sm font-medium text-ink">QR permanent (flyer / affiche Internet)</p>
+            {urlPreinscriptionPermanente && qrPermanentSvg ? (
+              <>
+                <p className="mt-1 text-xs text-ink-muted">
+                  À imprimer une seule fois : ouvre le formulaire depuis
+                  n&apos;importe où sur Internet. Ne change jamais.
+                </p>
+                <div
+                  className="mt-2 inline-block rounded-lg bg-bg-elevated p-2 ring-1 ring-border"
+                  // SVG produit côté serveur par la bibliothèque qrcode à
+                  // partir d'une URL interne (hostname + jeton stocké en
+                  // base) : aucune donnée utilisateur n'y transite.
+                  dangerouslySetInnerHTML={{ __html: qrPermanentSvg }}
+                />
+                <p className="mt-2 break-all font-mono text-xs text-ink-faint">
+                  {urlPreinscriptionPermanente}
+                </p>
+              </>
+            ) : (
+              <div className="mt-2">
+                <Alert variant="warning">
+                  Hostname public non configuré (
+                  <code className="rounded bg-bg-sunken px-1 py-0.5 text-xs">
+                    PREINSCRIPTION_PUBLIC_HOSTNAME
+                  </code>
+                  ).
+                </Alert>
+              </div>
+            )}
+          </div>
+
+          {peutGenererCode && (
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-sm font-medium text-ink">Code à usage unique (campagne email)</p>
+              <p className="mt-1 text-xs text-ink-muted">
+                Lien valable une seule fois, à coller dans un e-mail à une
+                famille déjà contactée.
+              </p>
+              <div className="mt-2">
+                <GenererCodeForm />
+              </div>
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 }
