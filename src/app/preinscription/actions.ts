@@ -450,18 +450,30 @@ export async function preinscrireAction(
 
   // Génération automatique du dossier V1 + lien sécurisé de vérification
   // (voir CLAUDE.md/analyse de conversation — parcours préinscription →
-  // signature) : uniquement quand la préinscription est raisonnablement
-  // fiable (aucun doublon détecté — un doublon reste une exception traitée
-  // par le staff avant tout envoi, voir etudiants/[id]/actions.ts#fusionnerDoublonAction/
-  // confirmerHomonymeAction) et qu'une année scolaire active existe (source
-  // du DossierAnnuel, jamais demandée à la famille — voir
-  // src/lib/dossier/context.ts). Best-effort et hors du chemin critique :
-  // une erreur ici (Chromium indisponible, etc.) ne doit jamais faire
-  // échouer la préinscription elle-même, exactement comme la génération
-  // best-effort déjà existante à la validation finale (voir
+  // signature) : le dossier doit exister dès la préinscription pour CHAQUE
+  // étudiant créé, y compris un homonyme légitime (voir CLAUDE.md, Problème 3
+  // "deux élèves ayant le même nom et prénom doivent pouvoir coexister sans
+  // risque de mélange") — seul le critère NOM_DATE (même nom, prénom ET date
+  // de naissance, voir doublons-etudiant.ts) désigne un probable VRAI doublon
+  // (double soumission de la même personne) : dans ce seul cas, on attend que
+  // le staff tranche (fusion ou confirmation d'homonymie, voir
+  // etudiants/[id]/actions.ts#fusionnerDoublonAction/confirmerHomonymeAction)
+  // avant de créer un DossierAnnuel, pour ne pas ouvrir un second dossier de
+  // paiement pour ce qui pourrait n'être qu'une seule et même personne — ce
+  // que fusionnerDoublonAction refuse ensuite explicitement de fusionner s'il
+  // en existe déjà un. Un doublon EMAIL/TELEPHONE/EMAIL_ET_TELEPHONE seul
+  // (ex. une fratrie inscrite avec les coordonnées du même responsable) n'est
+  // PAS un vrai doublon (voir doublons-etudiant.ts#trouverCorrespondancesContact,
+  // "AUCUN blocage") : ce cas doit obtenir son propre dossier tout de suite,
+  // exactement comme un étudiant sans aucun signalement. Requiert qu'une
+  // année scolaire active existe (source du DossierAnnuel, jamais demandée à
+  // la famille — voir src/lib/dossier/context.ts). Best-effort et hors du
+  // chemin critique : une erreur ici (Chromium indisponible, etc.) ne doit
+  // jamais faire échouer la préinscription elle-même, exactement comme la
+  // génération best-effort déjà existante à la validation finale (voir
   // etudiants/[id]/actions.ts#validerInscriptionAction) — le staff peut
   // toujours déclencher/relancer ce parcours à la main depuis la fiche.
-  if (!doublon) {
+  if (!doublon || doublon.critere !== "NOM_DATE") {
     try {
       const sectionPrincipale = sectionsSouhaitees[0];
       const anneeActive = await prisma.anneeScolaire.findFirst({ where: { active: true } });

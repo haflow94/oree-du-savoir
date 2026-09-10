@@ -178,3 +178,72 @@ describe("preinscrireAction — notification de préinscription", () => {
     expect(appel.telephones).toContain("0612345678");
   });
 });
+
+describe("preinscrireAction — génération automatique du dossier (DossierAnnuel + PDF)", () => {
+  beforeEach(() => {
+    adresseIpClient.mockResolvedValue("1.2.3.4");
+    limiteDebitDepassee.mockReturnValue(false);
+    sectionFindMany.mockResolvedValue([
+      { id: "sec-jeunes", nom: "Jeunes", fraisFormation: "100", fraisDossier: "20" },
+    ]);
+    trouverDoublonEtudiant.mockResolvedValue(null);
+    etudiantCreate.mockResolvedValue({ id: "etu1" });
+    enregistrerDocumentEtudiant.mockResolvedValue("etu1/photo.jpg");
+    documentCreate.mockResolvedValue({});
+    anneeScolaireFindFirst.mockResolvedValue({ id: "annee1" });
+    dossierAnnuelCreate.mockResolvedValue({ id: "dossier1" });
+    genererNouvelleVersionDossier.mockResolvedValue({ documentId: "doc1", numeroVersion: 1 });
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  it("génère le dossier dès la préinscription quand aucun doublon n'est détecté", async () => {
+    await preinscrireAction(formulaireValide());
+
+    expect(dossierAnnuelCreate).toHaveBeenCalledTimes(1);
+    expect(genererNouvelleVersionDossier).toHaveBeenCalledWith(
+      expect.objectContaining({ etudiantId: "etu1", dossierAnnuelId: "dossier1" }),
+    );
+  });
+
+  it("un doublon EMAIL (fratrie inscrite par le même responsable) n'empêche pas la génération automatique du dossier", async () => {
+    trouverDoublonEtudiant.mockResolvedValueOnce({ id: "existant1", nom: "Autre", prenom: "Personne", critere: "EMAIL" });
+
+    await preinscrireAction(formulaireValide());
+
+    expect(dossierAnnuelCreate).toHaveBeenCalledTimes(1);
+    expect(genererNouvelleVersionDossier).toHaveBeenCalledTimes(1);
+  });
+
+  it("un doublon TELEPHONE n'empêche pas non plus la génération automatique du dossier", async () => {
+    trouverDoublonEtudiant.mockResolvedValueOnce({ id: "existant1", nom: "Autre", prenom: "Personne", critere: "TELEPHONE" });
+
+    await preinscrireAction(formulaireValide());
+
+    expect(dossierAnnuelCreate).toHaveBeenCalledTimes(1);
+    expect(genererNouvelleVersionDossier).toHaveBeenCalledTimes(1);
+  });
+
+  it("un doublon EMAIL_ET_TELEPHONE n'empêche pas non plus la génération automatique du dossier", async () => {
+    trouverDoublonEtudiant.mockResolvedValueOnce({
+      id: "existant1",
+      nom: "Autre",
+      prenom: "Personne",
+      critere: "EMAIL_ET_TELEPHONE",
+    });
+
+    await preinscrireAction(formulaireValide());
+
+    expect(dossierAnnuelCreate).toHaveBeenCalledTimes(1);
+    expect(genererNouvelleVersionDossier).toHaveBeenCalledTimes(1);
+  });
+
+  it("un doublon NOM_DATE (probable vrai doublon) laisse le staff trancher avant de créer un dossier", async () => {
+    trouverDoublonEtudiant.mockResolvedValueOnce({ id: "existant1", nom: "Dupont", prenom: "Ali", critere: "NOM_DATE" });
+
+    await preinscrireAction(formulaireValide());
+
+    expect(dossierAnnuelCreate).not.toHaveBeenCalled();
+    expect(genererNouvelleVersionDossier).not.toHaveBeenCalled();
+  });
+});
