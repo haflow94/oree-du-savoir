@@ -79,6 +79,21 @@ export function Topbar({
     return () => clearInterval(id);
   }, [router]);
 
+  // <details> natif ne se ferme jamais tout seul sur un clic extérieur (juste
+  // sur un nouveau clic sur son <summary>) : on referme explicitement dès
+  // qu'un clic tombe en dehors du menu de notifications, tant qu'il est ouvert.
+  useEffect(() => {
+    const fermerSiExterieur = (event: MouseEvent) => {
+      const details = notificationsDetailsRef.current;
+      if (!details?.open) return;
+      if (event.target instanceof Node && !details.contains(event.target)) {
+        details.open = false;
+      }
+    };
+    document.addEventListener("click", fermerSiExterieur);
+    return () => document.removeEventListener("click", fermerSiExterieur);
+  }, []);
+
   return (
     <header className="sticky top-0 z-10 flex flex-col border-b border-border bg-bg-elevated print:hidden">
       <div className="flex h-16 items-center justify-between gap-3 px-4 md:px-6">
