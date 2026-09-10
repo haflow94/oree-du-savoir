@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useRef, useTransition } from "react";
 import { Menu, Search, LogOut, Bell } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -56,6 +56,10 @@ export function Topbar({
   const pathname = usePathname();
   const router = useRouter();
   const [, startTransition] = useTransition();
+  // La navigation déclenchée par un <Link> dans le dropdown est côté client
+  // (SPA) : le DOM du <details> n'est jamais démonté, donc son attribut
+  // `open` persiste après le clic si on ne le referme pas explicitement.
+  const notificationsDetailsRef = useRef<HTMLDetailsElement>(null);
   const items = NAV_ITEMS.filter((item) => hrefsVisibles.includes(item.href));
   const current =
     items.find((item) =>
@@ -135,7 +139,7 @@ export function Topbar({
               rôles ayant LECTURE sur Module.INSCRIPTIONS — voir
               (app)/layout.tsx, qui passe alors des tableaux non vides. */}
           {(dernieresNotifications.length > 0 || nombreNotificationsNonLues > 0) && (
-            <details className="relative">
+            <details ref={notificationsDetailsRef} className="relative">
               <summary
                 className="relative flex list-none cursor-pointer items-center rounded-md border border-border p-1.5 text-ink-muted transition-colors hover:bg-bg-sunken"
                 aria-label="Notifications"
@@ -170,6 +174,9 @@ export function Topbar({
                           startTransition(() => {
                             marquerNotificationPreinscriptionLueAction(notif.id);
                           });
+                          if (notificationsDetailsRef.current) {
+                            notificationsDetailsRef.current.open = false;
+                          }
                         }}
                         className={`flex items-start gap-2 px-4 py-2.5 text-sm hover:bg-bg-sunken ${
                           notif.lue ? "text-ink-muted" : "text-ink"
@@ -198,6 +205,11 @@ export function Topbar({
                 </ul>
                 <Link
                   href="/inscriptions"
+                  onClick={() => {
+                    if (notificationsDetailsRef.current) {
+                      notificationsDetailsRef.current.open = false;
+                    }
+                  }}
                   className="block border-t border-border px-4 py-2.5 text-center text-xs font-medium text-pine-strong hover:bg-bg-sunken"
                 >
                   Voir toutes les préinscriptions
