@@ -177,8 +177,14 @@ export function suffixesDesambiguisation(
 // déjà la mécanique anti-collision existante pour ces deux types précisément
 // — voir prisma/schema.prisma). `null` défensif (ne devrait pas arriver en
 // pratique pour ces deux types) -> pas de suffixe plutôt qu'un "(v)" cassé.
+// La toute première version ne porte pas non plus de suffixe : sur le NAS,
+// tant qu'il n'existe qu'un seul fichier, l'étiqueter "(v1)" laisse croire à
+// tort qu'il existe d'autres versions. Le numéro n'apparaît qu'à partir de la
+// 2e version réellement générée — le fichier v1 déjà écrit sur le disque
+// n'est lui jamais renommé rétroactivement (voir enregistrerDocumentEtudiant :
+// on n'écrase/renomme jamais un fichier déjà présent).
 export function formatSuffixeVersion(numeroVersion: number | null): string {
-  return numeroVersion === null ? "" : ` (v${numeroVersion})`;
+  return numeroVersion === null || numeroVersion <= 1 ? "" : ` (v${numeroVersion})`;
 }
 
 // Suffixe de désambiguïsation prêt à l'emploi pour un document non versionné

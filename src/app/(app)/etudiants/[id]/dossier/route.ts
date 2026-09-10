@@ -11,10 +11,12 @@ import { requireModule, Module } from "@/lib/permissions";
 // template que celui utilisé pour le dossier vierge
 // (documents/dossier-vierge/route.ts), remplacement du système .docx par
 // section (voir historique de commit, ancien src/lib/dossier-officiel.ts).
-// L'enregistre comme Document (type DOSSIER_GENERE) pour qu'il reste
-// accessible plus tard sans le régénérer, puis le renvoie : en aperçu dans
-// le navigateur par défaut (impression/téléchargement natifs du visualiseur
-// PDF), en téléchargement forcé avec ?dl=1.
+// Aperçu par défaut (bouton "Voir / imprimer") : rendu et renvoyé directement
+// au navigateur (impression/téléchargement natifs du visualiseur PDF), SANS
+// écrire sur le NAS — sinon chaque simple coup d'œil empile une version quasi
+// identique dans les documents de l'étudiant. Seul le téléchargement forcé
+// (?dl=1, bouton "Télécharger le PDF") l'enregistre comme Document (type
+// DOSSIER_GENERE) pour qu'il reste accessible plus tard sans le régénérer.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -42,49 +44,62 @@ export async function GET(
   }
   const dossierAnnuel = etudiant.dossiersAnnuels[0] ?? null;
 
-  const [{ modeleDossier, contexte }, derniereVersion] = await Promise.all([
-    construireContexteDossierEtudiant({ etudiantId, sectionId }),
-    prisma.document.findFirst({
+  const { modeleDossier, contexte } = await construireContexteDossierEtudiant({ etudiantId, sectionId });
+  const html = await rendreDossierHtml(modeleDossier, contexte);
+  const pdf = await rendreDossierPdf(html);
+
+  let nomFichier: string;
+  if (telecharger) {
+    const derniereVersion = await prisma.document.findFirst({
       where: { dossierAnnuelId: dossierAnnuel?.id, type: "DOSSIER_GENERE" },
       orderBy: { numeroVersion: "desc" },
       select: { numeroVersion: true },
-    }),
-  ]);
-  const html = await rendreDossierHtml(modeleDossier, contexte);
-  const pdf = await rendreDossierPdf(html);
-  const numeroVersion = (derniereVersion?.numeroVersion ?? 0) + 1;
+    });
+    const numeroVersion = (derniereVersion?.numeroVersion ?? 0) + 1;
 
-  const nomFichier = nomFichierDocument({
-    type: "DOSSIER_GENERE",
-    nom: etudiant.nom,
-    prenom: etudiant.prenom,
-    extension: "pdf",
-    suffixe: formatSuffixeVersion(numeroVersion),
-  });
-  const cheminRelatif = await enregistrerDocumentEtudiant(
-    {
-      matricule: etudiant.matricule,
+    nomFichier = nomFichierDocument({
+      type: "DOSSIER_GENERE",
       nom: etudiant.nom,
       prenom: etudiant.prenom,
-      anneeLibelle: dossierAnnuel?.anneeScolaire.libelle ?? null,
-    },
-    nomFichier,
-    pdf,
-  );
-
-  await prisma.document.create({
-    data: {
-      etudiantId,
-      dossierAnnuelId: dossierAnnuel?.id,
-      numeroVersion,
-      type: "DOSSIER_GENERE",
+      extension: "pdf",
+      suffixe: formatSuffixeVersion(numeroVersion),
+    });
+    const cheminRelatif = await enregistrerDocumentEtudiant(
+      {
+        matricule: etudiant.matricule,
+        nom: etudiant.nom,
+        prenom: etudiant.prenom,
+        anneeLibelle: dossierAnnuel?.anneeScolaire.libelle ?? null,
+      },
       nomFichier,
-      cheminRelatif,
-      mimeType: "application/pdf",
-      tailleOctets: pdf.length,
-      creeParId: session.id,
-    },
-  });
+      pdf,
+    );
+
+    await prisma.document.create({
+      data: {
+        etudiantId,
+        dossierAnnuelId: dossierAnnuel?.id,
+        numeroVersion,
+        type: "DOSSIER_GENERE",
+        nomFichier,
+        cheminRelatif,
+        mimeType: "application/pdf",
+        tailleOctets: pdf.length,
+        creeParId: session.id,
+      },
+    });
+  } else {
+    // Aperçu : nom de fichier indicatif seulement (visible si l'utilisateur
+    // enregistre manuellement depuis le visualiseur PDF), aucune écriture
+    // disque/BDD.
+    nomFichier = nomFichierDocument({
+      type: "DOSSIER_GENERE",
+      nom: etudiant.nom,
+      prenom: etudiant.prenom,
+      extension: "pdf",
+      suffixe: "",
+    });
+  }
 
   return new NextResponse(new Uint8Array(pdf), {
     headers: {

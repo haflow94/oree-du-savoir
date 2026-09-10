@@ -181,9 +181,13 @@ describe("suffixesDesambiguisation", () => {
 });
 
 describe("formatSuffixeVersion", () => {
-  it("formate (vN)", () => {
-    expect(formatSuffixeVersion(1)).toBe(" (v1)");
+  it("ne met rien pour la première version", () => {
+    expect(formatSuffixeVersion(1)).toBe("");
+  });
+
+  it("formate (vN) à partir de la 2e version", () => {
     expect(formatSuffixeVersion(2)).toBe(" (v2)");
+    expect(formatSuffixeVersion(3)).toBe(" (v3)");
   });
 
   it("ne met rien si la version est absente (défensif)", () => {
@@ -204,16 +208,22 @@ describe("formatSuffixeDesambiguisation", () => {
 describe("nomFichierDocument", () => {
   const base = { nom: "Benali", prenom: "Mohamed", extension: "pdf" };
 
-  it("dossier généré, version 1", () => {
+  it("dossier généré, version 1 (pas de suffixe)", () => {
     expect(
       nomFichierDocument({ ...base, type: "DOSSIER_GENERE", suffixe: formatSuffixeVersion(1) }),
-    ).toBe("BENALI Mohamed — Dossier inscription (v1).pdf");
+    ).toBe("BENALI Mohamed — Dossier inscription.pdf");
   });
 
-  it("dossier signé, version 1", () => {
+  it("dossier signé, version 1 (pas de suffixe)", () => {
     expect(
       nomFichierDocument({ ...base, type: "DOSSIER_SIGNE", suffixe: formatSuffixeVersion(1) }),
-    ).toBe("BENALI Mohamed — Dossier inscription signé (v1).pdf");
+    ).toBe("BENALI Mohamed — Dossier inscription signé.pdf");
+  });
+
+  it("dossier généré, version 2", () => {
+    expect(
+      nomFichierDocument({ ...base, type: "DOSSIER_GENERE", suffixe: formatSuffixeVersion(2) }),
+    ).toBe("BENALI Mohamed — Dossier inscription (v2).pdf");
   });
 
   it("pièce identité, aucun suffixe", () => {
