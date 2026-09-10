@@ -51,6 +51,7 @@ vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidat
 
 const supprimerFichierDocument = vi.fn();
 const dossierDocumentaireComplet = vi.fn();
+const statutDocumentsRequis = vi.fn().mockReturnValue({});
 const renommerDossierEtudiant = vi.fn().mockResolvedValue(true);
 const deplacerDocumentVersEtudiant = vi.fn();
 const renommerCheminBrut = vi.fn().mockResolvedValue(true);
@@ -64,6 +65,7 @@ vi.mock("@/lib/documents", async () => {
     enregistrerDocumentEtudiant: vi.fn(),
     supprimerFichierDocument: (...args: unknown[]) => supprimerFichierDocument(...args),
     dossierDocumentaireComplet: (...args: unknown[]) => dossierDocumentaireComplet(...args),
+    statutDocumentsRequis: (...args: unknown[]) => statutDocumentsRequis(...args),
     renommerDossierEtudiant: (...args: unknown[]) => renommerDossierEtudiant(...args),
     deplacerDocumentVersEtudiant: (...args: unknown[]) => deplacerDocumentVersEtudiant(...args),
     renommerCheminBrut: (...args: unknown[]) => renommerCheminBrut(...args),
@@ -257,5 +259,92 @@ describe("validerInscriptionAction — dossier de paiement ouvert (pas paiement 
       "REDIRECT:/etudiants/et1?error=DOSSIER_INCOMPLET",
     );
     expect(etudiantUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// Forçage de la validation malgré un dossier incomplet : réservé au Bureau,
+// via une case de confirmation explicite (`force=1`) — voir la page pour le
+// formulaire, actions.ts pour la revérification serveur du rôle.
+describe("validerInscriptionAction — forçage réservé au Bureau", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  function etudiantIncomplet(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "et1",
+      nom: "Dupont",
+      prenom: "Léo",
+      sectionSouhaiteeId: null,
+      documents: [],
+      _count: { dossiersAnnuels: 0 },
+      ...overrides,
+    };
+  }
+
+  function formulaireForce(etudiantId: string): FormData {
+    const fd = formulaire(etudiantId);
+    fd.set("force", "1");
+    return fd;
+  }
+
+  it("un Bureau peut forcer la validation d'un dossier incomplet", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(etudiantIncomplet());
+    dossierDocumentaireComplet.mockReturnValue(false);
+    etudiantUpdate.mockResolvedValue({});
+    journalAuditCreate.mockResolvedValue({});
+    synchroniserInscriptionsClasse.mockResolvedValue(undefined);
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(validerInscriptionAction(formulaireForce("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants/et1?ok=1",
+    );
+
+    expect(etudiantUpdate).toHaveBeenCalledWith({
+      where: { id: "et1" },
+      data: { statutInscription: "VALIDE" },
+    });
+    expect(journalAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "validation_inscription_forcee" }),
+      }),
+    );
+  });
+
+  it("un rôle non-Bureau (ex. Administration) ne peut pas forcer, même avec force=1", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "ADMINISTRATION" });
+    etudiantFindUnique.mockResolvedValue(etudiantIncomplet());
+    dossierDocumentaireComplet.mockReturnValue(false);
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(validerInscriptionAction(formulaireForce("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants/et1?error=FORCAGE_RESERVE_BUREAU",
+    );
+    expect(etudiantUpdate).not.toHaveBeenCalled();
+  });
+
+  it("force=1 est sans effet quand le dossier est déjà complet (chemin normal, pas de forçage)", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(etudiantIncomplet({ _count: { dossiersAnnuels: 1 } }));
+    dossierDocumentaireComplet.mockReturnValue(true);
+    etudiantUpdate.mockResolvedValue({});
+    journalAuditCreate.mockResolvedValue({});
+    synchroniserInscriptionsClasse.mockResolvedValue(undefined);
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(validerInscriptionAction(formulaireForce("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants/et1?ok=1",
+    );
+
+    expect(journalAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "validation_inscription" }),
+      }),
+    );
   });
 });

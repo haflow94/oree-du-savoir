@@ -9,6 +9,7 @@ import {
   enregistrerDocumentEtudiant,
   supprimerFichierDocument,
   dossierDocumentaireComplet,
+  statutDocumentsRequis,
   deplacerDocumentVersEtudiant,
   dossierPhysiqueEtudiant,
   estDansDossierEtudiant,
@@ -23,6 +24,7 @@ import {
   suffixesDesambiguisation,
 } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
+import { Role } from "@/lib/roles";
 import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
 import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
@@ -280,9 +282,31 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
   // 07/09/2026, qui a corrigé cette règle : elle exigeait auparavant au
   // moins un paiement enregistré, ce qui n'était pas la règle voulue).
   const dossierPaiementOuvert = etudiant._count.dossiersAnnuels > 0;
-  if (!dossierDocumentaireComplet(etudiant.documents) || !dossierPaiementOuvert) {
-    retour(etudiantId, "DOSSIER_INCOMPLET");
+  const dossierComplet = dossierDocumentaireComplet(etudiant.documents);
+  const dossierIncomplet = !dossierComplet || !dossierPaiementOuvert;
+
+  // Forçage : réservé au Bureau (requireRole en plus de la ECRITURE déjà
+  // exigée ci-dessus par requireModule, jamais via le grid éditable — même
+  // logique que les autres dérogations administratives, voir CLAUDE.md) et
+  // soumis à une case de confirmation explicite côté formulaire (voir
+  // page.tsx) : contourne sciemment un dossier documentaire ou un dossier de
+  // paiement manquant (cas réel : dossier papier déjà signé physiquement,
+  // pièce jointe encore en retard côté famille...), jamais un défaut
+  // silencieux — la raison de chaque champ manquant est journalisée.
+  const force = champTexte(formData, "force") === "1";
+  if (dossierIncomplet) {
+    if (!force) retour(etudiantId, "DOSSIER_INCOMPLET");
+    if (session.role !== Role.BUREAU) retour(etudiantId, "FORCAGE_RESERVE_BUREAU");
   }
+
+  const detailsManquants = dossierIncomplet
+    ? {
+        documentsManquants: Object.entries(statutDocumentsRequis(etudiant.documents))
+          .filter(([, statut]) => statut !== "OK")
+          .map(([type, statut]) => `${type}:${statut}`),
+        dossierPaiementOuvert,
+      }
+    : undefined;
 
   await prisma.$transaction([
     prisma.etudiant.update({
@@ -292,9 +316,10 @@ export async function validerInscriptionAction(formData: FormData): Promise<void
     prisma.journalAudit.create({
       data: {
         utilisateurId: session.id,
-        action: "validation_inscription",
+        action: dossierIncomplet ? "validation_inscription_forcee" : "validation_inscription",
         entite: "Etudiant",
         entiteId: etudiantId,
+        details: detailsManquants,
       },
     }),
   ]);

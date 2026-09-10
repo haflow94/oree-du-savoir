@@ -69,6 +69,7 @@ const MESSAGES: Record<string, string> = {
     "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles. Transférez-les manuellement avant de la supprimer.",
   DOSSIER_INCOMPLET:
     "Impossible de valider l'inscription : le dossier documentaire n'est pas complet ou aucun dossier de paiement n'a été ouvert pour cet étudiant.",
+  FORCAGE_RESERVE_BUREAU: "Forcer la validation malgré un dossier incomplet est réservé au Bureau.",
 };
 
 const STATUT_DOCUMENT_LABELS: Record<StatutDocumentRequis, string> = {
@@ -433,10 +434,27 @@ export default async function EtudiantDetailPage({
             <div className="text-right">
               <form action={validerInscriptionAction}>
                 <input type="hidden" name="etudiantId" value={etudiant.id} />
+                {/* Forçage réservé au Bureau (voir validerInscriptionAction) :
+                    une case à cocher requise plutôt qu'un état React — non
+                    cochée, `force` n'est même pas envoyé dans le FormData, et
+                    le serveur revérifie de toute façon le rôle avant d'honorer
+                    le forçage. */}
+                {!validationPossible && session.role === Role.BUREAU && (
+                  <label className="mb-1.5 flex items-center justify-end gap-1.5 text-xs text-ink-muted">
+                    <input
+                      type="checkbox"
+                      name="force"
+                      value="1"
+                      required
+                      className="h-3.5 w-3.5 rounded border-border"
+                    />
+                    Forcer malgré le dossier incomplet
+                  </label>
+                )}
                 <SubmitButton
                   variant="primary"
                   pendingLabel="Validation…"
-                  disabled={!validationPossible}
+                  disabled={!validationPossible && session.role !== Role.BUREAU}
                   title={
                     validationPossible
                       ? undefined
@@ -1184,8 +1202,9 @@ export default async function EtudiantDetailPage({
             Génère le dossier d&apos;inscription en PDF (modèle Adultes ou
             Jeunes, tarifs et créneaux propres à la section suivie, mise en
             page identique à l&apos;impression) à partir des informations de
-            l&apos;étudiant. Le fichier est conservé et réapparaît dans les
-            documents ci-dessous.
+            l&apos;étudiant. « Voir / imprimer » n&apos;est qu&apos;un aperçu ;
+            seul « Télécharger le PDF » enregistre une version qui réapparaît
+            dans les documents ci-dessous.
           </p>
           {sectionsPourDossier.length === 0 ? (
             <EmptyState message="Aucune section enregistrée." />
