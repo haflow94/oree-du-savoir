@@ -29,7 +29,7 @@ export function Sidebar({
   const items = NAV_ITEMS.filter((item) => hrefsVisibles.includes(item.href));
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-pine-strong px-3 py-5 text-sage-bg/80 md:flex">
+    <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col overflow-y-auto bg-pine-strong px-3 py-5 text-sage-bg/80 md:flex print:hidden">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 opacity-[0.08]"

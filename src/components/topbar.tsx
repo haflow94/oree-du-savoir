@@ -76,7 +76,7 @@ export function Topbar({
   }, [router]);
 
   return (
-    <header className="sticky top-0 z-10 flex flex-col border-b border-border bg-bg-elevated">
+    <header className="sticky top-0 z-10 flex flex-col border-b border-border bg-bg-elevated print:hidden">
       <div className="flex h-16 items-center justify-between gap-3 px-4 md:px-6">
         <div className="flex items-center gap-3">
           {/* Menu mobile : disclosure HTML pur, pas de JS nécessaire */}

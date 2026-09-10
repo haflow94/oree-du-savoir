@@ -10,6 +10,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { PrintButton } from "@/components/ui/print-button";
 import { AdminSubNav } from "../sub-nav";
 
 const MESSAGES: Record<string, string> = {
@@ -44,16 +45,26 @@ export default async function SallesPage({
   const sallesAvecQr = await Promise.all(
     salles.map(async (s) => {
       const urlQr = `${protocole}://${hote}/qr/${s.qrToken}`;
-      const qrSvg = await QRCode.toString(urlQr, { type: "svg", margin: 1, width: 140 });
-      return { ...s, urlQr, qrSvg };
+      const [qrSvg, qrSvgImpression] = await Promise.all([
+        QRCode.toString(urlQr, { type: "svg", margin: 1, width: 140 }),
+        // Version imprimée en plus grand : affichée sur un mur/une porte,
+        // elle doit rester scannable à distance.
+        QRCode.toString(urlQr, { type: "svg", margin: 1, width: 320 }),
+      ]);
+      return { ...s, urlQr, qrSvg, qrSvgImpression };
     }),
   );
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="print:hidden">
         <BackLink href="/administration" label="Administration" />
-        <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">Salles</h1>
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="font-display text-3xl font-semibold text-pine-strong">Salles</h1>
+          {salles.length > 0 && (
+            <PrintButton>Imprimer tous les QR codes</PrintButton>
+          )}
+        </div>
         <p className="text-sm text-ink-muted">
           Chaque salle porte un QR permanent : à afficher ou imprimer une
           bonne fois pour toutes, il ne change jamais tant que la salle
@@ -63,12 +74,16 @@ export default async function SallesPage({
         </p>
       </div>
 
-      <AdminSubNav current="/administration/salles" />
+      <div className="print:hidden">
+        <AdminSubNav current="/administration/salles" />
+      </div>
 
-      {message && <Alert variant="danger">{message}</Alert>}
-      {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
+      <div className="print:hidden">
+        {message && <Alert variant="danger">{message}</Alert>}
+        {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
+      </div>
 
-      <Card>
+      <Card className="print:hidden">
         <CardTitle>Créer une salle</CardTitle>
         <form action={creerSalleAction} className="mt-3 flex flex-wrap items-end gap-3">
           <Champ label="Nom" name="nom" id="nom-nouvelle-salle" required placeholder="ex. Salle 1" />
@@ -78,7 +93,24 @@ export default async function SallesPage({
         </form>
       </Card>
 
-      <div className="space-y-3">
+      {/* Une salle par page, uniquement visible à l'impression (voir
+          PrintButton) : le rendu écran ci-dessous (compact, avec actions de
+          gestion) n'est pas adapté à l'affichage mural. */}
+      <div className="hidden print:block">
+        {sallesAvecQr.map((s, i) => (
+          <div
+            key={s.id}
+            className={`flex min-h-screen flex-col items-center justify-center gap-6 ${
+              i < sallesAvecQr.length - 1 ? "break-after-page" : ""
+            }`}
+          >
+            <h2 className="font-display text-4xl font-semibold">{s.nom}</h2>
+            <div dangerouslySetInnerHTML={{ __html: s.qrSvgImpression }} />
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-3 print:hidden">
         {sallesAvecQr.map((s) => (
           <Card key={s.id}>
             <div className="flex flex-wrap items-start justify-between gap-4">
