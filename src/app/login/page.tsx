@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { loginAction } from "./actions";
 import { Champ } from "@/components/ui/champ";
+import { ChampMotDePasseVisible } from "@/components/ui/champ-mot-de-passe-visible";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 
@@ -47,10 +48,9 @@ export default async function LoginPage({
           {errorMessage && <Alert variant="danger">{errorMessage}</Alert>}
 
           <Champ label="Email" name="email" type="email" autoComplete="username" required />
-          <Champ
+          <ChampMotDePasseVisible
             label="Mot de passe"
             name="motDePasse"
-            type="password"
             autoComplete="current-password"
             required
           />
