@@ -101,7 +101,9 @@ export async function GET(request: NextRequest) {
     e.adresse ?? "",
     e.codePostal ?? "",
     e.ville ?? "",
-    e.contactUrgence ?? "",
+    e.contactUrgenceNom ?? "",
+    e.contactUrgencePrenom ?? "",
+    e.contactUrgenceTelephone ?? "",
     e.statutInscription,
     estNouveauParCompteur(e)
       ? estReinscrit(e)
@@ -126,7 +128,9 @@ export async function GET(request: NextRequest) {
       "Adresse",
       "Code postal",
       "Ville",
-      "Contact d'urgence",
+      "Contact d'urgence - nom",
+      "Contact d'urgence - prénom",
+      "Contact d'urgence - téléphone",
       "Statut",
       "Inscription",
       "Responsables légaux",

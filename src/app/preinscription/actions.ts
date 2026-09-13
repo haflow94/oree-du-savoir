@@ -219,6 +219,18 @@ export async function preinscrireAction(
   // pour une inscription "Jeunes", ce sont les coordonnées du responsable
   // légal qui sont saisies, pas celles de l'enfant — ces champs ne sont donc
   // pas rendus dans le formulaire et ne peuvent pas être exigés ici.
+  const contactUrgenceNom = champTexte(formData, "contactUrgenceNom");
+  const contactUrgencePrenom = champTexte(formData, "contactUrgencePrenom");
+  const contactUrgenceTelephone = champTexte(formData, "contactUrgenceTelephone");
+  if (!contactUrgenceNom || !contactUrgencePrenom || !contactUrgenceTelephone) {
+    return {
+      erreur: "Le nom, le prénom et le téléphone du contact d'urgence sont obligatoires.",
+    };
+  }
+  if (!estTelephoneValide(contactUrgenceTelephone)) {
+    return { erreur: "Le téléphone du contact d'urgence n'a pas un format valide (ex. 06 12 34 56 78)." };
+  }
+
   const estJeunes = sectionsChoisies.some((s) => s.nom === "Jeunes");
   if (!estJeunes) {
     const telephoneMobile = champTexte(formData, "telephoneMobile");
@@ -388,7 +400,9 @@ export async function preinscrireAction(
       telephoneMobile: champTexte(formData, "telephoneMobile"),
       telephoneFixe: champTexte(formData, "telephoneFixe"),
       email: champTexte(formData, "email"),
-      contactUrgence: champTexte(formData, "contactUrgence"),
+      contactUrgenceNom,
+      contactUrgencePrenom,
+      contactUrgenceTelephone,
       adresse: champTexte(formData, "adresse"),
       complementAdresse: champTexte(formData, "complementAdresse"),
       codePostal: champTexte(formData, "codePostal"),

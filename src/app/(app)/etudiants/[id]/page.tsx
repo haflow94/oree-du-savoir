@@ -686,12 +686,6 @@ export default async function EtudiantDetailPage({
                 required
               />
               <Champ
-                label="Contact d'urgence"
-                name="contactUrgence"
-                defaultValue={etudiant.contactUrgence ?? ""}
-                placeholder="Nom Prénom Numéro de mobile"
-              />
-              <Champ
                 label="Adresse"
                 name="adresse"
                 defaultValue={etudiant.adresse ?? ""}
@@ -715,6 +709,34 @@ export default async function EtudiantDetailPage({
                 placeholder="69000"
               />
               <Champ label="Ville" name="ville" defaultValue={etudiant.ville ?? ""} required />
+            </div>
+          </fieldset>
+
+          <fieldset className={FIELDSET_CLASSES}>
+            <legend className={LEGEND_CLASSES}>Contact d&apos;urgence</legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Champ
+                label="Nom"
+                name="contactUrgenceNom"
+                defaultValue={etudiant.contactUrgenceNom ?? ""}
+                required
+              />
+              <Champ
+                label="Prénom"
+                name="contactUrgencePrenom"
+                defaultValue={etudiant.contactUrgencePrenom ?? ""}
+                required
+              />
+              <Champ
+                label="Téléphone"
+                name="contactUrgenceTelephone"
+                defaultValue={etudiant.contactUrgenceTelephone ?? ""}
+                required
+                inputMode="tel"
+                pattern={PATTERN_TELEPHONE}
+                title="Numéro français, ex. 06 12 34 56 78"
+                placeholder="06 12 34 56 78"
+              />
             </div>
           </fieldset>
 
@@ -808,7 +830,14 @@ export default async function EtudiantDetailPage({
               </div>
               <div>
                 <dt className={DT_CLASSES}>Contact d&apos;urgence</dt>
-                <dd className={DD_CLASSES}>{etudiant.contactUrgence || "—"}</dd>
+                <dd className={DD_CLASSES}>
+                  {[etudiant.contactUrgenceNom, etudiant.contactUrgencePrenom].filter(Boolean).join(" ") ||
+                  etudiant.contactUrgenceTelephone
+                    ? `${[etudiant.contactUrgenceNom, etudiant.contactUrgencePrenom].filter(Boolean).join(" ")}${
+                        etudiant.contactUrgenceTelephone ? ` — ${etudiant.contactUrgenceTelephone}` : ""
+                      }`
+                    : "—"}
+                </dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className={DT_CLASSES}>Adresse</dt>

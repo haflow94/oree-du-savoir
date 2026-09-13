@@ -18,7 +18,9 @@ type Etudiant = {
   complementAdresse: string | null;
   codePostal: string | null;
   ville: string | null;
-  contactUrgence: string | null;
+  contactUrgenceNom: string | null;
+  contactUrgencePrenom: string | null;
+  contactUrgenceTelephone: string | null;
 };
 
 const MESSAGES_ERREUR: Record<string, string> = {
@@ -183,7 +185,21 @@ export function DossierVerification({
               <Champ label="Complément d'adresse" name="complementAdresse" defaultValue={etudiant.complementAdresse ?? ""} />
               <Champ label="Code postal" name="codePostal" defaultValue={etudiant.codePostal ?? ""} />
               <Champ label="Ville" name="ville" defaultValue={etudiant.ville ?? ""} />
-              <Champ label="Contact d'urgence" name="contactUrgence" defaultValue={etudiant.contactUrgence ?? ""} />
+              <Champ
+                label="Contact d'urgence — nom"
+                name="contactUrgenceNom"
+                defaultValue={etudiant.contactUrgenceNom ?? ""}
+              />
+              <Champ
+                label="Contact d'urgence — prénom"
+                name="contactUrgencePrenom"
+                defaultValue={etudiant.contactUrgencePrenom ?? ""}
+              />
+              <Champ
+                label="Contact d'urgence — téléphone"
+                name="contactUrgenceTelephone"
+                defaultValue={etudiant.contactUrgenceTelephone ?? ""}
+              />
               <div className="flex gap-3">
                 <Button type="submit" disabled={pending}>Enregistrer</Button>
                 <Button type="button" variant="ghost" onClick={() => setVue("accueil")}>Annuler</Button>

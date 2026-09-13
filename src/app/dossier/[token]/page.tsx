@@ -65,7 +65,9 @@ export default async function DossierPage({
             complementAdresse: dossier.etudiant.complementAdresse,
             codePostal: dossier.etudiant.codePostal,
             ville: dossier.etudiant.ville,
-            contactUrgence: dossier.etudiant.contactUrgence,
+            contactUrgenceNom: dossier.etudiant.contactUrgenceNom,
+            contactUrgencePrenom: dossier.etudiant.contactUrgencePrenom,
+            contactUrgenceTelephone: dossier.etudiant.contactUrgenceTelephone,
           }}
           statutSignature={dossier.statutSignature}
           numeroVersionActuelle={derniereVersion?.numeroVersion ?? null}

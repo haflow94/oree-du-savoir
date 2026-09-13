@@ -153,6 +153,9 @@ export async function creerEtudiantAction(
   const codePostal = champTexte(formData, "codePostal");
   const ville = champTexte(formData, "ville");
   const niveauEtudes = champTexte(formData, "niveauEtudes");
+  const contactUrgenceNom = champTexte(formData, "contactUrgenceNom");
+  const contactUrgencePrenom = champTexte(formData, "contactUrgencePrenom");
+  const contactUrgenceTelephone = champTexte(formData, "contactUrgenceTelephone");
 
   if (
     !civilite ||
@@ -165,10 +168,13 @@ export async function creerEtudiantAction(
     !adresse ||
     !codePostal ||
     !ville ||
-    !niveauEtudes
+    !niveauEtudes ||
+    !contactUrgenceNom ||
+    !contactUrgencePrenom ||
+    !contactUrgenceTelephone
   ) {
     throw new Error(
-      "La civilité, le nom, le prénom, la date de naissance, la ville de naissance, le téléphone mobile, l'email, l'adresse, le code postal, la ville et le niveau d'études sont obligatoires.",
+      "La civilité, le nom, le prénom, la date de naissance, la ville de naissance, le téléphone mobile, l'email, l'adresse, le code postal, la ville, le niveau d'études et le contact d'urgence (nom, prénom, téléphone) sont obligatoires.",
     );
   }
   if (!estTelephoneValide(telephoneMobile)) {
@@ -179,6 +185,9 @@ export async function creerEtudiantAction(
   }
   if (!estCodePostalValide(codePostal)) {
     throw new Error("Le code postal doit comporter 5 chiffres.");
+  }
+  if (!estTelephoneValide(contactUrgenceTelephone)) {
+    throw new Error("Le téléphone du contact d'urgence n'a pas un format valide (ex. 06 12 34 56 78).");
   }
 
   const telephoneFixe = champTexte(formData, "telephoneFixe");
@@ -217,7 +226,9 @@ export async function creerEtudiantAction(
         complementAdresse: champTexte(formData, "complementAdresse"),
         codePostal,
         ville,
-        contactUrgence: champTexte(formData, "contactUrgence"),
+        contactUrgenceNom,
+        contactUrgencePrenom,
+        contactUrgenceTelephone,
         profession: champTexte(formData, "profession"),
         niveauEtudes,
         dernierDiplome: champTexte(formData, "dernierDiplome"),

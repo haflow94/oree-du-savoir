@@ -28,7 +28,9 @@ const CHAMPS_ETUDIANT_MODIFIABLES = [
   "complementAdresse",
   "codePostal",
   "ville",
-  "contactUrgence",
+  "contactUrgenceNom",
+  "contactUrgencePrenom",
+  "contactUrgenceTelephone",
 ] as const;
 
 function champTexte(formData: FormData, nom: string): string | null {
@@ -91,6 +93,9 @@ export async function modifierChampsAction(
   }
   if (donnees.telephoneFixe && !estTelephoneValide(donnees.telephoneFixe)) {
     return { erreur: "Le téléphone fixe n'a pas un format valide." };
+  }
+  if (donnees.contactUrgenceTelephone && !estTelephoneValide(donnees.contactUrgenceTelephone)) {
+    return { erreur: "Le téléphone du contact d'urgence n'a pas un format valide." };
   }
   if (donnees.codePostal && !estCodePostalValide(donnees.codePostal)) {
     return { erreur: "Le code postal doit comporter 5 chiffres." };

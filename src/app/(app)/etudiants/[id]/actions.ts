@@ -85,6 +85,9 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
   const codePostal = champTexte(formData, "codePostal");
   const ville = champTexte(formData, "ville");
   const niveauEtudes = champTexte(formData, "niveauEtudes");
+  const contactUrgenceNom = champTexte(formData, "contactUrgenceNom");
+  const contactUrgencePrenom = champTexte(formData, "contactUrgencePrenom");
+  const contactUrgenceTelephone = champTexte(formData, "contactUrgenceTelephone");
 
   if (
     !civilite ||
@@ -98,13 +101,17 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
     !adresse ||
     !codePostal ||
     !ville ||
-    !niveauEtudes
+    !niveauEtudes ||
+    !contactUrgenceNom ||
+    !contactUrgencePrenom ||
+    !contactUrgenceTelephone
   ) {
     retour(etudiantId, "PROFIL_CHAMPS_MANQUANTS");
   }
   if (!estTelephoneValide(telephoneMobile)) retour(etudiantId, "TELEPHONE_INVALIDE");
   if (!estEmailValide(email)) retour(etudiantId, "EMAIL_INVALIDE");
   if (!estCodePostalValide(codePostal)) retour(etudiantId, "CODE_POSTAL_INVALIDE");
+  if (!estTelephoneValide(contactUrgenceTelephone)) retour(etudiantId, "TELEPHONE_INVALIDE");
 
   const telephoneFixe = champTexte(formData, "telephoneFixe");
   if (telephoneFixe && !estTelephoneValide(telephoneFixe)) retour(etudiantId, "TELEPHONE_INVALIDE");
@@ -135,7 +142,9 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
         complementAdresse: champTexte(formData, "complementAdresse"),
         codePostal,
         ville,
-        contactUrgence: champTexte(formData, "contactUrgence"),
+        contactUrgenceNom,
+        contactUrgencePrenom,
+        contactUrgenceTelephone,
         profession: champTexte(formData, "profession"),
         niveauEtudes,
         dernierDiplome: champTexte(formData, "dernierDiplome"),
