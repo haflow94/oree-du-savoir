@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { resoudreAccesDossier } from "@/lib/acces-dossier";
 import { lireDocument } from "@/lib/documents";
+import { enTeteContentDisposition } from "@/lib/content-disposition";
 
 // Sert la dernière version du dossier généré (ou la version demandée via
 // ?version=N, pour permettre à la famille de comparer avant/après une
@@ -35,7 +36,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(contenu), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${document.nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition("inline", document.nomFichier),
     },
   });
 }

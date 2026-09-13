@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { construireContexteDossierVierge } from "@/lib/dossier/context";
 import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
 import { requireModule, Module } from "@/lib/permissions";
+import { enTeteContentDisposition } from "@/lib/content-disposition";
 import type { ModeleDossier } from "@/generated/prisma/enums";
 
 // Dossier vierge : mêmes templates que le dossier étudiant
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `${telecharger ? "attachment" : "inline"}; filename="${nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition(telecharger ? "attachment" : "inline", nomFichier),
     },
   });
 }

@@ -11,6 +11,7 @@ import {
   estDansDossierEtudiant,
   dossierPhysiqueEtudiant,
 } from "@/lib/documents";
+import { enTeteContentDisposition } from "@/lib/content-disposition";
 
 // Même garde d'accès (Bureau/Administration en dur) et même principe de
 // régénération à chaque appel que la route reçu — voir son commentaire.
@@ -118,7 +119,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition("inline", nomFichier),
     },
   });
 }

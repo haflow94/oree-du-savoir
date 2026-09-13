@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { lireDocument } from "@/lib/documents";
 import { verifierAuthN8n } from "@/lib/auth-n8n";
+import { enTeteContentDisposition } from "@/lib/content-disposition";
 
 // Ne sert que les documents DOSSIER_GENERE : ce sont les seuls destinés à
 // quitter l'app par email. Un id d'un autre type (pièce d'identité, photo…)
@@ -34,7 +35,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(contenu), {
     headers: {
       "Content-Type": document.mimeType,
-      "Content-Disposition": `attachment; filename="${document.nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition("attachment", document.nomFichier),
     },
   });
 }

@@ -99,6 +99,9 @@ function formulaireValide(): FormData {
   fd.set("responsable1Prenom", "Fatima");
   fd.set("responsable1Telephone", "0612345678");
   fd.set("responsable1Email", "fatima@example.com");
+  fd.set("contactUrgenceNom", "Martin");
+  fd.set("contactUrgencePrenom", "Sophie");
+  fd.set("contactUrgenceTelephone", "0698765432");
   fd.set("photo", new File([JPEG], "photo.jpg", { type: "image/jpeg" }));
   fd.set("pieceIdentite", new File([PDF], "piece.pdf", { type: "application/pdf" }));
   return fd;

@@ -11,6 +11,7 @@ import {
   estDansDossierEtudiant,
   dossierPhysiqueEtudiant,
 } from "@/lib/documents";
+import { enTeteContentDisposition } from "@/lib/content-disposition";
 
 // Réservé Bureau/Administration à la demande explicite de l'association
 // (pas via la grille de permissions éditable — Module.DOCUMENTS — pour ne
@@ -110,7 +111,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition("inline", nomFichier),
     },
   });
 }

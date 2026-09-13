@@ -1,6 +1,7 @@
 // Pas de `import "server-only"` ici : module de calcul pur, volontairement
 // testable — même raison que fichiers-uploades.ts.
 import { detecterTypeMimeReel } from "./fichiers-uploades";
+import { enTeteContentDisposition } from "./content-disposition";
 
 // Types qu'un navigateur peut afficher directement sans risque d'exécution
 // (pas de HTML/SVG/JS) : seuls ceux-là peuvent être servis "inline". Tout le
@@ -28,6 +29,6 @@ export function enTetesServiceDocument(
   const inlineAutorise = typeReel !== null && MIME_SURS_INLINE.has(typeReel) && !telecharger;
   return {
     "Content-Type": typeReel ?? "application/octet-stream",
-    "Content-Disposition": `${inlineAutorise ? "inline" : "attachment"}; filename="${nomFichier}"`,
+    "Content-Disposition": enTeteContentDisposition(inlineAutorise ? "inline" : "attachment", nomFichier),
   };
 }

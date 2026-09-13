@@ -1,4 +1,5 @@
 import "server-only";
+import { enTeteContentDisposition } from "./content-disposition";
 
 function champCsv(valeur: unknown): string {
   const texte = valeur === null || valeur === undefined ? "" : String(valeur);
@@ -20,7 +21,7 @@ export function reponseCsv(nomFichier: string, contenu: string): Response {
   return new Response(contenu, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="${nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition("attachment", nomFichier),
     },
   });
 }

@@ -4,6 +4,7 @@ import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
 import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
 import { enregistrerDocumentEtudiant, nomFichierDocument, formatSuffixeVersion } from "@/lib/documents";
 import { requireModule, Module } from "@/lib/permissions";
+import { enTeteContentDisposition } from "@/lib/content-disposition";
 
 // Génère le dossier d'inscription en PDF pour une section donnée, à partir
 // du modèle maître (ADULTES/JEUNES, voir Section.modeleDossier) et des
@@ -104,7 +105,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `${telecharger ? "attachment" : "inline"}; filename="${nomFichier}"`,
+      "Content-Disposition": enTeteContentDisposition(telecharger ? "attachment" : "inline", nomFichier),
     },
   });
 }
