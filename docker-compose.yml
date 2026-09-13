@@ -108,10 +108,8 @@ services:
     # port publié sur l'hôte — donc aucun impact sur /preinscription public.
     # Publier sur toutes les interfaces exposait l'app en clair sur le
     # réseau local sans aucun besoin (même raison que db.ports/n8n.ports).
-    # TEMPORAIRE (test LAN) : ouvert sur toutes les interfaces le temps du
-    # test — remettre "127.0.0.1:3000:3000" ensuite.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     # Stockage documentaire actif migré vers le NAS (audit du 2026-09-09) :
     # aucun changement de code nécessaire, DOCUMENTS_DIR (voir src/lib/documents.ts)
     # ne connaît que des chemins relatifs opaques ("etudiants/<id>/...",
