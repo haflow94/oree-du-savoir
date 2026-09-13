@@ -28,7 +28,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 const MESSAGES: Record<string, string> = {
   CHAMPS_MANQUANTS: "Cohorte, cours et horaires sont obligatoires.",
   CLASSE_UTILISEE:
-    "Impossible de supprimer : des séances ou des inscriptions existent déjà pour cette classe.",
+    "Impossible de supprimer : des présences ou des inscriptions existent déjà pour cette classe.",
   CLASSE_INTROUVABLE: "Cette classe n'existe plus.",
   INSCRIPTION_INVALIDE: "Sélectionnez un étudiant à inscrire.",
   CLASSE_DEJA_EXISTANTE:
@@ -113,7 +113,13 @@ export default async function ClasseDetailPage({
 
   const enseignantsAssignes = new Set(classe.enseignants.map((e) => e.utilisateurId));
   const enseignantsDisponibles = peutGerer ? await enseignantsActifsAvecSections() : [];
-  const peutSupprimer = classe._count.seances === 0 && classe._count.inscriptions === 0;
+  // Des séances génèrent automatiquement à la volée (voir datesDesSeances) et
+  // n'emportent aucune donnée tant qu'aucune présence n'y a été validée : ne
+  // bloquer la suppression que sur une présence réellement enregistrée, pas
+  // sur la simple existence de séances vides (sinon aucune classe dont
+  // l'année scolaire a déjà démarré n'est plus jamais supprimable).
+  const nbPresences = await prisma.presence.count({ where: { seance: { classeId: id } } });
+  const peutSupprimer = nbPresences === 0 && classe._count.inscriptions === 0;
 
   const dejaInscrits = new Set(classe.inscriptions.map((i) => i.etudiantId));
   // Ne proposer que les étudiants de la section de cette classe (déjà inscrits
@@ -228,7 +234,7 @@ export default async function ClasseDetailPage({
                 description="Cette action supprime définitivement la classe et ne peut pas être annulée."
                 confirmLabel="Supprimer définitivement"
                 disabled={!peutSupprimer}
-                disabledTitle="Des séances ou des inscriptions existent déjà : impossible de supprimer cette classe."
+                disabledTitle="Des présences ou des inscriptions existent déjà : impossible de supprimer cette classe."
               />
             </div>
           </div>
@@ -346,11 +352,11 @@ export default async function ClasseDetailPage({
         ) : (
           <ul className="mt-3 divide-y divide-border">
             {classe.inscriptions.map((i) => (
-              <li key={i.id} className="flex items-center justify-between py-2.5">
+              <li key={i.id} className="relative flex items-center justify-between py-2.5">
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/etudiants/${i.etudiantId}`}
-                    className="text-sm font-medium text-ink hover:underline"
+                    className="text-sm font-medium text-ink after:absolute after:inset-0 hover:underline"
                   >
                     {i.etudiant.prenom} {i.etudiant.nom}
                   </Link>
@@ -359,7 +365,7 @@ export default async function ClasseDetailPage({
                   )}
                 </div>
                 {peutInscrire && (
-                  <form action={retirerEtudiantAction}>
+                  <form action={retirerEtudiantAction} className="relative z-10">
                     <input type="hidden" name="origine" value="classe" />
                     <input type="hidden" name="inscriptionId" value={i.id} />
                     <input type="hidden" name="classeId" value={classe.id} />

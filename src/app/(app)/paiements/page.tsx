@@ -254,10 +254,13 @@ export default async function PaiementsPage({
             return (
               <tr
                 key={d.id}
-                className={`${STATUT_COTISATION_ROW_CLASSES[statut]} hover:bg-bg-sunken/40`}
+                className={`relative ${STATUT_COTISATION_ROW_CLASSES[statut]} hover:bg-bg-sunken/40`}
               >
                 <td className="px-4 py-3 font-medium text-ink">
-                  <Link href={`/paiements/${d.id}`} className="hover:underline">
+                  <Link
+                    href={`/paiements/${d.id}`}
+                    className="after:absolute after:inset-0 hover:underline"
+                  >
                     {d.etudiant.prenom} {d.etudiant.nom}
                   </Link>
                 </td>

@@ -146,15 +146,15 @@ export default async function CohorteDetailPage({
         ) : (
           <ul className="mt-3 divide-y divide-border">
             {affectes.map((a) => (
-              <li key={a.id} className="flex items-center justify-between py-2.5">
+              <li key={a.id} className="relative flex items-center justify-between py-2.5">
                 <Link
                   href={`/etudiants/${a.etudiantId}`}
-                  className="text-sm font-medium text-ink hover:underline"
+                  className="text-sm font-medium text-ink after:absolute after:inset-0 hover:underline"
                 >
                   {a.etudiant.prenom} {a.etudiant.nom}
                 </Link>
                 {peutGerer && (
-                  <form action={retirerAffectationCohorteAction}>
+                  <form action={retirerAffectationCohorteAction} className="relative z-10">
                     <input type="hidden" name="cohorteId" value={id} />
                     <input type="hidden" name="affectationId" value={a.id} />
                     <input type="hidden" name="anneeScolaireId" value={anneeSelectionneeId} />
@@ -183,18 +183,18 @@ export default async function CohorteDetailPage({
         ) : (
           <ul className="mt-3 divide-y divide-border">
             {enAttente.map((a, index) => (
-              <li key={a.id} className="flex items-center justify-between py-2.5">
+              <li key={a.id} className="relative flex items-center justify-between py-2.5">
                 <div className="flex items-center gap-2">
                   <Badge variant="neutral">#{index + 1}</Badge>
                   <Link
                     href={`/etudiants/${a.etudiantId}`}
-                    className="text-sm font-medium text-ink hover:underline"
+                    className="text-sm font-medium text-ink after:absolute after:inset-0 hover:underline"
                   >
                     {a.etudiant.prenom} {a.etudiant.nom}
                   </Link>
                 </div>
                 {peutGerer && (
-                  <div className="flex items-center gap-3">
+                  <div className="relative z-10 flex items-center gap-3">
                     <form id={`promouvoir-${a.id}`} action={promouvoirAffectationCohorteAction}>
                       <input type="hidden" name="cohorteId" value={id} />
                       <input type="hidden" name="affectationId" value={a.id} />

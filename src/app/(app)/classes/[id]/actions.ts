@@ -108,14 +108,17 @@ export async function supprimerClasseAction(formData: FormData): Promise<void> {
 
   const cible = await prisma.classe.findUnique({
     where: { id: classeId },
-    include: { _count: { select: { seances: true, inscriptions: true } } },
+    include: { _count: { select: { inscriptions: true } } },
   });
   if (!cible) redirect("/classes");
 
-  // Supprimer une classe avec des séances ou des inscriptions effacerait
-  // silencieusement des présences/inscriptions déjà constituées (cascade
-  // en base). On ne l'autorise que pour une classe encore vide.
-  if (cible._count.seances > 0 || cible._count.inscriptions > 0) {
+  // Des séances génèrent automatiquement dès qu'une classe existe (voir
+  // datesDesSeances) et n'emportent aucune donnée tant qu'aucune présence n'y
+  // a été validée : ne bloquer la suppression que sur une présence réellement
+  // enregistrée, pas sur la simple existence de séances vides (cascade sans
+  // perte en base — voir Seance.classeId onDelete: Cascade).
+  const nbPresences = await prisma.presence.count({ where: { seance: { classeId } } });
+  if (nbPresences > 0 || cible._count.inscriptions > 0) {
     retour(classeId, "CLASSE_UTILISEE");
   }
 

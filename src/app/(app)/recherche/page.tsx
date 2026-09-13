@@ -103,8 +103,11 @@ export default async function RecherchePage({
           <CardTitle>Étudiants ({etudiants.length})</CardTitle>
           <ul className="mt-3 divide-y divide-border">
             {etudiants.map((e) => (
-              <li key={e.id} className="py-2">
-                <Link href={`/etudiants/${e.id}`} className="text-sm font-medium text-ink hover:underline">
+              <li key={e.id} className="relative py-2">
+                <Link
+                  href={`/etudiants/${e.id}`}
+                  className="text-sm font-medium text-ink after:absolute after:inset-0 hover:underline"
+                >
                   {e.prenom} {e.nom}
                 </Link>
                 <span className="ml-2 text-xs text-ink-muted">

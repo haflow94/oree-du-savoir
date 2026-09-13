@@ -109,13 +109,15 @@ export default async function DocumentsPage({
           <th className="px-4 py-3">Dossier</th>
           <th className="px-4 py-3">Documents</th>
           <th className="px-4 py-3">Dernier ajout</th>
-          <th className="px-4 py-3"></th>
         </TableHead>
         <tbody className="divide-y divide-border">
           {lignes.map((e) => (
-            <tr key={e.id} className="hover:bg-bg-sunken/40">
+            <tr key={e.id} className="relative hover:bg-bg-sunken/40">
               <td className="px-4 py-3 font-medium text-ink">
-                <Link href={`/etudiants/${e.id}#zone-documents`} className="hover:underline">
+                <Link
+                  href={`/etudiants/${e.id}#zone-documents`}
+                  className="after:absolute after:inset-0 hover:underline"
+                >
                   {e.prenom} {e.nom}
                 </Link>
               </td>
@@ -132,19 +134,11 @@ export default async function DocumentsPage({
               <td className="px-4 py-3 text-ink-muted">
                 {e.dernierAjout.toLocaleDateString("fr-FR")}
               </td>
-              <td className="px-4 py-3 text-right">
-                <Link
-                  href={`/etudiants/${e.id}#zone-documents`}
-                  className="text-xs font-medium text-pine hover:underline"
-                >
-                  Voir ses documents
-                </Link>
-              </td>
             </tr>
           ))}
           {lignes.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
                 {recherche
                   ? "Aucun étudiant ne correspond à cette recherche."
                   : "Aucun document pour l'instant."}
