@@ -27,6 +27,14 @@ export function ModalShell({
   return (
     <dialog
       ref={dialogRef}
+      onClick={(event) => {
+        // Le <dialog> natif n'occupe que la boîte de son contenu (p-0 ici) :
+        // un clic sur le fond assombri (::backdrop) remonte donc avec la
+        // <dialog> elle-même comme cible, jamais un de ses descendants.
+        if (event.target === dialogRef.current) {
+          dialogRef.current?.close();
+        }
+      }}
       className={`m-auto w-full ${maxWidth} rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40`}
     >
       <div className={`p-5 ${scroll ? "max-h-[85vh] overflow-y-auto" : ""}`}>

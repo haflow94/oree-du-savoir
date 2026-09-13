@@ -39,6 +39,13 @@ export function ConfirmDialog({
       </button>
       <dialog
         ref={dialogRef}
+        onClick={(event) => {
+          // Même mécanisme que ModalShell : un clic sur le fond assombri
+          // (::backdrop) cible la <dialog> elle-même, jamais son contenu.
+          if (event.target === dialogRef.current) {
+            dialogRef.current?.close();
+          }
+        }}
         className="m-auto w-full max-w-sm rounded-xl border border-border bg-bg-elevated p-0 shadow-modal backdrop:bg-ink/40"
       >
         <div className="p-5">

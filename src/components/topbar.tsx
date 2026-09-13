@@ -60,6 +60,7 @@ export function Topbar({
   // (SPA) : le DOM du <details> n'est jamais démonté, donc son attribut
   // `open` persiste après le clic si on ne le referme pas explicitement.
   const notificationsDetailsRef = useRef<HTMLDetailsElement>(null);
+  const mobileNavDetailsRef = useRef<HTMLDetailsElement>(null);
   const items = NAV_ITEMS.filter((item) => hrefsVisibles.includes(item.href));
   const current =
     items.find((item) =>
@@ -80,14 +81,17 @@ export function Topbar({
   }, [router]);
 
   // <details> natif ne se ferme jamais tout seul sur un clic extérieur (juste
-  // sur un nouveau clic sur son <summary>) : on referme explicitement dès
-  // qu'un clic tombe en dehors du menu de notifications, tant qu'il est ouvert.
+  // sur un nouveau clic sur son <summary>) : on referme explicitement chaque
+  // dropdown de la topbar dès qu'un clic tombe en dehors de lui, tant qu'il
+  // est ouvert.
   useEffect(() => {
     const fermerSiExterieur = (event: MouseEvent) => {
-      const details = notificationsDetailsRef.current;
-      if (!details?.open) return;
-      if (event.target instanceof Node && !details.contains(event.target)) {
-        details.open = false;
+      for (const ref of [notificationsDetailsRef, mobileNavDetailsRef]) {
+        const details = ref.current;
+        if (!details?.open) continue;
+        if (event.target instanceof Node && !details.contains(event.target)) {
+          details.open = false;
+        }
       }
     };
     document.addEventListener("click", fermerSiExterieur);
@@ -99,7 +103,7 @@ export function Topbar({
       <div className="flex h-16 items-center justify-between gap-3 px-4 md:px-6">
         <div className="flex items-center gap-3">
           {/* Menu mobile : disclosure HTML pur, pas de JS nécessaire */}
-          <details className="md:hidden">
+          <details ref={mobileNavDetailsRef} className="md:hidden">
             <summary className="list-none cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-ink-muted">
               <Menu aria-hidden size={18} />
             </summary>
