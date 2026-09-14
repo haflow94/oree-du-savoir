@@ -10,6 +10,7 @@ import { enseignantsActifsAvecSections } from "@/lib/enseignants";
 import { filtreParSection } from "@/lib/sections-etudiant";
 import {
   genererSeancesAction,
+  reinitialiserSeancesAction,
   inscrireEtudiantAction,
   retirerEtudiantAction,
 } from "../../presences/actions";
@@ -292,12 +293,24 @@ export default async function ClasseDetailPage({
             sautant les périodes de fermeture.
           </p>
           {administratif && (
-            <form action={genererSeancesAction} className="mt-3">
-              <input type="hidden" name="classeId" value={classe.id} />
-              <SubmitButton variant="secondary">
-                Générer les séances manquantes
-              </SubmitButton>
-            </form>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <form action={genererSeancesAction}>
+                <input type="hidden" name="classeId" value={classe.id} />
+                <SubmitButton variant="secondary">
+                  Générer les séances manquantes
+                </SubmitButton>
+              </form>
+              <form id="reinitialiser-seances" action={reinitialiserSeancesAction}>
+                <input type="hidden" name="classeId" value={classe.id} />
+              </form>
+              <ConfirmDialog
+                formId="reinitialiser-seances"
+                triggerLabel="Réinitialiser les séances"
+                title="Réinitialiser les séances de cette classe ?"
+                description="Supprime les séances non validées (sans aucune présence enregistrée), puis régénère l'ensemble depuis le planning actuel. Utile après un changement de jour/horaire de la classe. Les séances déjà validées ne sont jamais supprimées."
+                confirmLabel="Réinitialiser"
+              />
+            </div>
           )}
         </Card>
       </div>

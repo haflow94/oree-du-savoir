@@ -81,6 +81,68 @@ export async function genererSeancesAction(formData: FormData): Promise<void> {
   retourClasse(classeId);
 }
 
+/**
+ * Réinitialise les séances d'une classe : supprime celles qui ne sont pas
+ * encore validées (donc sans aucune Presence — voir validerPresencesAction,
+ * qui pose toujours VALIDEE et les présences dans la même transaction), puis
+ * régénère l'ensemble depuis le planning actuel. Sert quand le créneau
+ * hebdomadaire d'une classe (jour) a changé après coup : genererSeancesAction
+ * seule ne fait qu'ajouter, elle ne retire jamais les séances devenues
+ * obsolètes. Une séance déjà validée n'est donc jamais supprimée, quel que
+ * soit l'état de la classe.
+ *
+ * Carve-out littéral (voir le commentaire de genererSeancesAction ci-dessus).
+ */
+export async function reinitialiserSeancesAction(formData: FormData): Promise<void> {
+  const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
+
+  const classeId = champTexte(formData, "classeId");
+  if (!classeId) redirect("/classes");
+
+  const classe = await prisma.classe.findUnique({
+    where: { id: classeId },
+    include: {
+      cohorte: true,
+      anneeScolaire: { include: { periodesFermeture: true } },
+    },
+  });
+  if (!classe) retourClasse(classeId, "CLASSE_INTROUVABLE");
+
+  const dates = datesDesSeances(
+    classe.cohorte.jour,
+    classe.anneeScolaire.dateDebut,
+    classe.anneeScolaire.dateFin,
+    classe.anneeScolaire.periodesFermeture,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.seance.deleteMany({
+      where: {
+        classeId,
+        statut: { not: "VALIDEE" },
+        presences: { none: {} },
+      },
+    });
+    await tx.seance.createMany({
+      data: dates.map((date) => ({ classeId, date })),
+      skipDuplicates: true,
+    });
+    await tx.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "reinitialisation_seances",
+        entite: "Classe",
+        entiteId: classeId,
+        details: { seancesSupprimees: count, seancesAttendues: dates.length },
+      },
+    });
+  });
+
+  revalidatePath(`/classes/${classeId}`);
+  revalidatePath("/presences");
+  retourClasse(classeId);
+}
+
 // Rattachée au module Étudiants (pas Présences) : c'est un acte de gestion
 // du dossier de l'étudiant, même si elle vit ici pour rester à côté de
 // retirerEtudiantAction (voir aussi classes/[id]/page.tsx et etudiants/[id]/page.tsx).
