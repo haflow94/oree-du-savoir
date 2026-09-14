@@ -76,7 +76,7 @@ Route handler `(app)/etudiants/[id]/dossier/route.ts` (module DOCUMENTS, ECRITUR
 - QR codes are a shortcut to the day's séance, never an authentication mechanism — the teacher must still be logged in.
 - Never guess absences.
 - Treasury (`MouvementTresorerie`) stays simple — not full accounting.
-- n8n may automate things (emails, reminders) around the app, but the app must fully function without it — none of that is built yet, and nothing in the app should end up depending on it.
+- n8n may automate things (emails, reminders) around the app, but the app must fully function without it — several flows are already built on `/api/internal/n8n/*` (see `DOCUMENTATION_TECHNIQUE.md` §3.6), but nothing in the app should end up depending on it.
 - Never silently change a business rule (e.g. a Section's refund percentages) — those are association decisions, surfaced as editable data (*Administration → Sections*), not constants to tweak in code.
 
 ### Reference docs

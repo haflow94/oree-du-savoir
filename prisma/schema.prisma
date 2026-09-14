@@ -1180,6 +1180,12 @@ model DossierAnnuel {
   // POST /api/internal/n8n/dossiers-a-verifier/.../notifie après envoi
   // réussi.
   notificationVerificationEnvoyeeLe DateTime?
+  // Idempotence du flux n8n "signature confirmée" (même patron que
+  // notificationVerificationEnvoyeeLe ci-dessus) : posé uniquement par
+  // POST /api/internal/n8n/etudiants/[etudiantId]/notification-signature-confirmee
+  // après envoi réussi. Ne peut être renseigné qu'une fois statutSignature =
+  // SIGNEE (posé exclusivement par le webhook Documenso, jamais deviné).
+  notificationSignatureEnvoyeeLe    DateTime?
 
   echeances          Echeance[]
   documents          Document[]

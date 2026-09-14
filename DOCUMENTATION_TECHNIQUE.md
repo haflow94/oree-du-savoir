@@ -234,6 +234,28 @@ Déploiement : conteneur unique Docker Compose (app + db PostgreSQL) sur serveur
 
 Exposition future de `/preinscription` sur Internet (pas encore déployée — l'application reste aujourd'hui joignable uniquement depuis le réseau interne) : architecture retenue (tunnel sortant + filtrage de route côté fournisseur, sans exposer le reste de l'app) dans `ARCHITECTURE-PREINSCRIPTION.md`, checklist technique de déploiement dans `DEPLOIEMENT-PREINSCRIPTION.md`. Les prérequis applicatifs qu'ils listent sont déjà implémentés — voir §6.5.
 
+### 3.6 API interne n8n et notifications automatiques
+
+n8n (conteneur du même `docker-compose.yml`, joint uniquement en interne — voir §6.5, ports non exposés au réseau local) consomme exclusivement l'API `GET`/`POST /api/internal/n8n/*` ; il ne lit jamais Postgres directement, et l'application fonctionne intégralement sans lui (n8n orchestre des rappels/emails autour d'elle, jamais une dépendance de fonctionnement). Chaque route de cette API commence par `verifierAuthN8n(request)` (`src/lib/auth-n8n.ts`) : vérifie un header `Authorization: Bearer <N8N_INTERNAL_API_SECRET>` par comparaison à temps constant (`timingSafeEqual`), et échoue fermée (401) si le secret n'est même pas configuré côté serveur — mécanisme distinct de l'authentification humaine (`requireSession`/`requireRole`/`requireModule`) et du webhook Documenso ci-dessous (secret et header différents).
+
+Patron systématique pour un flux « candidats à notifier » : un `GET .../xxx-a-notifier` liste les enregistrements pas encore notifiés (filtré sur un champ `DateTime?` nommé `xxxEnvoyeeLe`/`xxxEnvoyeLe` — `null` = jamais notifié), et un `POST .../notifie`-équivalent marque l'envoi via un `updateMany` conditionné sur ce même champ encore `null` (idempotent par construction : un retry n8n ou un double appel ne réécrase jamais une date déjà posée, et ne fait jamais planter la route). Un flux orchestré par n8n suit donc systématiquement le même schéma : trigger planifié (15 min) → `GET` (liste de candidats) → traitement par candidat côté n8n (envoi email) → `POST` (marquage) après chaque envoi réussi.
+
+| Route | Modèle notifié | Champ idempotence | Déclenche |
+|---|---|---|---|
+| `GET /preinscriptions-a-notifier` + `POST /notifications-preinscription/[notificationId]/email-envoye` | `NotificationPreinscription` | `notifieParEmailLe` | Alerte staff : nouvelle préinscription à contrôler. |
+| `GET /inscriptions-a-notifier` + `POST /etudiants/[etudiantId]/notification-bienvenue` | `Etudiant` | `notificationBienvenueEnvoyeeLe` | Email de bienvenue + dossier PDF, une fois `statutInscription = VALIDE`, dossier documentaire complet **et** au moins un `DossierAnnuel.statutSignature = SIGNEE` (revérifié dans la route elle-même, pas seulement supposé par le filtre). |
+| `GET /dossiers-a-verifier` + `POST /dossiers-a-verifier/[dossierAnnuelId]/notifie` | `DossierAnnuel` | `notificationVerificationEnvoyeeLe` | Email famille : dossier généré, prêt à vérifier avant signature (génère aussi le lien sécurisé `AccesDossier`, au moment de la lecture). |
+| `GET /dossiers-signes-a-notifier` + `POST /etudiants/[etudiantId]/notification-signature-confirmee` | `DossierAnnuel` | `notificationSignatureEnvoyeeLe` | Email famille : signature Documenso confirmée (dès `statutSignature = SIGNEE`), avec le PDF signé (`Document` type `DOSSIER_SIGNE`) en pièce jointe. Le `POST` reste scopé par `etudiantId` (même forme que la route bienvenue) mais ne marque jamais qu'un seul `DossierAnnuel` par appel — le plus ancien signé non notifié — pour rester correct même si un étudiant a deux dossiers annuels `SIGNEE` non notifiés simultanément. |
+| `GET /dossiers-a-relancer` + `POST /dossiers-annuels/[dossierAnnuelId]/relance-envoyee` | `DossierAnnuel` | `nombreRelancesEnvoyees` + `derniereRelanceEnvoyeeLe` (compteur, pas un simple booléen) | Relance paiement/documents, plafonnée par `ParametresRelance.nombreMaxRelances`. |
+| `GET /cheques-a-alerter` + `POST /cheques/[chequeId]/alerte-envoyee` | `Cheque` | `nombreAlertesEnvoyees` + date (compteur) | Alerte interne Bureau : chèque reçu non déposé depuis trop longtemps. |
+| `GET /rapport-a-envoyer` | — | aucun (recalculé chaque jour depuis la date calendaire, pas de marqueur « déjà envoyé » en base) | Rapport périodique au Bureau. |
+| `GET /documents/[documentId]/fichier` | — | — | Sert le contenu d'un PDF (uniquement type `DOSSIER_GENERE`) référencé par un email n8n. |
+| `GET /health` | — | — | Vérification de connectivité/authentification, sans effet de bord. |
+
+Le webhook Documenso (`POST /api/webhooks/documenso`, en dehors de `/api/internal/n8n/*`) authentifie par un secret **séparé** (`DOCUMENSO_WEBHOOK_SECRET`, header `X-Documenso-Secret`, même comparaison à temps constant) : à réception d'un événement `DOCUMENT_COMPLETED`, il pose `DossierAnnuel.statutSignature = SIGNEE` + `signeLe` (idempotent, `updateMany` conditionné sur `statutSignature != SIGNEE`), télécharge le PDF signé et le persiste comme `Document` (type `DOSSIER_SIGNE`, rattaché au `DossierAnnuel` via `dossierAnnuelId`), et journalise l'événement (`JournalAudit`, action `dossier_signe`). C'est le **seul** point d'entrée qui fait passer un dossier à `SIGNEE` — ni l'application elle-même, ni n8n, ne posent jamais ce statut directement.
+
+Le workflow n8n lui-même (trigger planifié, appels HTTP, envoi d'email via le fournisseur externe, orchestration) n'est pas versionné dans ce dépôt — géré directement dans l'éditeur n8n.
+
 ---
 
 ## 4. Dépendances et technologies
@@ -334,7 +356,7 @@ Pas de script `typecheck` dédié — `npx tsc --noEmit` est l'équivalent utili
 
 ### 6.2 Règles non négociables du projet (`Projet/04_Regles_non_negociables.md`)
 
-Zéro sur-ingénierie ; le MVP remplace les Excel sans les reproduire techniquement ; un étudiant peut suivre plusieurs cours ; documents + paiement sont normalement fournis ensemble à la finalisation sur place ; le chèque est un moyen de paiement structuré (pas juste "espèces/autre") ; la trésorerie reste simple ; le QR est un raccourci, jamais une authentification ; ne jamais deviner une absence ; les fichiers restent toujours séparés de la base ; n8n peut automatiser des choses autour de l'application mais celle-ci doit fonctionner intégralement sans lui (rien de cette intégration n'est construit à ce jour) ; ne jamais modifier silencieusement une règle métier (ex. barème de remboursement d'une Section) — ce sont des décisions associatives, exposées comme données éditables (*Administration → Sections*), pas des constantes de code.
+Zéro sur-ingénierie ; le MVP remplace les Excel sans les reproduire techniquement ; un étudiant peut suivre plusieurs cours ; documents + paiement sont normalement fournis ensemble à la finalisation sur place ; le chèque est un moyen de paiement structuré (pas juste "espèces/autre") ; la trésorerie reste simple ; le QR est un raccourci, jamais une authentification ; ne jamais deviner une absence ; les fichiers restent toujours séparés de la base ; n8n peut automatiser des choses autour de l'application mais celle-ci doit fonctionner intégralement sans lui (intégration effectivement construite — voir §3.6 — mais l'app ne doit jamais en dépendre pour fonctionner) ; ne jamais modifier silencieusement une règle métier (ex. barème de remboursement d'une Section) — ce sont des décisions associatives, exposées comme données éditables (*Administration → Sections*), pas des constantes de code.
 
 ### 6.3 Points de prudence techniques
 
