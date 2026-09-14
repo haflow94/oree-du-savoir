@@ -4,17 +4,12 @@ import { requireRole } from "@/lib/auth";
 import { Role } from "@/lib/roles";
 import { JOUR_LABELS } from "@/lib/planning";
 import { genererAttestationScolaritePdf } from "@/lib/pdf-documents";
-import {
-  enregistrerDocumentEtudiant,
-  nomFichierDocument,
-  formatSuffixeDesambiguisation,
-  estDansDossierEtudiant,
-  dossierPhysiqueEtudiant,
-} from "@/lib/documents";
+import { nomFichierDocument } from "@/lib/documents";
 import { enTeteContentDisposition } from "@/lib/content-disposition";
 
-// Même garde d'accès (Bureau/Administration en dur) et même principe
-// aperçu/téléchargement que la route reçu — voir son commentaire.
+// Même garde d'accès (Bureau/Administration en dur), jamais persistée comme
+// Document, et même trace journal d'audit au téléchargement que la route
+// reçu — voir son commentaire.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; dossierAnnuelId: string }> },
@@ -73,59 +68,23 @@ export async function GET(
     dateEdition: new Date(),
   });
 
-  let nomFichier: string;
+  const nomFichier = nomFichierDocument({
+    type: "ATTESTATION_SCOLARITE",
+    nom: dossier.etudiant.nom,
+    prenom: dossier.etudiant.prenom,
+    extension: "pdf",
+    suffixe: "",
+  });
+
   if (telecharger) {
-    // Téléchargée (voir commentaire ci-dessus) : désambiguïsation par date,
-    // scopée au dossier physique de cette année précise (voir
-    // lib/documents-nommage.ts), même principe que la route reçu.
-    const contexteEtudiant = {
-      matricule: dossier.etudiant.matricule,
-      nom: dossier.etudiant.nom,
-      prenom: dossier.etudiant.prenom,
-      anneeLibelle: dossier.anneeScolaire.libelle,
-    };
-    const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
-    const documentsExistants = (
-      await prisma.document.findMany({
-        where: { etudiantId, type: "ATTESTATION_SCOLARITE" },
-        select: { id: true, creeLe: true, cheminRelatif: true },
-      })
-    ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
-    const maintenant = new Date();
-    const suffixe = formatSuffixeDesambiguisation("nouveau", [
-      ...documentsExistants,
-      { id: "nouveau", creeLe: maintenant },
-    ]);
-
-    nomFichier = nomFichierDocument({
-      type: "ATTESTATION_SCOLARITE",
-      nom: dossier.etudiant.nom,
-      prenom: dossier.etudiant.prenom,
-      extension: "pdf",
-      suffixe,
-    });
-    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
-
-    await prisma.document.create({
+    await prisma.journalAudit.create({
       data: {
-        etudiantId,
-        type: "ATTESTATION_SCOLARITE",
-        nomFichier,
-        cheminRelatif,
-        mimeType: "application/pdf",
-        tailleOctets: pdf.length,
-        creeParId: session.id,
-        creeLe: maintenant,
+        utilisateurId: session.id,
+        action: "TELECHARGEMENT_ATTESTATION",
+        entite: "DossierAnnuel",
+        entiteId: dossierAnnuelId,
+        details: { etudiantId },
       },
-    });
-  } else {
-    // Aperçu : nom de fichier indicatif seulement, aucune écriture disque/BDD.
-    nomFichier = nomFichierDocument({
-      type: "ATTESTATION_SCOLARITE",
-      nom: dossier.etudiant.nom,
-      prenom: dossier.etudiant.prenom,
-      extension: "pdf",
-      suffixe: "",
     });
   }
 

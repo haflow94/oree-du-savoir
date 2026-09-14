@@ -538,6 +538,18 @@ model Document {
   // dossier/[token]/actions.ts#confirmerEtSignerAction au moment de l'envoi
   // à Documenso, sur la version exacte du PDF déjà confirmée par la famille.
   champsSignature   Json?
+  // Non nul uniquement pour type = DOSSIER_GENERE, uniquement pour les
+  // versions créées par la route de téléchargement staff
+  // (etudiants/[id]/dossier/route.ts) : empreinte sha256 du HTML rendu juste
+  // avant conversion PDF, pour éviter qu'un simple reclic sur "Télécharger"
+  // sans aucune donnée modifiée n'empile une nouvelle version identique (le
+  // PDF final, lui, n'est jamais byte-à-byte identique d'un rendu Chromium à
+  // l'autre — métadonnées internes horodatées — donc inutilisable comme clé
+  // de comparaison). `genererNouvelleVersionDossier` (flux de signature
+  // famille) n'y touche pas : chaque appel y représente une correction de
+  // champ réelle et doit toujours invalider la confirmation en cours, jamais
+  // être dédupliqué.
+  contenuHash       String?
 
   @@index([etudiantId])
   @@index([chequeId])

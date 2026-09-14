@@ -119,13 +119,7 @@ function ListeDocuments({
                 rel="noreferrer"
                 className="text-xs font-medium text-pine hover:underline"
               >
-                Voir / imprimer
-              </a>
-              <a
-                href={`/etudiants/${etudiantId}/documents/${d.id}?telecharger=1`}
-                className="text-xs font-medium text-pine hover:underline"
-              >
-                Télécharger
+                Ouvrir
               </a>
             </div>
           </div>
@@ -1296,8 +1290,9 @@ export default async function EtudiantDetailPage({
             Jeunes, tarifs et créneaux propres à la section suivie, mise en
             page identique à l&apos;impression) à partir des informations de
             l&apos;étudiant. « Voir / imprimer » n&apos;est qu&apos;un aperçu ;
-            seul « Télécharger le PDF » enregistre une version qui réapparaît
-            dans les documents ci-dessous.
+            « Télécharger le PDF » enregistre une version qui réapparaît dans
+            les documents ci-dessous — si rien n&apos;a changé depuis la
+            dernière fois, cliquer à nouveau ne crée pas de doublon.
           </p>
           {sectionsPourDossier.length === 0 ? (
             <EmptyState message="Aucune section enregistrée." />

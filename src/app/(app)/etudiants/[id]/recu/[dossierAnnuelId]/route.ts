@@ -4,26 +4,22 @@ import { requireRole } from "@/lib/auth";
 import { Role } from "@/lib/roles";
 import { statutCotisation } from "@/lib/paiements";
 import { genererRecuPaiementPdf } from "@/lib/pdf-documents";
-import {
-  enregistrerDocumentEtudiant,
-  nomFichierDocument,
-  formatSuffixeDesambiguisation,
-  estDansDossierEtudiant,
-  dossierPhysiqueEtudiant,
-} from "@/lib/documents";
+import { nomFichierDocument } from "@/lib/documents";
 import { enTeteContentDisposition } from "@/lib/content-disposition";
 
 // Réservé Bureau/Administration à la demande explicite de l'association
 // (pas via la grille de permissions éditable — Module.DOCUMENTS — pour ne
 // pas dépendre d'une case à cocher qui pourrait être mal configurée : voir
 // les autres carve-outs listés dans CLAUDE.md, ex. gestion des comptes).
-// Régénère toujours un PDF frais depuis les données de paiement actuelles.
-// Aperçu par défaut (bouton "Voir / imprimer") : renvoyé directement au
-// navigateur, SANS écriture disque/BDD — sinon chaque simple consultation
-// empile un JUSTIFICATIF_PAIEMENT quasi identique (même principe que la
-// route dossier, voir son commentaire). Seul le téléchargement forcé
-// (?dl=1, bouton "Télécharger") l'enregistre comme Document, pour garder une
-// trace de ce qui a été réellement remis à la famille.
+// Toujours régénéré à la volée depuis les données de paiement actuelles
+// (immuables une fois le paiement enregistré, voir Paiement/Echeance) :
+// jamais persisté comme Document — le PDF n'est qu'une mise en forme d'un
+// état déjà figé en base, inutile de dupliquer un fichier identique à
+// chaque téléchargement (voir l'ancienne empilade de JUSTIFICATIF_PAIEMENT
+// avant ce commit). Le téléchargement forcé (?dl=1, bouton "Télécharger")
+// garde malgré tout une trace textuelle dans le journal d'audit — c'est ce
+// geste précis ("je remets ce document à la famille") qui a une valeur de
+// preuve, pas le simple aperçu.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; dossierAnnuelId: string }> },
@@ -68,60 +64,23 @@ export async function GET(
     dateEdition: new Date(),
   });
 
-  let nomFichier: string;
+  const nomFichier = nomFichierDocument({
+    type: "JUSTIFICATIF_PAIEMENT",
+    nom: dossier.etudiant.nom,
+    prenom: dossier.etudiant.prenom,
+    extension: "pdf",
+    suffixe: "",
+  });
+
   if (telecharger) {
-    // Téléchargé (voir commentaire ci-dessus) : plusieurs JUSTIFICATIF_PAIEMENT
-    // peuvent donc s'accumuler pour ce même étudiant au fil du temps —
-    // désambiguïsation par date, scopée au dossier physique de cette année
-    // précise (voir lib/documents-nommage.ts).
-    const contexteEtudiant = {
-      matricule: dossier.etudiant.matricule,
-      nom: dossier.etudiant.nom,
-      prenom: dossier.etudiant.prenom,
-      anneeLibelle: dossier.anneeScolaire.libelle,
-    };
-    const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
-    const documentsExistants = (
-      await prisma.document.findMany({
-        where: { etudiantId, type: "JUSTIFICATIF_PAIEMENT" },
-        select: { id: true, creeLe: true, cheminRelatif: true },
-      })
-    ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
-    const maintenant = new Date();
-    const suffixe = formatSuffixeDesambiguisation("nouveau", [
-      ...documentsExistants,
-      { id: "nouveau", creeLe: maintenant },
-    ]);
-
-    nomFichier = nomFichierDocument({
-      type: "JUSTIFICATIF_PAIEMENT",
-      nom: dossier.etudiant.nom,
-      prenom: dossier.etudiant.prenom,
-      extension: "pdf",
-      suffixe,
-    });
-    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
-
-    await prisma.document.create({
+    await prisma.journalAudit.create({
       data: {
-        etudiantId,
-        type: "JUSTIFICATIF_PAIEMENT",
-        nomFichier,
-        cheminRelatif,
-        mimeType: "application/pdf",
-        tailleOctets: pdf.length,
-        creeParId: session.id,
-        creeLe: maintenant,
+        utilisateurId: session.id,
+        action: "TELECHARGEMENT_RECU",
+        entite: "DossierAnnuel",
+        entiteId: dossierAnnuelId,
+        details: { etudiantId, montantDu: du, montantEncaisse: encaisse },
       },
-    });
-  } else {
-    // Aperçu : nom de fichier indicatif seulement, aucune écriture disque/BDD.
-    nomFichier = nomFichierDocument({
-      type: "JUSTIFICATIF_PAIEMENT",
-      nom: dossier.etudiant.nom,
-      prenom: dossier.etudiant.prenom,
-      extension: "pdf",
-      suffixe: "",
     });
   }
 
