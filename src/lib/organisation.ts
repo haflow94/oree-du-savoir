@@ -1,5 +1,6 @@
 import "server-only";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { lireDocument } from "@/lib/documents";
 import type { Organisation } from "@/generated/prisma/client";
@@ -42,4 +43,38 @@ export function mimeTypeImage(cheminRelatif: string): string {
 export async function versDataUri(cheminRelatif: string): Promise<string> {
   const contenu = await lireDocument(cheminRelatif);
   return `data:${mimeTypeImage(cheminRelatif)};base64,${contenu.toString("base64")}`;
+}
+
+// Logo par défaut de l'association, servi tant qu'aucun logo personnalisé
+// n'a été téléversé depuis Administration → Organisation (ou si le fichier
+// référencé en base a disparu du disque) — jamais un cas d'erreur, juste le
+// point de départ avant le premier remplacement.
+const LOGO_PAR_DEFAUT = path.join(process.cwd(), "public", "logo-loree-du-savoir.png");
+
+// Point de passage unique pour tout affichage du logo hors dossier PDF (menu,
+// page de connexion, icônes de l'application — voir src/app/logo/route.ts,
+// icon.tsx, apple-icon.tsx) : bascule automatiquement sur le logo par défaut
+// tant qu'Organisation.logoCheminRelatif est vide, sans jamais renvoyer
+// d'absence d'image.
+export async function logoBytesEtType(): Promise<{ contenu: Buffer; mimeType: string }> {
+  const organisation = await getOrganisation();
+  if (organisation.logoCheminRelatif) {
+    try {
+      const contenu = await lireDocument(organisation.logoCheminRelatif);
+      return { contenu, mimeType: mimeTypeImage(organisation.logoCheminRelatif) };
+    } catch {
+      // Fichier manquant sur le disque malgré le chemin en base : on retombe
+      // sur le logo par défaut plutôt que de casser l'affichage.
+    }
+  }
+  return { contenu: await readFile(LOGO_PAR_DEFAUT), mimeType: "image/png" };
+}
+
+// Même logo que logoBytesEtType(), encodé en `data:` URI pour un rendu
+// Puppeteer hors-ligne (voir dossier/context.ts) — remplace l'ancien usage
+// conditionnel de versDataUri() qui laissait le dossier sans logo tant
+// qu'aucun n'était configuré.
+export async function logoDataUri(): Promise<string> {
+  const { contenu, mimeType } = await logoBytesEtType();
+  return `data:${mimeType};base64,${contenu.toString("base64")}`;
 }

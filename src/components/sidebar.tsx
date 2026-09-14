@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/nav";
@@ -71,11 +70,10 @@ export function Sidebar({
       </nav>
       <div className="mt-4 flex justify-center border-t border-white/10 pt-4">
         <div className="rounded-xl bg-[#f8f6ee] px-3 py-2.5 shadow-sm">
-          <Image
-            src="/logo-loree-du-savoir.png"
-            alt="Logo de l'association L'Orée du Savoir"
-            width={480}
-            height={633}
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo dynamique (Administration → Organisation), dimensions inconnues à l'avance */}
+          <img
+            src="/logo"
+            alt="Logo de l'association"
             className="h-auto w-28"
           />
         </div>

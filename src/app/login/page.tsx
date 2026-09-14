@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { loginAction } from "./actions";
 import { Champ } from "@/components/ui/champ";
 import { ChampMotDePasseVisible } from "@/components/ui/champ-mot-de-passe-visible";
@@ -23,13 +22,11 @@ export default async function LoginPage({
     <div className="flex min-h-screen flex-1 items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Image
-            src="/logo-loree-du-savoir.png"
-            alt="Logo de l'association L'Orée du Savoir"
-            width={480}
-            height={633}
+          {/* eslint-disable-next-line @next/next/no-img-element -- logo dynamique (Administration → Organisation), dimensions inconnues à l'avance */}
+          <img
+            src="/logo"
+            alt="Logo de l'association"
             className="mx-auto h-16 w-auto"
-            priority
           />
           <h1 className="mt-3 font-display text-xl font-bold text-pine-strong">
             L&apos;Orée du Savoir

@@ -115,7 +115,14 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/_next/static/") ||
     pathname.startsWith("/_next/image") ||
     pathname === "/favicon.ico" ||
-    pathname === "/logo-loree-du-savoir.png";
+    pathname === "/logo-loree-du-savoir.png" ||
+    // Logo/icônes dynamiques dérivés d'Administration → Organisation (voir
+    // src/app/logo/route.ts, icon.tsx, apple-icon.tsx, manifest.ts) : requis
+    // sans session, notamment par la page /login avant toute authentification.
+    pathname === "/logo" ||
+    pathname === "/icon" ||
+    pathname === "/apple-icon" ||
+    pathname === "/manifest.webmanifest";
 
   if (cheminNonProtege) {
     return NextResponse.next();

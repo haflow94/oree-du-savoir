@@ -90,7 +90,8 @@ export default async function OrganisationPage({
               </div>
               <p className="mt-1 text-xs text-ink-faint">
                 PNG, JPG, SVG ou WebP. Remplacer le fichier suffit : les
-                modèles de dossier l&apos;utilisent automatiquement.
+                modèles de dossier, le menu, la page de connexion et l&apos;icône
+                de l&apos;application l&apos;utilisent automatiquement.
               </p>
             </div>
 

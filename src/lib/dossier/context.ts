@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { getOrganisation, versDataUri } from "@/lib/organisation";
+import { getOrganisation, versDataUri, logoDataUri as chargerLogoDataUri } from "@/lib/organisation";
 import { formaterMontant } from "@/lib/paiements";
 import { JOUR_LABELS } from "@/lib/planning";
 import { relationAutre } from "./relation-legale";
@@ -28,9 +28,7 @@ async function contexteOrganisation() {
     siret: v(organisation.siret),
     naf: v(organisation.naf),
     adresseComplete,
-    logoDataUri: organisation.logoCheminRelatif
-      ? await versDataUri(organisation.logoCheminRelatif)
-      : null,
+    logoDataUri: await chargerLogoDataUri(),
   };
 }
 
