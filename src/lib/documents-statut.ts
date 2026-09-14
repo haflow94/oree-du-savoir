@@ -7,7 +7,7 @@
 export const TYPE_DOCUMENT_LABELS: Record<string, string> = {
   PIECE_IDENTITE: "Pièce d'identité",
   PHOTO: "Photo",
-  DOSSIER_GENERE: "Dossier d'inscription généré",
+  DOSSIER_GENERE: "Dossier – brouillon PDF (non signé)",
   DOSSIER_SIGNE: "Dossier signé",
   JUSTIFICATIF_PAIEMENT: "Justificatif de paiement",
   ATTESTATION_SCOLARITE: "Attestation de scolarité",

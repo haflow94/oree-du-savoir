@@ -1371,6 +1371,10 @@ export default async function EtudiantDetailPage({
               {documentsGeneres.length > 0 && (
                 <div>
                   <p className={ZONE_TITLE_CLASSES}>Documents générés (dossier, reçus, attestations)</p>
+                  <p className="mb-1.5 text-xs text-ink-faint">
+                    Sorties automatiques en lecture seule — le document qui fait foi est le dossier signé
+                    ci-dessus.
+                  </p>
                   <ListeDocuments documents={documentsGeneres} etudiantId={etudiant.id} />
                 </div>
               )}
