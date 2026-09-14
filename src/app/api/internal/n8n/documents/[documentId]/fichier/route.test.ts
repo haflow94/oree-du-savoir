@@ -49,7 +49,7 @@ describe("GET /api/internal/n8n/documents/[documentId]/fichier", () => {
     expect(reponse.status).toBe(404);
   });
 
-  it("404 si le document n'est pas un DOSSIER_GENERE, même avec un id valide", async () => {
+  it("404 si le document n'est ni un DOSSIER_GENERE ni un DOSSIER_SIGNE, même avec un id valide", async () => {
     findUnique.mockResolvedValue({
       id: "doc1",
       type: "PIECE_IDENTITE",
@@ -90,5 +90,22 @@ describe("GET /api/internal/n8n/documents/[documentId]/fichier", () => {
     expect(reponse.headers.get("content-type")).toBe("application/pdf");
     expect(reponse.headers.get("content-disposition")).toContain("dossier-leo.pdf");
     expect(await reponse.text()).toBe("contenu-pdf");
+  });
+
+  it("200 avec le contenu et les en-têtes attendus pour un DOSSIER_SIGNE", async () => {
+    findUnique.mockResolvedValue({
+      id: "doc1",
+      type: "DOSSIER_SIGNE",
+      cheminRelatif: "etudiants/et1/x-signe.pdf",
+      mimeType: "application/pdf",
+      nomFichier: "dossier-leo-signe.pdf",
+    });
+    lireDocument.mockResolvedValue(Buffer.from("contenu-pdf-signe"));
+
+    const reponse = await GET(requete(SECRET), params("doc1"));
+    expect(reponse.status).toBe(200);
+    expect(reponse.headers.get("content-type")).toBe("application/pdf");
+    expect(reponse.headers.get("content-disposition")).toContain("dossier-leo-signe.pdf");
+    expect(await reponse.text()).toBe("contenu-pdf-signe");
   });
 });

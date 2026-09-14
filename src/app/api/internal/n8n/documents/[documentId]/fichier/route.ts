@@ -4,10 +4,15 @@ import { lireDocument } from "@/lib/documents";
 import { verifierAuthN8n } from "@/lib/auth-n8n";
 import { enTeteContentDisposition } from "@/lib/content-disposition";
 
-// Ne sert que les documents DOSSIER_GENERE : ce sont les seuls destinés à
-// quitter l'app par email. Un id d'un autre type (pièce d'identité, photo…)
-// est traité comme introuvable, même avec un token valide — cette route ne
-// doit jamais devenir un accès générique à tous les documents.
+// Ne sert que les documents DOSSIER_GENERE ou DOSSIER_SIGNE : ce sont les
+// seuls destinés à quitter l'app par email (dossier généré pour la relance
+// "dossier prêt à vérifier"/"bienvenue", dossier signé pour la notification
+// "signature confirmée", voir .../dossiers-signes-a-notifier). Un id d'un
+// autre type (pièce d'identité, photo…) est traité comme introuvable, même
+// avec un token valide — cette route ne doit jamais devenir un accès
+// générique à tous les documents.
+const TYPES_AUTORISES = new Set(["DOSSIER_GENERE", "DOSSIER_SIGNE"]);
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ documentId: string }> },
@@ -17,7 +22,7 @@ export async function GET(
 
   const { documentId } = await params;
   const document = await prisma.document.findUnique({ where: { id: documentId } });
-  if (!document || document.type !== "DOSSIER_GENERE") {
+  if (!document || !TYPES_AUTORISES.has(document.type)) {
     return NextResponse.json({ error: "Introuvable" }, { status: 404 });
   }
 
