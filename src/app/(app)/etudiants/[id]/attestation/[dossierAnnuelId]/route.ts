@@ -13,14 +13,15 @@ import {
 } from "@/lib/documents";
 import { enTeteContentDisposition } from "@/lib/content-disposition";
 
-// Même garde d'accès (Bureau/Administration en dur) et même principe de
-// régénération à chaque appel que la route reçu — voir son commentaire.
+// Même garde d'accès (Bureau/Administration en dur) et même principe
+// aperçu/téléchargement que la route reçu — voir son commentaire.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; dossierAnnuelId: string }> },
 ) {
   const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
   const { id: etudiantId, dossierAnnuelId } = await params;
+  const telecharger = request.nextUrl.searchParams.get("dl") === "1";
 
   const dossier = await prisma.dossierAnnuel.findUnique({
     where: { id: dossierAnnuelId },
@@ -72,54 +73,66 @@ export async function GET(
     dateEdition: new Date(),
   });
 
-  // Régénérée à chaque appel (voir commentaire ci-dessus) : désambiguïsation
-  // par date, scopée au dossier physique de cette année précise (voir
-  // lib/documents-nommage.ts), même principe que la route reçu.
-  const contexteEtudiant = {
-    matricule: dossier.etudiant.matricule,
-    nom: dossier.etudiant.nom,
-    prenom: dossier.etudiant.prenom,
-    anneeLibelle: dossier.anneeScolaire.libelle,
-  };
-  const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
-  const documentsExistants = (
-    await prisma.document.findMany({
-      where: { etudiantId, type: "ATTESTATION_SCOLARITE" },
-      select: { id: true, creeLe: true, cheminRelatif: true },
-    })
-  ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
-  const maintenant = new Date();
-  const suffixe = formatSuffixeDesambiguisation("nouveau", [
-    ...documentsExistants,
-    { id: "nouveau", creeLe: maintenant },
-  ]);
+  let nomFichier: string;
+  if (telecharger) {
+    // Téléchargée (voir commentaire ci-dessus) : désambiguïsation par date,
+    // scopée au dossier physique de cette année précise (voir
+    // lib/documents-nommage.ts), même principe que la route reçu.
+    const contexteEtudiant = {
+      matricule: dossier.etudiant.matricule,
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      anneeLibelle: dossier.anneeScolaire.libelle,
+    };
+    const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
+    const documentsExistants = (
+      await prisma.document.findMany({
+        where: { etudiantId, type: "ATTESTATION_SCOLARITE" },
+        select: { id: true, creeLe: true, cheminRelatif: true },
+      })
+    ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
+    const maintenant = new Date();
+    const suffixe = formatSuffixeDesambiguisation("nouveau", [
+      ...documentsExistants,
+      { id: "nouveau", creeLe: maintenant },
+    ]);
 
-  const nomFichier = nomFichierDocument({
-    type: "ATTESTATION_SCOLARITE",
-    nom: dossier.etudiant.nom,
-    prenom: dossier.etudiant.prenom,
-    extension: "pdf",
-    suffixe,
-  });
-  const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
-
-  await prisma.document.create({
-    data: {
-      etudiantId,
+    nomFichier = nomFichierDocument({
       type: "ATTESTATION_SCOLARITE",
-      nomFichier,
-      cheminRelatif,
-      mimeType: "application/pdf",
-      tailleOctets: pdf.length,
-      creeParId: session.id,
-      creeLe: maintenant,
-    },
-  });
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      extension: "pdf",
+      suffixe,
+    });
+    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
+
+    await prisma.document.create({
+      data: {
+        etudiantId,
+        type: "ATTESTATION_SCOLARITE",
+        nomFichier,
+        cheminRelatif,
+        mimeType: "application/pdf",
+        tailleOctets: pdf.length,
+        creeParId: session.id,
+        creeLe: maintenant,
+      },
+    });
+  } else {
+    // Aperçu : nom de fichier indicatif seulement, aucune écriture disque/BDD.
+    nomFichier = nomFichierDocument({
+      type: "ATTESTATION_SCOLARITE",
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      extension: "pdf",
+      suffixe: "",
+    });
+  }
 
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": enTeteContentDisposition("inline", nomFichier),
+      "Content-Disposition": enTeteContentDisposition(telecharger ? "attachment" : "inline", nomFichier),
     },
   });
 }

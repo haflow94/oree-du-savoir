@@ -17,15 +17,20 @@ import { enTeteContentDisposition } from "@/lib/content-disposition";
 // (pas via la grille de permissions éditable — Module.DOCUMENTS — pour ne
 // pas dépendre d'une case à cocher qui pourrait être mal configurée : voir
 // les autres carve-outs listés dans CLAUDE.md, ex. gestion des comptes).
-// Régénère un PDF frais à chaque appel depuis les données de paiement
-// actuelles, et l'enregistre comme Document (traçabilité : chaque
-// génération de reçu reste consultable, même après un futur paiement).
+// Régénère toujours un PDF frais depuis les données de paiement actuelles.
+// Aperçu par défaut (bouton "Voir / imprimer") : renvoyé directement au
+// navigateur, SANS écriture disque/BDD — sinon chaque simple consultation
+// empile un JUSTIFICATIF_PAIEMENT quasi identique (même principe que la
+// route dossier, voir son commentaire). Seul le téléchargement forcé
+// (?dl=1, bouton "Télécharger") l'enregistre comme Document, pour garder une
+// trace de ce qui a été réellement remis à la famille.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; dossierAnnuelId: string }> },
 ) {
   const session = await requireRole([Role.BUREAU, Role.ADMINISTRATION]);
   const { id: etudiantId, dossierAnnuelId } = await params;
+  const telecharger = request.nextUrl.searchParams.get("dl") === "1";
 
   const dossier = await prisma.dossierAnnuel.findUnique({
     where: { id: dossierAnnuelId },
@@ -63,55 +68,67 @@ export async function GET(
     dateEdition: new Date(),
   });
 
-  // Régénéré à chaque appel (voir commentaire ci-dessus) : plusieurs
-  // JUSTIFICATIF_PAIEMENT s'accumulent donc pour ce même étudiant au fil du
-  // temps — désambiguïsation par date, scopée au dossier physique de cette
-  // année précise (voir lib/documents-nommage.ts).
-  const contexteEtudiant = {
-    matricule: dossier.etudiant.matricule,
-    nom: dossier.etudiant.nom,
-    prenom: dossier.etudiant.prenom,
-    anneeLibelle: dossier.anneeScolaire.libelle,
-  };
-  const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
-  const documentsExistants = (
-    await prisma.document.findMany({
-      where: { etudiantId, type: "JUSTIFICATIF_PAIEMENT" },
-      select: { id: true, creeLe: true, cheminRelatif: true },
-    })
-  ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
-  const maintenant = new Date();
-  const suffixe = formatSuffixeDesambiguisation("nouveau", [
-    ...documentsExistants,
-    { id: "nouveau", creeLe: maintenant },
-  ]);
+  let nomFichier: string;
+  if (telecharger) {
+    // Téléchargé (voir commentaire ci-dessus) : plusieurs JUSTIFICATIF_PAIEMENT
+    // peuvent donc s'accumuler pour ce même étudiant au fil du temps —
+    // désambiguïsation par date, scopée au dossier physique de cette année
+    // précise (voir lib/documents-nommage.ts).
+    const contexteEtudiant = {
+      matricule: dossier.etudiant.matricule,
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      anneeLibelle: dossier.anneeScolaire.libelle,
+    };
+    const dossierCible = dossierPhysiqueEtudiant(contexteEtudiant);
+    const documentsExistants = (
+      await prisma.document.findMany({
+        where: { etudiantId, type: "JUSTIFICATIF_PAIEMENT" },
+        select: { id: true, creeLe: true, cheminRelatif: true },
+      })
+    ).filter((d) => estDansDossierEtudiant(d.cheminRelatif, dossierCible));
+    const maintenant = new Date();
+    const suffixe = formatSuffixeDesambiguisation("nouveau", [
+      ...documentsExistants,
+      { id: "nouveau", creeLe: maintenant },
+    ]);
 
-  const nomFichier = nomFichierDocument({
-    type: "JUSTIFICATIF_PAIEMENT",
-    nom: dossier.etudiant.nom,
-    prenom: dossier.etudiant.prenom,
-    extension: "pdf",
-    suffixe,
-  });
-  const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
-
-  await prisma.document.create({
-    data: {
-      etudiantId,
+    nomFichier = nomFichierDocument({
       type: "JUSTIFICATIF_PAIEMENT",
-      nomFichier,
-      cheminRelatif,
-      mimeType: "application/pdf",
-      tailleOctets: pdf.length,
-      creeParId: session.id,
-      creeLe: maintenant,
-    },
-  });
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      extension: "pdf",
+      suffixe,
+    });
+    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, pdf);
+
+    await prisma.document.create({
+      data: {
+        etudiantId,
+        type: "JUSTIFICATIF_PAIEMENT",
+        nomFichier,
+        cheminRelatif,
+        mimeType: "application/pdf",
+        tailleOctets: pdf.length,
+        creeParId: session.id,
+        creeLe: maintenant,
+      },
+    });
+  } else {
+    // Aperçu : nom de fichier indicatif seulement, aucune écriture disque/BDD.
+    nomFichier = nomFichierDocument({
+      type: "JUSTIFICATIF_PAIEMENT",
+      nom: dossier.etudiant.nom,
+      prenom: dossier.etudiant.prenom,
+      extension: "pdf",
+      suffixe: "",
+    });
+  }
 
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": enTeteContentDisposition("inline", nomFichier),
+      "Content-Disposition": enTeteContentDisposition(telecharger ? "attachment" : "inline", nomFichier),
     },
   });
 }

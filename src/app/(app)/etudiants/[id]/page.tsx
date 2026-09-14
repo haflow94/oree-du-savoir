@@ -1252,12 +1252,28 @@ export default async function EtudiantDetailPage({
                           Reçu (voir / imprimer)
                         </a>
                         <a
+                          href={`/etudiants/${etudiant.id}/recu/${d.id}?dl=1`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-ink-faint hover:underline"
+                        >
+                          Télécharger
+                        </a>
+                        <a
                           href={`/etudiants/${etudiant.id}/attestation/${d.id}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-xs font-medium text-pine hover:underline"
                         >
                           Attestation (voir / imprimer)
+                        </a>
+                        <a
+                          href={`/etudiants/${etudiant.id}/attestation/${d.id}?dl=1`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-ink-faint hover:underline"
+                        >
+                          Télécharger
                         </a>
                       </>
                     )}
