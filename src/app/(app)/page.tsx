@@ -13,13 +13,14 @@ import {
   Landmark,
   ClipboardCheck,
   Hourglass,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, Role } from "@/lib/roles";
 import { peutAccederModule, Module } from "@/lib/permissions";
-import { formaterMontant, statutCotisation } from "@/lib/paiements";
+import { formaterMontant, statutCotisation, MOYEN_LABELS } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { dossierDocumentaireComplet } from "@/lib/documents";
 import { activitesARappeler } from "@/lib/activites";
@@ -27,10 +28,12 @@ import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-pr
 import { nombreNotificationsListeAttenteNonLues } from "@/lib/notifications-liste-attente";
 import { JOUR_LABELS } from "@/lib/planning";
 import { aujourdhuiUTC, ajouterJoursUTC } from "@/lib/calendrier";
+import { serieQuotidienne, sommeQuotidienne } from "@/lib/dashboard";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconChip, type Accent } from "@/components/ui/icon-chip";
+import { Sparkline } from "@/components/ui/sparkline";
 
 const ACCENT_TEXT: Record<Accent, string> = {
   pine: "text-pine-strong",
@@ -46,6 +49,19 @@ const ACCENT_TEXT: Record<Accent, string> = {
 // relancer — pas la peine d'alourdir l'indicateur avec tout l'historique.
 const FENETRE_SEANCES_NON_VALIDEES_JOURS = 14;
 
+// Fenêtre des mini-courbes de tendance (Sparkline) et de l'agrégation des
+// événements « Activité récente » plus bas — 14 jours donne une vue de
+// rythme récent (pas un historique complet) sans faire exploser le volume
+// de la requête sur une base qui reste modeste (association, pas un SaaS).
+const FENETRE_ACTIVITE_JOURS = 14;
+
+// Nombre maximum d'événements affichés dans la section « Activité récente »,
+// une fois les différentes sources (paiements, présences validées,
+// préinscriptions, mises en liste d'attente) fusionnées et triées par date —
+// un flux plus long n'apporterait rien ici, la source de vérité de chaque
+// type d'événement reste consultable depuis son propre module.
+const LIMITE_ACTIVITE_RECENTE = 8;
+
 export default async function DashboardPage() {
   const session = await requireSession();
 
@@ -59,17 +75,23 @@ export default async function DashboardPage() {
   // Destinataires jamais codés en dur (voir NotificationPreinscription,
   // prisma/schema.prisma) : seul un rôle ayant LECTURE sur Module.INSCRIPTIONS
   // voit le badge « nouvelles préinscriptions » sur la carte "Dossiers à
-  // traiter" ci-dessous — même règle que la cloche du Topbar.
-  const peutVoirNotificationsPreinscription = await peutAccederModule(
-    session.role,
-    Module.INSCRIPTIONS,
-    "LECTURE",
-  );
-  // Même principe pour les listes d'attente (voir NotificationListeAttente,
-  // prisma/schema.prisma) : gouverné par Module.CLASSES, qui régit la
-  // consultation des Cohortes/de leur liste d'attente. Un rôle sans ce droit
-  // (ex. Trésorier) ne voit ni la carte ni la section détaillée plus bas.
-  const peutVoirListesAttente = await peutAccederModule(session.role, Module.CLASSES, "LECTURE");
+  // traiter" ci-dessous — même règle que la cloche du Topbar. Même principe
+  // pour chacun des trois autres booléens : le Dashboard agrège plusieurs
+  // modules et n'a pas de module propre (voir CLAUDE.md), donc chaque
+  // sous-section (carte, sparkline, ligne d'« Activité récente ») se filtre
+  // elle-même via peutAccederModule plutôt que par un requireModule global
+  // en tête de page.
+  const [
+    peutVoirNotificationsPreinscription,
+    peutVoirListesAttente,
+    peutVoirPaiements,
+    peutVoirPresencesActivite,
+  ] = await Promise.all([
+    peutAccederModule(session.role, Module.INSCRIPTIONS, "LECTURE"),
+    peutAccederModule(session.role, Module.CLASSES, "LECTURE"),
+    peutAccederModule(session.role, Module.PAIEMENTS, "LECTURE"),
+    peutAccederModule(session.role, Module.PRESENCES, "LECTURE"),
+  ]);
 
   const [
     anneeActive,
@@ -85,6 +107,9 @@ export default async function DashboardPage() {
     peutVoirListesAttente ? nombreNotificationsListeAttenteNonLues(session.id) : Promise.resolve(0),
   ]);
   const aujourdhui = aujourdhuiUTC();
+  // Borne basse commune aux sparklines et à l'« Activité récente » — voir
+  // FENETRE_ACTIVITE_JOURS ci-dessus.
+  const debutFenetreActivite = ajouterJoursUTC(aujourdhui, -(FENETRE_ACTIVITE_JOURS - 1));
 
   const [
     nbEtudiants,
@@ -97,6 +122,9 @@ export default async function DashboardPage() {
     nbChequesEnAttente,
     nbSeancesNonValidees,
     affectationsEnAttente,
+    notificationsPreinscriptionRecentes,
+    seancesValideesRecentes,
+    paiementsRecents,
   ] = await Promise.all([
     prisma.etudiant.count({ where: { statutInscription: "VALIDE" } }),
     anneeActive
@@ -180,6 +208,56 @@ export default async function DashboardPage() {
           orderBy: [{ rangListeAttente: "asc" }, { creeLe: "asc" }],
         })
       : Promise.resolve([]),
+    // Événements bruts des 14 derniers jours pour la sparkline "Dossiers à
+    // traiter" et la section "Activité récente" — NotificationPreinscription
+    // est créée UNE FOIS par préinscription, à l'arrivée (voir
+    // src/app/preinscription/actions.ts), donc c'est le bon journal
+    // d'événements même pour un dossier déjà traité depuis (son statut a pu
+    // changer, l'horodatage d'arrivée reste correct).
+    peutVoirNotificationsPreinscription
+      ? prisma.notificationPreinscription.findMany({
+          where: { creeLe: { gte: debutFenetreActivite } },
+          orderBy: { creeLe: "desc" },
+          select: { id: true, creeLe: true, etudiant: { select: { id: true, nom: true, prenom: true } } },
+        })
+      : Promise.resolve([]),
+    // Même principe pour la sparkline "Séances non validées" et l'activité
+    // récente : les séances déjà validées dans la fenêtre, peu importe leur
+    // date de séance elle-même (une saisie tardive via la feuille papier de
+    // secours doit compter le jour où elle est VRAIMENT faite).
+    peutVoirPresencesActivite
+      ? prisma.seance.findMany({
+          where: { valideeLe: { gte: debutFenetreActivite } },
+          orderBy: { valideeLe: "desc" },
+          select: {
+            id: true,
+            valideeLe: true,
+            classe: {
+              select: {
+                cours: { select: { nom: true } },
+                cohorte: { select: { niveau: true, jour: true } },
+              },
+            },
+            valideePar: { select: { nom: true, prenom: true } },
+          },
+        })
+      : Promise.resolve([]),
+    // Idem pour la sparkline "Reste à encaisser" et l'activité récente.
+    peutVoirPaiements
+      ? prisma.paiement.findMany({
+          where: { creeLe: { gte: debutFenetreActivite } },
+          orderBy: { creeLe: "desc" },
+          select: {
+            id: true,
+            creeLe: true,
+            montant: true,
+            moyen: true,
+            echeance: {
+              select: { dossierAnnuel: { select: { etudiant: { select: { id: true, nom: true, prenom: true } } } } },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const resteAEncaisser = dossiersAnnee.reduce((total, d) => {
@@ -199,6 +277,91 @@ export default async function DashboardPage() {
     return statut === "Partiel" || statut === "Impayé";
   }).length;
 
+  // --- Sparklines de tendance (14 derniers jours), une par carte à laquelle
+  // une lecture de rythme récent ajoute du sens (voir components/ui/sparkline.tsx).
+  const sparklineEncaissements = sommeQuotidienne(
+    paiementsRecents.map((p) => ({ date: p.creeLe, valeur: Number.parseFloat(p.montant.toString()) })),
+    FENETRE_ACTIVITE_JOURS,
+    aujourdhui,
+  );
+  const sparklinePreinscriptions = serieQuotidienne(
+    notificationsPreinscriptionRecentes.map((n) => n.creeLe),
+    FENETRE_ACTIVITE_JOURS,
+    aujourdhui,
+  );
+  const sparklineSeancesValidees = serieQuotidienne(
+    // Le filtre { valideeLe: { gte: ... } } de la requête garantit déjà la
+    // non-nullité ici, Prisma ne le reflète pas dans le type généré.
+    seancesValideesRecentes.map((s) => s.valideeLe as Date),
+    FENETRE_ACTIVITE_JOURS,
+    aujourdhui,
+  );
+
+  // --- « Activité récente » : fusion de plusieurs journaux d'événements
+  // (paiement, feuille de présence validée, préinscription, mise en liste
+  // d'attente) en un seul flux chronologique — chaque type reste consultable
+  // en détail depuis son propre module, ceci n'est qu'un raccourci de lecture.
+  type EvenementActivite = {
+    id: string;
+    horodatage: Date;
+    icon: LucideIcon;
+    accent: Accent;
+    texte: string;
+    detail?: string;
+    href: string;
+  };
+
+  const evenementsPaiement: EvenementActivite[] = paiementsRecents.map((p) => {
+    const etudiant = p.echeance.dossierAnnuel.etudiant;
+    return {
+      id: `paiement-${p.id}`,
+      horodatage: p.creeLe,
+      icon: Receipt,
+      accent: "sage",
+      texte: `${etudiant.prenom} ${etudiant.nom} — paiement de ${formaterMontant(Number.parseFloat(p.montant.toString()))}`,
+      detail: MOYEN_LABELS[p.moyen],
+      href: `/etudiants/${etudiant.id}`,
+    };
+  });
+
+  const evenementsPresence: EvenementActivite[] = seancesValideesRecentes.map((s) => ({
+    id: `seance-${s.id}`,
+    horodatage: s.valideeLe as Date,
+    icon: ClipboardCheck,
+    accent: "ochre",
+    texte: `${s.classe.cours.nom}${s.classe.cohorte.niveau ? ` — ${s.classe.cohorte.niveau}` : ""} (${JOUR_LABELS[s.classe.cohorte.jour]})`,
+    detail: s.valideePar ? `Feuille validée par ${s.valideePar.prenom} ${s.valideePar.nom}` : "Feuille validée",
+    href: "/presences",
+  }));
+
+  const evenementsPreinscription: EvenementActivite[] = notificationsPreinscriptionRecentes.map((n) => ({
+    id: `preinscription-${n.id}`,
+    horodatage: n.creeLe,
+    icon: FolderOpen,
+    accent: "sky",
+    texte: `${n.etudiant.prenom} ${n.etudiant.nom} — nouvelle préinscription`,
+    href: `/etudiants/${n.etudiant.id}`,
+  }));
+
+  const evenementsListeAttente: EvenementActivite[] = affectationsEnAttente.map((a) => ({
+    id: `attente-${a.id}`,
+    horodatage: a.creeLe,
+    icon: Hourglass,
+    accent: "ochre",
+    texte: `${a.etudiant.prenom} ${a.etudiant.nom} — liste d'attente`,
+    detail: `${a.cohorte.section.nom}${a.cohorte.niveau ? ` — ${a.cohorte.niveau}` : ""} · ${JOUR_LABELS[a.cohorte.jour]}${a.rangListeAttente ? ` · #${a.rangListeAttente}` : ""}`,
+    href: `/classes/cohortes/${a.cohorte.id}`,
+  }));
+
+  const activiteRecente = [
+    ...evenementsPaiement,
+    ...evenementsPresence,
+    ...evenementsPreinscription,
+    ...evenementsListeAttente,
+  ]
+    .sort((a, b) => b.horodatage.getTime() - a.horodatage.getTime())
+    .slice(0, LIMITE_ACTIVITE_RECENTE);
+
   // Regroupement par bloc (Cohorte) pour l'affichage détaillé plus bas — le
   // décompte brut ci-dessus ne dit pas QUI attend QUOI.
   type AffectationEnAttente = (typeof affectationsEnAttente)[number];
@@ -217,6 +380,21 @@ export default async function DashboardPage() {
       .values(),
   ).sort((a, b) => b.attente.length - a.attente.length);
 
+  // Nombre de jours pleins écoulés depuis la mise en attente (0 = créée
+  // aujourd'hui) : la promotion restant toujours manuelle (voir plus haut),
+  // une attente qui s'allonge est un signal utile à faire remonter au
+  // Dashboard plutôt qu'à découvrir bloc par bloc.
+  const SEUIL_ATTENTE_LONGUE_JOURS = 30;
+  const joursAttente = (creeLe: (typeof affectationsEnAttente)[number]["creeLe"]) => {
+    const jourCreation = Date.UTC(creeLe.getFullYear(), creeLe.getMonth(), creeLe.getDate());
+    return Math.round((aujourdhui.getTime() - jourCreation) / 86_400_000);
+  };
+  const dureesAttente = affectationsEnAttente.map((a) => joursAttente(a.creeLe));
+  const attenteMoyenneJours =
+    dureesAttente.length > 0 ? Math.round(dureesAttente.reduce((s, j) => s + j, 0) / dureesAttente.length) : 0;
+  const attenteMaxJours = dureesAttente.length > 0 ? Math.max(...dureesAttente) : 0;
+  const nbAttentesLongues = dureesAttente.filter((j) => j >= SEUIL_ATTENTE_LONGUE_JOURS).length;
+
   const metrics: {
     label: string;
     icon: LucideIcon;
@@ -227,6 +405,8 @@ export default async function DashboardPage() {
     badge?: number;
     /** Ligne de contexte supplémentaire sous la valeur (ex. répartition, fenêtre de calcul). */
     sousTexte?: string;
+    /** Mini-courbe de tendance sur FENETRE_ACTIVITE_JOURS jours (voir components/ui/sparkline.tsx) — absente = pas de courbe affichée. */
+    sparkline?: number[];
   }[] = [
     { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
     { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage" },
@@ -238,6 +418,7 @@ export default async function DashboardPage() {
       accent: "ochre",
       sousTexte:
         dossiersAnnee.length > 0 ? `Sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} cette année` : undefined,
+      sparkline: sparklineEncaissements,
     },
     {
       label: "Paiements incomplets",
@@ -257,6 +438,7 @@ export default async function DashboardPage() {
       href: "/inscriptions",
       accent: "sky",
       badge: nbNotificationsPreinscriptionNonLues,
+      sparkline: sparklinePreinscriptions,
     },
     {
       label: "Doublons potentiels",
@@ -299,6 +481,7 @@ export default async function DashboardPage() {
       href: "/presences",
       accent: "ochre",
       sousTexte: `Séances passées, ${FENETRE_SEANCES_NON_VALIDEES_JOURS} derniers jours`,
+      sparkline: sparklineSeancesValidees,
     },
     ...(peutVoirListesAttente
       ? [
@@ -329,6 +512,18 @@ export default async function DashboardPage() {
           <p className="text-sm text-ink-muted">
             Connecté en tant que {ROLE_LABELS[session.role]}
             {anneeActive ? ` · Année active : ${anneeActive.libelle}` : ""}.
+          </p>
+          <p className="mt-1 text-sm text-ink">
+            {nbEtudiants} étudiant{nbEtudiants > 1 ? "s" : ""} inscrit
+            {nbEtudiants > 1 ? "s" : ""}
+            {anneeActive ? `, ${nbClasses} classe${nbClasses > 1 ? "s" : ""} cette année` : ""}
+            {` · ${formaterMontant(resteAEncaisser)} restant à encaisser`}
+            {activiteRecente.length > 0
+              ? ` · ${activiteRecente.length} événement${activiteRecente.length > 1 ? "s" : ""} récent${
+                  activiteRecente.length > 1 ? "s" : ""
+                }`
+              : ""}
+            .
           </p>
           <p className="mt-0.5 text-xs text-ink-faint">
             Vue d&apos;ensemble mise à jour automatiquement, pas besoin de recharger la page.
@@ -374,10 +569,49 @@ export default async function DashboardPage() {
                 {m.valeur}
               </div>
               {m.sousTexte && <div className="mt-1 text-xs text-ink-faint">{m.sousTexte}</div>}
+              {m.sparkline && (
+                <div className={`mt-2 ${ACCENT_TEXT[m.accent]}`}>
+                  <Sparkline values={m.sparkline} />
+                </div>
+              )}
             </Card>
           </Link>
         ))}
       </div>
+
+      {activiteRecente.length > 0 && (
+        <Card>
+          <div className="flex items-center gap-2">
+            <Activity aria-hidden size={16} className="text-pine-strong" />
+            <CardTitle>Activité récente</CardTitle>
+          </div>
+          <p className="mt-1 text-xs text-ink-faint">
+            Derniers paiements, feuilles de présence validées, préinscriptions et mises en liste
+            d&apos;attente, tous modules confondus — les {FENETRE_ACTIVITE_JOURS} derniers jours.
+          </p>
+          <ul className="mt-3 divide-y divide-border">
+            {activiteRecente.map((e) => (
+              <li key={e.id}>
+                <Link
+                  href={e.href}
+                  className="flex items-start gap-3 rounded-md px-2 py-2 text-sm hover:bg-bg-sunken"
+                >
+                  <span className={`mt-0.5 shrink-0 ${ACCENT_TEXT[e.accent]}`}>
+                    <e.icon aria-hidden size={16} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-ink">{e.texte}</span>
+                    {e.detail && <span className="block text-xs text-ink-faint">{e.detail}</span>}
+                  </span>
+                  <span className="shrink-0 whitespace-nowrap text-xs text-ink-faint">
+                    {e.horodatage.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {peutVoirListesAttente && (
         <Card id="listes-attente">
@@ -396,6 +630,22 @@ export default async function DashboardPage() {
             attente jusqu&apos;à ce qu&apos;un membre du staff les promeuve
             depuis la fiche de leur bloc.
           </p>
+          {affectationsEnAttente.length > 0 && (
+            <p className="mt-2 text-sm text-ink-muted">
+              Attente moyenne : <span className="font-medium text-ink">{attenteMoyenneJours} j</span>
+              {" · "}la plus ancienne :{" "}
+              <span className="font-medium text-ink">{attenteMaxJours} j</span>
+              {nbAttentesLongues > 0 && (
+                <>
+                  {" · "}
+                  <Badge variant="danger">
+                    {nbAttentesLongues} attente{nbAttentesLongues > 1 ? "s" : ""} de plus de{" "}
+                    {SEUIL_ATTENTE_LONGUE_JOURS} j
+                  </Badge>
+                </>
+              )}
+            </p>
+          )}
           {listesAttenteParCohorte.length === 0 ? (
             <div className="mt-3">
               <EmptyState message="Personne en liste d'attente pour l'instant." />
@@ -425,17 +675,21 @@ export default async function DashboardPage() {
                       </span>
                     </summary>
                     <ul className="mt-2 space-y-1 pl-2">
-                      {groupe.attente.map((a, index) => (
-                        <li key={a.id} className="flex items-center gap-2 text-sm text-ink-muted">
-                          <Badge variant="neutral">#{index + 1}</Badge>
-                          <Link href={`/etudiants/${a.etudiant.id}`} className="hover:underline">
-                            {a.etudiant.prenom} {a.etudiant.nom}
-                          </Link>
-                          <span className="text-xs text-ink-faint">
-                            depuis le {a.creeLe.toLocaleDateString("fr-FR")}
-                          </span>
-                        </li>
-                      ))}
+                      {groupe.attente.map((a, index) => {
+                        const jours = joursAttente(a.creeLe);
+                        const attenteLongue = jours >= SEUIL_ATTENTE_LONGUE_JOURS;
+                        return (
+                          <li key={a.id} className="flex items-center gap-2 text-sm text-ink-muted">
+                            <Badge variant="neutral">#{index + 1}</Badge>
+                            <Link href={`/etudiants/${a.etudiant.id}`} className="hover:underline">
+                              {a.etudiant.prenom} {a.etudiant.nom}
+                            </Link>
+                            <span className={`text-xs ${attenteLongue ? "font-medium text-rust" : "text-ink-faint"}`}>
+                              depuis le {a.creeLe.toLocaleDateString("fr-FR")} ({jours} j)
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </details>
                 </li>
