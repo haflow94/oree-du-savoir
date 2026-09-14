@@ -210,6 +210,13 @@ export default async function EtudiantDetailPage({
           },
           orderBy: { classe: { anneeScolaire: { libelle: "desc" } } },
         },
+        affectationsCohorte: {
+          include: {
+            cohorte: { include: { section: true } },
+            anneeScolaire: true,
+          },
+          orderBy: { anneeScolaire: { libelle: "desc" } },
+        },
         dossiersAnnuels: {
           include: {
             anneeScolaire: true,
@@ -335,6 +342,20 @@ export default async function EtudiantDetailPage({
       cohortesDisponiblesParSection.set(c.section.id, { nom: c.section.nom, cohortes: [c] });
     }
   }
+
+  // Affichage "Cours suivis" : une AffectationCohorte couvre tout le bloc
+  // (fan-out InscriptionClasse, tout ou rien — voir schema.prisma), donc une
+  // ligne par Cohorte affectée suffit et évite d'énumérer chaque Cours. Les
+  // InscriptionClasse dont la Cohorte de la Classe n'a pas d'AffectationCohorte
+  // correspondante pour la même année (ajout/retrait ponctuel d'une Classe
+  // précise via inscrireEtudiantAction/retirerEtudiantAction, hors du chemin
+  // Cohorte) restent listées individuellement pour ne pas les rendre invisibles.
+  const cohortesAffecteesCles = new Set(
+    etudiant.affectationsCohorte.map((a) => `${a.cohorteId}-${a.anneeScolaireId}`),
+  );
+  const inscriptionsPonctuelles = etudiant.inscriptions.filter(
+    (i) => !cohortesAffecteesCles.has(`${i.classe.cohorteId}-${i.classe.anneeScolaireId}`),
+  );
 
   // Formation Jeunes (sexe, niveau scolaire) ne sert qu'au template de
   // dossier Jeunes (voir lib/dossier/templates/jeunes.hbs) : on ne l'affiche
@@ -1013,13 +1034,34 @@ export default async function EtudiantDetailPage({
             </Alert>
           </div>
         )}
-        {etudiant.inscriptions.length === 0 ? (
+        {etudiant.affectationsCohorte.length === 0 && inscriptionsPonctuelles.length === 0 ? (
           <div className="mt-4">
             <EmptyState message="Aucune inscription en cours." />
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-border">
-            {etudiant.inscriptions.map((i) => (
+            {etudiant.affectationsCohorte.map((a) => (
+              <li key={a.id} className="flex items-center justify-between py-2.5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/classes/cohortes/${a.cohorte.id}`}
+                      className="text-sm font-medium text-ink hover:underline"
+                    >
+                      {a.cohorte.section.nom}
+                      {a.cohorte.niveau && ` — ${a.cohorte.niveau}`}
+                    </Link>
+                    <Badge variant={a.statut === "AFFECTE" ? "success" : "warning"}>
+                      {a.statut === "AFFECTE" ? "Inscrit" : "Liste d'attente"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-ink-faint">
+                    {JOUR_LABELS[a.cohorte.jour]} · {a.anneeScolaire.libelle}
+                  </p>
+                </div>
+              </li>
+            ))}
+            {inscriptionsPonctuelles.map((i) => (
               <li key={i.id} className="flex items-center justify-between py-2.5">
                 <div>
                   <div className="flex items-center gap-2">
@@ -1030,6 +1072,7 @@ export default async function EtudiantDetailPage({
                       {i.classe.cours.section.nom} · {i.classe.cours.nom}
                       {i.classe.cohorte.niveau && ` — ${i.classe.cohorte.niveau}`}
                     </Link>
+                    <Badge variant="info">Ajout ponctuel</Badge>
                   </div>
                   <p className="text-xs text-ink-faint">
                     {JOUR_LABELS[i.classe.cohorte.jour]} {i.classe.heureDebut}–{i.classe.heureFin} ·{" "}

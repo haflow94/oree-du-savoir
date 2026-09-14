@@ -36,8 +36,11 @@ SET "matricule" = lpad("ordonnes"."rang"::text, 6, '0')
 FROM "ordonnes"
 WHERE "e"."id" = "ordonnes"."id";
 
--- 4. Positionne la séquence après le dernier matricule attribué au backfill
-SELECT setval('"etudiant_matricule_seq"', (SELECT count(*) FROM "etudiants"), true);
+-- 4. Positionne la séquence après le dernier matricule attribué au backfill.
+-- GREATEST(…, 1) : sur une base neuve sans aucun étudiant (count = 0),
+-- setval refuse toute valeur < 1 (borne basse par défaut d'une séquence) —
+-- constaté en rejouant les migrations depuis zéro sur une base vide.
+SELECT setval('"etudiant_matricule_seq"', GREATEST((SELECT count(*) FROM "etudiants"), 1));
 
 -- 5. Colonne obligatoire, défaut = valeur suivante de la séquence, unique
 ALTER TABLE "etudiants"
