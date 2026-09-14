@@ -11,6 +11,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   CLASSE_DEJA_EXISTANTE:
     "Une classe identique (même cohorte, cours et session) existe déjà pour cette année scolaire.",
   COURS_HORS_COHORTE: "Ce cours n'appartient pas à la cohorte choisie.",
+  SALLE_INCOHERENTE_COHORTE:
+    "Les classes d'une même cohorte doivent partager la même salle pour une année scolaire donnée : une autre classe de ce bloc utilise déjà une salle différente cette année.",
 };
 
 export default async function NouvelleClassePage({

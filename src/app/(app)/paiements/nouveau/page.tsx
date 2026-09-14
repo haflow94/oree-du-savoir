@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formaterMontant } from "@/lib/paiements";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { tarifSuggereDossier } from "@/lib/sections-etudiant";
+import { capacitesCohortesPourAnnee } from "@/lib/cohortes";
 import { JOUR_LABELS } from "@/lib/planning";
 import { creerDossierAction } from "./actions";
 import { Champ, ChampSelect, CONTROL_CLASSES } from "@/components/ui/champ";
@@ -84,6 +85,9 @@ export default async function NouveauDossierPage({
   const compteAffectesParCohorteId = new Map(
     affectesParCohorte.map((a) => [a.cohorteId, a._count._all]),
   );
+  const capacitesParCohorteId = anneeParDefaut
+    ? await capacitesCohortesPourAnnee(cohortesBrutes.map((c) => c.id), anneeParDefaut)
+    : new Map();
 
   return (
     <div className="max-w-lg space-y-6">
@@ -173,9 +177,10 @@ export default async function NouveauDossierPage({
             <option value="">Aucune affectation immédiate</option>
             {cohortesBrutes.map((c) => {
               const compte = compteAffectesParCohorteId.get(c.id) ?? 0;
+              const capaciteMax = capacitesParCohorteId.get(c.id)?.capaciteMax ?? null;
               const occupation =
-                c.capaciteMax !== null
-                  ? ` · ${compte}/${c.capaciteMax}${compte >= c.capaciteMax ? " (complet, liste d'attente)" : ""}`
+                capaciteMax !== null
+                  ? ` · ${compte}/${capaciteMax}${compte >= capaciteMax ? " (complet, liste d'attente)" : ""}`
                   : "";
               return (
                 <option key={c.id} value={c.id}>

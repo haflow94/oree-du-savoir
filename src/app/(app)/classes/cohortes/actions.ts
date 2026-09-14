@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
+import { capaciteDepuisClasses } from "@/lib/cohortes";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -42,7 +43,6 @@ export async function promouvoirAffectationCohorteAction(formData: FormData): Pr
 
   const affectation = await prisma.affectationCohorte.findUnique({
     where: { id: affectationId },
-    include: { cohorte: true },
   });
   if (!affectation || affectation.cohorteId !== cohorteId) {
     retour(cohorteId, anneeScolaireIdFormulaire, "AFFECTATION_INTROUVABLE");
@@ -52,7 +52,7 @@ export async function promouvoirAffectationCohorteAction(formData: FormData): Pr
   const [classesDuBloc, compteActuel] = await Promise.all([
     prisma.classe.findMany({
       where: { cohorteId, anneeScolaireId: affectation.anneeScolaireId },
-      select: { id: true },
+      select: { id: true, salle: { select: { capaciteMax: true } } },
     }),
     prisma.affectationCohorte.count({
       where: { cohorteId, anneeScolaireId: affectation.anneeScolaireId, statut: "AFFECTE" },
@@ -61,7 +61,8 @@ export async function promouvoirAffectationCohorteAction(formData: FormData): Pr
   // Race condition possible entre deux membres du staff qui promeuvent en
   // même temps : re-vérifié ici plutôt que de faire confiance à l'affichage
   // déjà chargé côté client.
-  if (affectation.cohorte.capaciteMax !== null && compteActuel >= affectation.cohorte.capaciteMax) {
+  const capaciteMax = capaciteDepuisClasses(classesDuBloc);
+  if (capaciteMax !== null && compteActuel >= capaciteMax) {
     retour(cohorteId, affectation.anneeScolaireId, "COHORTE_COMPLETE");
   }
 

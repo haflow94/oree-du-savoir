@@ -23,7 +23,7 @@ type Cohorte = {
   section: Section;
   niveau: string | null;
   jour: (typeof JOURS_ORDONNES)[number];
-  capaciteMax: number | null;
+  capacite: { capaciteMax: number | null; salleNom: string | null } | null;
   cours: { id: string; nom: string }[];
   _count: { classes: number };
 };
@@ -130,7 +130,9 @@ export function CohortePanel({
         Une cohorte (section + niveau + jour, ex. un même groupe d&apos;enfants
         qui tourne entre plusieurs matières sur un même créneau) est créée une
         fois, seule, puis on lui affecte un ou plusieurs cours — réutilisée
-        chaque année scolaire pour créer une ou plusieurs classes.
+        chaque année scolaire pour créer une ou plusieurs classes. Sa capacité
+        (liste d&apos;attente) suit celle de la salle occupée par ses classes
+        cette année : à définir depuis Administration → Salles.
       </p>
 
       {cohortes.length > 5 && (
@@ -161,8 +163,10 @@ export function CohortePanel({
                   <details key={c.id} className="rounded-lg border border-border px-3 py-1.5">
                     <summary className="cursor-pointer text-sm text-ink-muted">
                       {libelleCohorte(c)}
-                      {c.capaciteMax !== null && (
-                        <span className="ml-1 text-xs text-ink-faint">· max {c.capaciteMax}</span>
+                      {c.capacite?.capaciteMax != null && (
+                        <span className="ml-1 text-xs text-ink-faint">
+                          · max {c.capacite.capaciteMax} (salle {c.capacite.salleNom})
+                        </span>
                       )}
                     </summary>
                     <p className="mt-1 text-xs text-ink-faint">
@@ -235,20 +239,15 @@ export function CohortePanel({
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className={LABEL_SM_CLASSES}>Capacité max (vide = illimitée)</label>
-                        <input
-                          type="number"
-                          name="capaciteMax"
-                          min={1}
-                          defaultValue={c.capaciteMax ?? ""}
-                          className={`w-28 ${CONTROL_SM_CLASSES}`}
-                        />
-                      </div>
                       <SubmitButton variant="secondary" size="sm" pendingLabel="Enregistrement…">
                         Enregistrer
                       </SubmitButton>
                     </form>
+                    <p className="mt-1 text-[11px] text-ink-faint">
+                      {c.capacite?.capaciteMax != null
+                        ? `Capacité : ${c.capacite.capaciteMax} places (salle ${c.capacite.salleNom}, année active).`
+                        : "Capacité illimitée pour l'instant : assignez une salle aux classes de ce bloc pour l'année active afin d'en fixer une (voir Administration → Salles)."}
+                    </p>
                     <div className="mt-2 flex items-center gap-3">
                       <Link
                         href={`/classes/cohortes/${c.id}`}
@@ -276,7 +275,7 @@ export function CohortePanel({
                 ) : (
                   <Badge key={c.id} variant="neutral">
                     {libelleCohorte(c)}
-                    {c.capaciteMax !== null && ` · max ${c.capaciteMax}`}
+                    {c.capacite?.capaciteMax != null && ` · max ${c.capacite.capaciteMax}`}
                   </Badge>
                 ),
               )}
@@ -355,13 +354,6 @@ export function CohortePanel({
                   </option>
                 ))}
               </select>
-              <input
-                type="number"
-                name="capaciteMax"
-                min={1}
-                placeholder="Capacité (optionnel)"
-                className={`w-40 ${CONTROL_CLASSES}`}
-              />
             </div>
             {sectionSelectionnee && (
               <div>

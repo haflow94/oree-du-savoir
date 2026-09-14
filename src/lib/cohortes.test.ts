@@ -39,8 +39,8 @@ vi.mock("@/lib/prisma", () => ({
 const { affecterEtudiantACohorte, synchroniserInscriptionsClasse, etudiantsValidesSansClasse } =
   await import("./cohortes");
 
-function cohorte(overrides: Partial<{ capaciteMax: number | null }> = {}) {
-  return { id: "cohorte-1", sectionId: "section-1", niveau: "Débutant", jour: "SAMEDI", capaciteMax: null, ...overrides };
+function cohorte() {
+  return { id: "cohorte-1", sectionId: "section-1", niveau: "Débutant", jour: "SAMEDI" };
 }
 
 describe("affecterEtudiantACohorte — règle signature ≠ validation finale", () => {
@@ -50,7 +50,7 @@ describe("affecterEtudiantACohorte — règle signature ≠ validation finale", 
     cohorteFindUnique.mockResolvedValueOnce(cohorte());
     etudiantFindUnique.mockResolvedValueOnce({ statutInscription: "PREINSCRIT" });
     affectationFindUnique.mockResolvedValueOnce(null);
-    classeFindMany.mockResolvedValueOnce([{ id: "classe-1" }]);
+    classeFindMany.mockResolvedValueOnce([{ id: "classe-1", salle: null }]);
     affectationCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
     $transaction.mockResolvedValueOnce([]);
 
@@ -73,7 +73,10 @@ describe("affecterEtudiantACohorte — règle signature ≠ validation finale", 
     cohorteFindUnique.mockResolvedValueOnce(cohorte());
     etudiantFindUnique.mockResolvedValueOnce({ statutInscription: "VALIDE" });
     affectationFindUnique.mockResolvedValueOnce(null);
-    classeFindMany.mockResolvedValueOnce([{ id: "classe-1" }, { id: "classe-2" }]);
+    classeFindMany.mockResolvedValueOnce([
+      { id: "classe-1", salle: null },
+      { id: "classe-2", salle: null },
+    ]);
     affectationCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
     $transaction.mockResolvedValueOnce([]);
 
@@ -91,10 +94,10 @@ describe("affecterEtudiantACohorte — règle signature ≠ validation finale", 
   });
 
   it("ne fait jamais de fan-out quand la cohorte est complète (liste d'attente), même si l'étudiant est déjà validé", async () => {
-    cohorteFindUnique.mockResolvedValueOnce(cohorte({ capaciteMax: 1 }));
+    cohorteFindUnique.mockResolvedValueOnce(cohorte());
     etudiantFindUnique.mockResolvedValueOnce({ statutInscription: "VALIDE" });
     affectationFindUnique.mockResolvedValueOnce(null);
-    classeFindMany.mockResolvedValueOnce([{ id: "classe-1" }]);
+    classeFindMany.mockResolvedValueOnce([{ id: "classe-1", salle: { capaciteMax: 1 } }]);
     affectationCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0); // déjà 1 affecté = complet
     $transaction.mockResolvedValueOnce([]);
 

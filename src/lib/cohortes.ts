@@ -1,5 +1,18 @@
 import { prisma } from "@/lib/prisma";
 
+// Capacité d'un bloc Cohorte pour une année scolaire donnée : dérivée de la
+// Salle de ses Classes (Salle.capaciteMax) plutôt que d'un champ propre à la
+// Cohorte — la capacité est une contrainte physique de la pièce, pas du
+// groupe d'élèves qui l'occupe (voir prisma/schema.prisma#Salle). Les
+// Classes d'une même Cohorte pour une même année pointent toutes vers la
+// même Salle ou aucune (garanti en application, voir
+// classes/nouveau/actions.ts et classes/[id]/actions.ts), donc la première
+// salle non-nulle rencontrée fait foi. null = illimité (aucune salle encore
+// assignée cette année, ou salle sans capacité renseignée).
+export function capaciteDepuisClasses(classes: { salle: { capaciteMax: number | null } | null }[]): number | null {
+  return classes.find((c) => c.salle)?.salle?.capaciteMax ?? null;
+}
+
 export type ResultatAffectationCohorte =
   | { statut: "COHORTE_INTROUVABLE" }
   | { statut: "DEJA_AFFECTE" }
@@ -7,7 +20,8 @@ export type ResultatAffectationCohorte =
   | { statut: "EN_ATTENTE" };
 
 // Affecte un étudiant à une Cohorte pour une année scolaire donnée : respecte
-// la capacité (Cohorte.capaciteMax), met en liste d'attente si complet, et
+// la capacité (voir capaciteDepuisClasses ci-dessus), met en liste d'attente
+// si complet, et
 // inscrit automatiquement l'étudiant à chaque Classe déjà créée pour ce bloc
 // cette année (fan-out tout ou rien sur les Cours de la Cohorte — voir
 // prisma/schema.prisma#AffectationCohorte). No-op silencieux sur les Classes
@@ -41,7 +55,10 @@ export async function affecterEtudiantACohorte({
   if (dejaAffecte) return { statut: "DEJA_AFFECTE" };
 
   const [classesDuBloc, compteAffectes, compteEnAttente] = await Promise.all([
-    prisma.classe.findMany({ where: { cohorteId, anneeScolaireId }, select: { id: true } }),
+    prisma.classe.findMany({
+      where: { cohorteId, anneeScolaireId },
+      select: { id: true, salle: { select: { capaciteMax: true } } },
+    }),
     prisma.affectationCohorte.count({
       where: { cohorteId, anneeScolaireId, statut: "AFFECTE" },
     }),
@@ -49,7 +66,8 @@ export async function affecterEtudiantACohorte({
       where: { cohorteId, anneeScolaireId, statut: "EN_ATTENTE" },
     }),
   ]);
-  const placeDisponible = cohorte.capaciteMax === null || compteAffectes < cohorte.capaciteMax;
+  const capaciteMax = capaciteDepuisClasses(classesDuBloc);
+  const placeDisponible = capaciteMax === null || compteAffectes < capaciteMax;
   // Règle "signature ≠ validation finale" (voir CLAUDE.md/analyse de
   // conversation) : un étudiant non validé ne doit jamais devenir membre
   // effectif d'une classe. L'AffectationCohorte (choix de la cohorte,
@@ -115,6 +133,30 @@ export async function synchroniserInscriptionsClasse(etudiantId: string): Promis
     data: classes.map((c) => ({ etudiantId, classeId: c.id })),
     skipDuplicates: true,
   });
+}
+
+export type CapaciteCohorte = { capaciteMax: number | null; salleNom: string | null };
+
+// Version groupée de la résolution de capacité ci-dessus (capaciteDepuisClasses),
+// pour les pages qui affichent plusieurs Cohortes à la fois (liste
+// Classes/Cohortes, sélecteur de cohorte à l'inscription/au paiement) sans
+// une requête par cohorte.
+export async function capacitesCohortesPourAnnee(
+  cohorteIds: string[],
+  anneeScolaireId: string,
+): Promise<Map<string, CapaciteCohorte>> {
+  if (cohorteIds.length === 0) return new Map();
+  const classes = await prisma.classe.findMany({
+    where: { cohorteId: { in: cohorteIds }, anneeScolaireId, salleId: { not: null } },
+    select: { cohorteId: true, salle: { select: { nom: true, capaciteMax: true } } },
+  });
+  const map = new Map<string, CapaciteCohorte>();
+  for (const c of classes) {
+    if (!map.has(c.cohorteId) && c.salle) {
+      map.set(c.cohorteId, { capaciteMax: c.salle.capaciteMax, salleNom: c.salle.nom });
+    }
+  }
+  return map;
 }
 
 // Dérivée, sans nouveau champ (voir CLAUDE.md — vérifier si le modèle

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
+import { capaciteDepuisClasses } from "@/lib/cohortes";
 import { JOUR_LABELS } from "@/lib/planning";
 import { promouvoirAffectationCohorteAction, retirerAffectationCohorteAction } from "../actions";
 import { BackLink } from "@/components/ui/back-link";
@@ -53,7 +54,7 @@ export default async function CohorteDetailPage({
     ? await Promise.all([
         prisma.classe.findMany({
           where: { cohorteId: id, anneeScolaireId: anneeSelectionneeId },
-          include: { cours: true },
+          include: { cours: true, salle: { select: { nom: true, capaciteMax: true } } },
           orderBy: { heureDebut: "asc" },
         }),
         prisma.affectationCohorte.findMany({
@@ -66,6 +67,8 @@ export default async function CohorteDetailPage({
 
   const affectes = affectations.filter((a) => a.statut === "AFFECTE");
   const enAttente = affectations.filter((a) => a.statut === "EN_ATTENTE");
+  const capaciteMax = capaciteDepuisClasses(classesDuBloc);
+  const salleCapacitante = classesDuBloc.find((c) => c.salle)?.salle?.nom ?? null;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -78,9 +81,9 @@ export default async function CohorteDetailPage({
         <p className="text-sm text-ink-muted">
           {JOUR_LABELS[cohorte.jour]}
           {" · "}
-          {cohorte.capaciteMax !== null
-            ? `Capacité : ${affectes.length}/${cohorte.capaciteMax}`
-            : "Capacité illimitée"}
+          {capaciteMax !== null
+            ? `Capacité : ${affectes.length}/${capaciteMax} (salle ${salleCapacitante})`
+            : "Capacité illimitée (aucune salle assignée cette année)"}
         </p>
       </div>
 

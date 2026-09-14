@@ -61,6 +61,23 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
   });
   if (doublon) retour(classeId, "CLASSE_DEJA_EXISTANTE");
 
+  const salleId = champTexte(formData, "salleId");
+  // La capacité/liste d'attente d'un bloc est désormais dérivée de la Salle
+  // de ses Classes (voir src/lib/cohortes.ts) : toutes les Classes d'une
+  // même Cohorte, pour une même année, doivent donc partager la même salle
+  // (ou n'en avoir aucune), sans quoi la capacité résolue serait ambiguë.
+  if (salleId) {
+    const conflit = await prisma.classe.findFirst({
+      where: {
+        id: { not: classeId },
+        cohorteId,
+        anneeScolaireId: classeActuelle.anneeScolaireId,
+        salleId: { not: salleId },
+      },
+    });
+    if (conflit) retour(classeId, "SALLE_INCOHERENTE_COHORTE");
+  }
+
   const enseignantIds = formData.getAll("enseignants").filter(
     (v): v is string => typeof v === "string" && v.length > 0,
   );
@@ -74,7 +91,7 @@ export async function modifierClasseAction(formData: FormData): Promise<void> {
         heureDebut,
         heureFin,
         semestre,
-        salleId: champTexte(formData, "salleId"),
+        salleId,
       },
     }),
     prisma.classeEnseignant.deleteMany({ where: { classeId } }),

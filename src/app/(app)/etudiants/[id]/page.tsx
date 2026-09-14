@@ -21,6 +21,7 @@ import { champsComparaisonDoublon } from "@/lib/doublons-etudiant";
 import { PopupDoublon } from "../doublon-popup";
 import { ChampsTeleversementDocument } from "./champs-televersement-document";
 import { cumulerTarif, estNouveau, estReinscrit } from "@/lib/sections-etudiant";
+import { capacitesCohortesPourAnnee } from "@/lib/cohortes";
 import { BackLink } from "@/components/ui/back-link";
 import { retirerEtudiantAction } from "../../presences/actions";
 import { creerDossierAction } from "../../paiements/nouveau/actions";
@@ -313,6 +314,9 @@ export default async function EtudiantDetailPage({
   const compteAffectesParCohorteId = new Map(
     affectesParCohorte.map((a) => [a.cohorteId, a._count._all]),
   );
+  const capacitesParCohorteId = anneeActiveId
+    ? await capacitesCohortesPourAnnee(cohortesToutesSections.map((c) => c.id), anneeActiveId)
+    : new Map();
   const cohortesDisponibles = cohortesToutesSections.filter(
     (c) => !cohortesDejaAffecteesIds.has(c.id),
   );
@@ -1093,9 +1097,10 @@ export default async function EtudiantDetailPage({
                     <optgroup key={groupe.nom} label={groupe.nom}>
                       {groupe.cohortes.map((c) => {
                         const compte = compteAffectesParCohorteId.get(c.id) ?? 0;
+                        const capaciteMax = capacitesParCohorteId.get(c.id)?.capaciteMax ?? null;
                         const occupation =
-                          c.capaciteMax !== null
-                            ? ` · ${compte}/${c.capaciteMax}${compte >= c.capaciteMax ? " (complet, liste d'attente)" : ""}`
+                          capaciteMax !== null
+                            ? ` · ${compte}/${capaciteMax}${compte >= capaciteMax ? " (complet, liste d'attente)" : ""}`
                             : "";
                         return (
                           <option key={c.id} value={c.id}>

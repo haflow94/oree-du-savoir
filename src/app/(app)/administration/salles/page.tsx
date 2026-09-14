@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
-import { creerSalleAction, renommerSalleAction, supprimerSalleAction } from "./actions";
+import { creerSalleAction, modifierSalleAction, supprimerSalleAction } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ } from "@/components/ui/champ";
@@ -17,6 +17,7 @@ const MESSAGES: Record<string, string> = {
   CHAMPS_INVALIDES: "Donnez un nom à la salle.",
   NOM_DEJA_UTILISE: "Une salle porte déjà ce nom.",
   INTROUVABLE: "Cette salle n'existe plus.",
+  CAPACITE_INVALIDE: "La capacité doit être un nombre entier positif.",
   SALLE_UTILISEE:
     "Impossible de supprimer : des classes sont rattachées à cette salle. Réaffectez-les d'abord depuis la page Classes.",
 };
@@ -30,9 +31,16 @@ export default async function SallesPage({
   const { error, ok } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
+  // Une classe d'une année scolaire archivée reste en base (rien n'est
+  // supprimé à l'archivage) mais n'apparaît plus dans les vues actives
+  // (voir Classes) : elle ne doit donc pas compter comme un rattachement
+  // qui bloque la suppression de la salle, sous peine d'afficher un compte
+  // obsolète et de coincer des salles en réalité libres.
   const salles = await prisma.salle.findMany({
     orderBy: { nom: "asc" },
-    include: { _count: { select: { classes: true } } },
+    include: {
+      _count: { select: { classes: { where: { anneeScolaire: { archivee: false } } } } },
+    },
   });
 
   // Un scanner de QR sur téléphone n'ouvre un lien que si le contenu est une
@@ -70,7 +78,9 @@ export default async function SallesPage({
           bonne fois pour toutes, il ne change jamais tant que la salle
           existe. Le QR ne connecte personne — l&apos;enseignant qui le
           scanne doit être authentifié, puis choisit parmi les cours du jour
-          dans cette salle qui le concernent.
+          dans cette salle qui le concernent. La capacité d&apos;une salle
+          détermine aussi la liste d&apos;attente des cohortes qui l&apos;occupent
+          (voir Classes → Cohortes) — vide = illimitée.
         </p>
       </div>
 
@@ -87,6 +97,14 @@ export default async function SallesPage({
         <CardTitle>Créer une salle</CardTitle>
         <form action={creerSalleAction} className="mt-3 flex flex-wrap items-end gap-3">
           <Champ label="Nom" name="nom" id="nom-nouvelle-salle" required placeholder="ex. Salle 1" />
+          <Champ
+            label="Capacité (optionnel)"
+            name="capaciteMax"
+            id="capacite-nouvelle-salle"
+            type="number"
+            min={1}
+            placeholder="places"
+          />
           <SubmitButton variant="primary" pendingLabel="Création…">
             Créer la salle
           </SubmitButton>
@@ -121,8 +139,13 @@ export default async function SallesPage({
                     {s._count.classes} classe{s._count.classes > 1 ? "s" : ""} rattachée
                     {s._count.classes > 1 ? "s" : ""}
                   </span>
+                  <span className="text-xs text-ink-faint">
+                    {s.capaciteMax !== null
+                      ? `Capacité : ${s.capaciteMax} places`
+                      : "Capacité illimitée"}
+                  </span>
                 </div>
-                <form action={renommerSalleAction} className="flex flex-wrap items-end gap-3">
+                <form action={modifierSalleAction} className="flex flex-wrap items-end gap-3">
                   <input type="hidden" name="salleId" value={s.id} />
                   <Champ
                     label="Renommer"
@@ -130,6 +153,15 @@ export default async function SallesPage({
                     id={`nom-${s.id}`}
                     required
                     defaultValue={s.nom}
+                  />
+                  <Champ
+                    label="Capacité (optionnel)"
+                    name="capaciteMax"
+                    id={`capacite-${s.id}`}
+                    type="number"
+                    min={1}
+                    placeholder="places"
+                    defaultValue={s.capaciteMax ?? ""}
                   />
                   <SubmitButton variant="secondary" pendingLabel="Enregistrement…">
                     Enregistrer

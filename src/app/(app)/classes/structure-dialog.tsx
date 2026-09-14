@@ -21,7 +21,7 @@ type Cohorte = {
   section: Section;
   niveau: string | null;
   jour: (typeof JOURS_ORDONNES)[number];
-  capaciteMax: number | null;
+  capacite: { capaciteMax: number | null; salleNom: string | null } | null;
   cours: { id: string; nom: string }[];
   _count: { classes: number };
 };

@@ -830,11 +830,20 @@ enum JourSemaine {
 // deux classes de la même salle réelle. Le QR est fixe pour la salle, ne
 // contient aucune donnée personnelle, et n'est qu'un raccourci d'accès :
 // jamais une authentification (règle non négociable).
+// capaciteMax : plafond physique de la pièce (chaises/espace), null =
+// illimité. Portée par la Salle plutôt que par la Cohorte (voir
+// Cohorte.capaciteMax retiré — migration 20260914... — et
+// AffectationCohorte plus bas) : la capacité est une contrainte du lieu, pas
+// du groupe d'élèves qui l'occupe, et devait cesser de dépendre d'un chiffre
+// ressaisi manuellement par bloc. Toujours éditable depuis
+// Administration → Salles, jamais une constante en dur (règle non
+// négociable, voir CLAUDE.md).
 model Salle {
-  id      String   @id @default(cuid())
-  nom     String   @unique
-  qrToken String   @unique @default(cuid())
-  creeLe  DateTime @default(now())
+  id          String   @id @default(cuid())
+  nom         String   @unique
+  qrToken     String   @unique @default(cuid())
+  capaciteMax Int?
+  creeLe      DateTime @default(now())
 
   classes Classe[]
 
@@ -858,22 +867,24 @@ model Salle {
 // calculé partout à l'affichage à partir de section.nom + niveau +
 // JOUR_LABELS[jour].
 //
-// capaciteMax : plafond d'étudiants affectés à la Cohorte (voir
-// AffectationCohorte) — null = illimité. Réintroduit une capacité/liste
-// d'attente après qu'elle ait été explicitement retirée par décision de
-// l'association au niveau Classe/InscriptionClasse (migration
-// 20260826101940_retire_capacite_et_liste_attente) : cette fois assumée par
-// l'association, portée au niveau Cohorte plutôt que Classe. Toujours
-// éditable depuis Administration → Classes → Cohortes, jamais une constante
-// en dur (règle non négociable, voir CLAUDE.md).
+// La capacité/liste d'attente d'un bloc (voir AffectationCohorte plus bas)
+// est dérivée en application de la Salle des Classes de la Cohorte pour
+// l'année scolaire consultée (Salle.capaciteMax), plus du champ propre ici
+// (retiré — migration 20260826101940_retire_capacite_et_liste_attente
+// l'avait introduit au niveau Classe, un premier passage l'avait remonté ici
+// avant ce nouveau déplacement vers Salle) : la capacité est une contrainte
+// physique de la pièce, pas du groupe. Conséquence appliquée en code
+// (classes/nouveau/actions.ts, classes/[id]/actions.ts) plutôt qu'en
+// contrainte SQL : les Classes d'une même Cohorte pour une même
+// AnneeScolaire doivent toutes pointer vers la même Salle (ou aucune) — voir
+// src/lib/cohortes.ts pour la résolution de cette capacité.
 model Cohorte {
-  id          String      @id @default(cuid())
-  sectionId   String
-  section     Section     @relation(fields: [sectionId], references: [id], onDelete: Restrict)
-  niveau      String?
-  jour        JourSemaine
-  capaciteMax Int?
-  creeLe      DateTime    @default(now())
+  id        String      @id @default(cuid())
+  sectionId String
+  section   Section     @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  niveau    String?
+  jour      JourSemaine
+  creeLe    DateTime    @default(now())
 
   coursLies    CohorteCours[]
   classes      Classe[]
@@ -975,8 +986,9 @@ enum StatutAffectationCohorte {
 }
 
 // Affectation d'un étudiant à une Cohorte pour une année scolaire donnée :
-// porte la capacité/liste d'attente au niveau du bloc (voir
-// Cohorte.capaciteMax), scopée par année puisque Cohorte elle-même n'est pas
+// porte la capacité/liste d'attente au niveau du bloc, capacité résolue via
+// la Salle de ses Classes pour cette même année (voir Salle.capaciteMax,
+// src/lib/cohortes.ts), scopée par année puisque Cohorte elle-même n'est pas
 // rattachée à une année (réutilisable d'année en année). Choix explicite du
 // staff au moment de la création du DossierAnnuel (voir
 // paiements/nouveau/actions.ts#creerDossierAction) : jamais déduit

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { JOURS_ORDONNES, JOUR_LABELS } from "@/lib/planning";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { supprimerClasseAction } from "./[id]/actions";
+import { capacitesCohortesPourAnnee } from "@/lib/cohortes";
 import { StructureDialog } from "./structure-dialog";
 import { DupliquerClassesDialog } from "./dupliquer-classes-dialog";
 import { buttonVariants } from "@/components/ui/button";
@@ -26,7 +27,6 @@ const ERREURS_COHORTE = [
   "COHORTE_DEJA_EXISTANTE",
   "COHORTE_INTROUVABLE",
   "COHORTE_UTILISEE",
-  "COHORTE_CAPACITE_INVALIDE",
   "COHORTE_COURS_UTILISE",
   "COURS_HORS_SECTION",
   "COHORTE_SECTION_VERROUILLEE",
@@ -80,7 +80,6 @@ const MESSAGES: Record<string, string> = {
   COHORTE_INTROUVABLE: "Cette cohorte n'existe plus.",
   COHORTE_UTILISEE:
     "Impossible de supprimer : des classes ou des affectations sont rattachées à cette cohorte.",
-  COHORTE_CAPACITE_INVALIDE: "La capacité doit être un nombre entier positif.",
   COHORTE_COURS_UTILISE:
     "Un cours retiré est encore instancié par une classe de cette cohorte : supprimez d'abord la classe, ou gardez ce cours.",
   COURS_HORS_SECTION: "Ce cours n'appartient pas à la section de la cohorte.",
@@ -154,12 +153,19 @@ export default async function ClassesPage({
   const enAttenteParCohorteId = new Map(
     enAttenteParCohorteBrut.map((g) => [g.cohorteId, g._count._all]),
   );
+  // Capacité affichée dans l'onglet Cohortes : celle de l'année active (voir
+  // src/lib/cohortes.ts — dérivée de la Salle des Classes, plus un champ
+  // propre à la Cohorte), à titre informatif seulement, l'édition se fait
+  // désormais depuis Administration → Salles.
+  const capacitesParCohorteId = anneeActive
+    ? await capacitesCohortesPourAnnee(cohortesBrutes.map((c) => c.id), anneeActive.id)
+    : new Map();
   const cohortes = cohortesBrutes.map((c) => ({
     id: c.id,
     section: c.section,
     niveau: c.niveau,
     jour: c.jour,
-    capaciteMax: c.capaciteMax,
+    capacite: capacitesParCohorteId.get(c.id) ?? null,
     cours: c.coursLies.map((cl) => cl.cours),
     _count: c._count,
   }));

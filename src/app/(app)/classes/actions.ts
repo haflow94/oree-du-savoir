@@ -170,12 +170,7 @@ export async function creerCohorteAction(formData: FormData): Promise<void> {
     .filter((v): v is string => typeof v === "string" && v.length > 0);
   const jour = String(formData.get("jour") ?? "").trim();
   const niveau = String(formData.get("niveau") ?? "").trim() || null;
-  const capaciteMaxBrut = String(formData.get("capaciteMax") ?? "").trim();
-  const capaciteMax = capaciteMaxBrut ? Number(capaciteMaxBrut) : null;
   if (!sectionId || !estJourValide(jour)) retour("COHORTE_CHAMPS_MANQUANTS");
-  if (capaciteMax !== null && (!Number.isInteger(capaciteMax) || capaciteMax < 1)) {
-    retour("COHORTE_CAPACITE_INVALIDE");
-  }
 
   if (coursIds.length > 0) {
     const coursValides = await prisma.cours.count({ where: { id: { in: coursIds }, sectionId } });
@@ -195,7 +190,6 @@ export async function creerCohorteAction(formData: FormData): Promise<void> {
       sectionId,
       jour,
       niveau,
-      capaciteMax,
       coursLies: { create: coursIds.map((coursId, ordre) => ({ coursId, ordre })) },
     },
   });
@@ -213,13 +207,8 @@ export async function modifierCohorteAction(formData: FormData): Promise<void> {
     .filter((v): v is string => typeof v === "string" && v.length > 0);
   const jour = String(formData.get("jour") ?? "").trim();
   const niveau = String(formData.get("niveau") ?? "").trim() || null;
-  const capaciteMaxBrut = String(formData.get("capaciteMax") ?? "").trim();
-  const capaciteMax = capaciteMaxBrut ? Number(capaciteMaxBrut) : null;
   if (!cohorteId || !sectionId || !estJourValide(jour)) {
     retour("COHORTE_CHAMPS_MANQUANTS");
-  }
-  if (capaciteMax !== null && (!Number.isInteger(capaciteMax) || capaciteMax < 1)) {
-    retour("COHORTE_CAPACITE_INVALIDE");
   }
 
   const cible = await prisma.cohorte.findUnique({
@@ -262,7 +251,7 @@ export async function modifierCohorteAction(formData: FormData): Promise<void> {
     prisma.cohorteCours.createMany({
       data: coursIds.map((coursId, ordre) => ({ cohorteId, coursId, ordre })),
     }),
-    prisma.cohorte.update({ where: { id: cohorteId }, data: { sectionId, jour, niveau, capaciteMax } }),
+    prisma.cohorte.update({ where: { id: cohorteId }, data: { sectionId, jour, niveau } }),
     prisma.journalAudit.create({
       data: {
         utilisateurId: session.id,
