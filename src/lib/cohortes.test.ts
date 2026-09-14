@@ -113,6 +113,50 @@ describe("affecterEtudiantACohorte — règle signature ≠ validation finale", 
     expect(operations.some((op) => op.__op === "inscriptionClasse.createMany")).toBe(false);
   });
 
+  it("crée une NotificationListeAttente quand l'affectation naît EN_ATTENTE, jamais quand elle naît AFFECTE", async () => {
+    // Cas 1 : place disponible — pas de notification.
+    cohorteFindUnique.mockResolvedValueOnce(cohorte());
+    etudiantFindUnique.mockResolvedValueOnce({ statutInscription: "VALIDE" });
+    affectationFindUnique.mockResolvedValueOnce(null);
+    classeFindMany.mockResolvedValueOnce([{ id: "classe-1", salle: null }]);
+    affectationCount.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    $transaction.mockResolvedValueOnce([]);
+    await affecterEtudiantACohorte({
+      etudiantId: "etu-4",
+      cohorteId: "cohorte-1",
+      anneeScolaireId: "annee-1",
+      utilisateurId: "user-1",
+    });
+    const operationsAffecte = $transaction.mock.calls[0][0] as {
+      __op: string;
+      data?: { data?: { notification?: unknown } };
+    }[];
+    const creationAffecte = operationsAffecte.find((op) => op.__op === "affectationCohorte.create");
+    expect(creationAffecte?.data?.data?.notification).toBeUndefined();
+
+    vi.clearAllMocks();
+
+    // Cas 2 : cohorte complète — notification créée en même temps que l'affectation.
+    cohorteFindUnique.mockResolvedValueOnce(cohorte());
+    etudiantFindUnique.mockResolvedValueOnce({ statutInscription: "VALIDE" });
+    affectationFindUnique.mockResolvedValueOnce(null);
+    classeFindMany.mockResolvedValueOnce([{ id: "classe-1", salle: { capaciteMax: 1 } }]);
+    affectationCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+    $transaction.mockResolvedValueOnce([]);
+    await affecterEtudiantACohorte({
+      etudiantId: "etu-5",
+      cohorteId: "cohorte-1",
+      anneeScolaireId: "annee-1",
+      utilisateurId: "user-1",
+    });
+    const operationsEnAttente = $transaction.mock.calls[0][0] as {
+      __op: string;
+      data?: { data?: { notification?: { create: object } } };
+    }[];
+    const creationEnAttente = operationsEnAttente.find((op) => op.__op === "affectationCohorte.create");
+    expect(creationEnAttente?.data?.data?.notification).toEqual({ create: {} });
+  });
+
   it("cohorte introuvable : ne touche rien", async () => {
     cohorteFindUnique.mockResolvedValueOnce(null);
     const resultat = await affecterEtudiantACohorte({

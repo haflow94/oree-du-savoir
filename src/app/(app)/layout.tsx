@@ -6,6 +6,10 @@ import {
   nombreNotificationsPreinscriptionNonLues,
   dernieresNotificationsPreinscription,
 } from "@/lib/notifications-preinscription";
+import {
+  nombreNotificationsListeAttenteNonLues,
+  dernieresNotificationsListeAttente,
+} from "@/lib/notifications-liste-attente";
 import { Role } from "@/lib/roles";
 import { NAV_ITEMS } from "@/lib/nav";
 import { Sidebar } from "@/components/sidebar";
@@ -32,22 +36,44 @@ export default async function AppLayout({
     Module.INSCRIPTIONS,
     "LECTURE",
   );
-  const [anneeActive, rappels, visibilites, nombreNotificationsNonLues, dernieresNotifications] =
-    await Promise.all([
-      prisma.anneeScolaire.findFirst({ where: { active: true } }),
-      activitesARappeler(),
-      Promise.all(
-        NAV_ITEMS.map((item) =>
-          !item.module ? true : peutAccederModule(session.role, item.module, "LECTURE"),
-        ),
+  // Même principe pour les mises en liste d'attente (voir
+  // NotificationListeAttente, prisma/schema.prisma) : gouverné par
+  // Module.CLASSES, qui régit la consultation des Cohortes/de leur liste
+  // d'attente (voir (app)/classes/cohortes/[id]/page.tsx).
+  const peutVoirNotificationsListeAttente = await peutAccederModule(
+    session.role,
+    Module.CLASSES,
+    "LECTURE",
+  );
+  const [
+    anneeActive,
+    rappels,
+    visibilites,
+    nombreNotificationsNonLues,
+    dernieresNotifications,
+    nombreListeAttenteNonLues,
+    dernieresListeAttente,
+  ] = await Promise.all([
+    prisma.anneeScolaire.findFirst({ where: { active: true } }),
+    activitesARappeler(),
+    Promise.all(
+      NAV_ITEMS.map((item) =>
+        !item.module ? true : peutAccederModule(session.role, item.module, "LECTURE"),
       ),
-      peutVoirNotificationsPreinscription
-        ? nombreNotificationsPreinscriptionNonLues(session.id)
-        : Promise.resolve(0),
-      peutVoirNotificationsPreinscription
-        ? dernieresNotificationsPreinscription(session.id)
-        : Promise.resolve([]),
-    ]);
+    ),
+    peutVoirNotificationsPreinscription
+      ? nombreNotificationsPreinscriptionNonLues(session.id)
+      : Promise.resolve(0),
+    peutVoirNotificationsPreinscription
+      ? dernieresNotificationsPreinscription(session.id)
+      : Promise.resolve([]),
+    peutVoirNotificationsListeAttente
+      ? nombreNotificationsListeAttenteNonLues(session.id)
+      : Promise.resolve(0),
+    peutVoirNotificationsListeAttente
+      ? dernieresNotificationsListeAttente(session.id)
+      : Promise.resolve([]),
+  ]);
   // Le tableau de bord (item sans module) agrège plusieurs modules, jamais
   // pertinent pour Enseignant qui n'a accès qu'à Présences (voir la
   // redirection dans (app)/page.tsx) — masqué ici pour cohérence du menu.
@@ -72,6 +98,8 @@ export default async function AppLayout({
           anneeActive={anneeActive?.libelle ?? null}
           nombreNotificationsNonLues={nombreNotificationsNonLues}
           dernieresNotifications={dernieresNotifications}
+          nombreListeAttenteNonLues={nombreListeAttenteNonLues}
+          dernieresListeAttente={dernieresListeAttente}
         />
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
           <div className="mx-auto max-w-6xl">{children}</div>

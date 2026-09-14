@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Landmark,
   ClipboardCheck,
+  Hourglass,
   type LucideIcon,
 } from "lucide-react";
 import { requireSession } from "@/lib/auth";
@@ -23,8 +24,12 @@ import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { dossierDocumentaireComplet } from "@/lib/documents";
 import { activitesARappeler } from "@/lib/activites";
 import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-preinscription";
+import { nombreNotificationsListeAttenteNonLues } from "@/lib/notifications-liste-attente";
+import { JOUR_LABELS } from "@/lib/planning";
 import { aujourdhuiUTC, ajouterJoursUTC } from "@/lib/calendrier";
-import { Card } from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { IconChip, type Accent } from "@/components/ui/icon-chip";
 
 const ACCENT_TEXT: Record<Accent, string> = {
@@ -60,13 +65,24 @@ export default async function DashboardPage() {
     Module.INSCRIPTIONS,
     "LECTURE",
   );
+  // Même principe pour les listes d'attente (voir NotificationListeAttente,
+  // prisma/schema.prisma) : gouverné par Module.CLASSES, qui régit la
+  // consultation des Cohortes/de leur liste d'attente. Un rôle sans ce droit
+  // (ex. Trésorier) ne voit ni la carte ni la section détaillée plus bas.
+  const peutVoirListesAttente = await peutAccederModule(session.role, Module.CLASSES, "LECTURE");
 
-  const [anneeActive, rappels, nbNotificationsPreinscriptionNonLues] = await Promise.all([
+  const [
+    anneeActive,
+    rappels,
+    nbNotificationsPreinscriptionNonLues,
+    nbNotificationsListeAttenteNonLues,
+  ] = await Promise.all([
     prisma.anneeScolaire.findFirst({ where: { active: true } }),
     activitesARappeler(),
     peutVoirNotificationsPreinscription
       ? nombreNotificationsPreinscriptionNonLues(session.id)
       : Promise.resolve(0),
+    peutVoirListesAttente ? nombreNotificationsListeAttenteNonLues(session.id) : Promise.resolve(0),
   ]);
   const aujourdhui = aujourdhuiUTC();
 
@@ -80,6 +96,7 @@ export default async function DashboardPage() {
     etudiantsValides,
     nbChequesEnAttente,
     nbSeancesNonValidees,
+    affectationsEnAttente,
   ] = await Promise.all([
     prisma.etudiant.count({ where: { statutInscription: "VALIDE" } }),
     anneeActive
@@ -143,6 +160,26 @@ export default async function DashboardPage() {
         date: { gte: ajouterJoursUTC(aujourdhui, -FENETRE_SEANCES_NON_VALIDEES_JOURS), lt: aujourdhui },
       },
     }),
+    // Détail des listes d'attente (toutes cohortes confondues) pour l'année
+    // active — voir AffectationCohorte/prisma/schema.prisma. La promotion
+    // reste manuelle (jamais automatique même quand une place se libère),
+    // donc cette file ne se vide jamais toute seule : elle mérite d'être
+    // visible en un coup d'œil plutôt que découverte cohorte par cohorte.
+    anneeActive && peutVoirListesAttente
+      ? prisma.affectationCohorte.findMany({
+          where: { anneeScolaireId: anneeActive.id, statut: "EN_ATTENTE" },
+          select: {
+            id: true,
+            rangListeAttente: true,
+            creeLe: true,
+            etudiant: { select: { id: true, nom: true, prenom: true } },
+            cohorte: {
+              select: { id: true, niveau: true, jour: true, section: { select: { nom: true } } },
+            },
+          },
+          orderBy: [{ rangListeAttente: "asc" }, { creeLe: "asc" }],
+        })
+      : Promise.resolve([]),
   ]);
 
   const resteAEncaisser = dossiersAnnee.reduce((total, d) => {
@@ -162,6 +199,24 @@ export default async function DashboardPage() {
     return statut === "Partiel" || statut === "Impayé";
   }).length;
 
+  // Regroupement par bloc (Cohorte) pour l'affichage détaillé plus bas — le
+  // décompte brut ci-dessus ne dit pas QUI attend QUOI.
+  type AffectationEnAttente = (typeof affectationsEnAttente)[number];
+  const listesAttenteParCohorte = Array.from(
+    affectationsEnAttente
+      .reduce((map, a) => {
+        const existant = map.get(a.cohorte.id)?.attente ?? [];
+        map.set(a.cohorte.id, {
+          cohorteId: a.cohorte.id,
+          label: `${a.cohorte.section.nom}${a.cohorte.niveau ? ` — ${a.cohorte.niveau}` : ""}`,
+          jour: a.cohorte.jour,
+          attente: [...existant, a],
+        });
+        return map;
+      }, new Map<string, { cohorteId: string; label: string; jour: AffectationEnAttente["cohorte"]["jour"]; attente: AffectationEnAttente[] }>())
+      .values(),
+  ).sort((a, b) => b.attente.length - a.attente.length);
+
   const metrics: {
     label: string;
     icon: LucideIcon;
@@ -170,6 +225,8 @@ export default async function DashboardPage() {
     accent: Accent;
     /** Pastille de compte non lu (voir cloche du Topbar) — absent ou 0 = rien affiché. */
     badge?: number;
+    /** Ligne de contexte supplémentaire sous la valeur (ex. répartition, fenêtre de calcul). */
+    sousTexte?: string;
   }[] = [
     { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
     { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage" },
@@ -179,6 +236,8 @@ export default async function DashboardPage() {
       valeur: formaterMontant(resteAEncaisser),
       href: "/paiements",
       accent: "ochre",
+      sousTexte:
+        dossiersAnnee.length > 0 ? `Sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} cette année` : undefined,
     },
     {
       label: "Paiements incomplets",
@@ -186,6 +245,10 @@ export default async function DashboardPage() {
       valeur: nbPaiementsIncomplets,
       href: "/paiements",
       accent: "rust",
+      sousTexte:
+        dossiersAnnee.length > 0
+          ? `${Math.round((nbPaiementsIncomplets / dossiersAnnee.length) * 100)}% des dossiers de l'année`
+          : undefined,
     },
     {
       label: "Dossiers à traiter",
@@ -208,6 +271,10 @@ export default async function DashboardPage() {
       valeur: nbDossiersIncomplets,
       href: "/etudiants",
       accent: "sky",
+      sousTexte:
+        etudiantsValides.length > 0
+          ? `Sur ${etudiantsValides.length} dossier${etudiantsValides.length > 1 ? "s" : ""} validé${etudiantsValides.length > 1 ? "s" : ""}`
+          : undefined,
     },
     {
       label: "Non réinscrits",
@@ -215,6 +282,7 @@ export default async function DashboardPage() {
       valeur: nbNonReinscrits,
       href: "/etudiants?reinscription=non",
       accent: "rust",
+      sousTexte: anneeActive ? `Non réinscrits sur ${anneeActive.libelle}` : undefined,
     },
     {
       label: "Chèques en attente",
@@ -222,6 +290,7 @@ export default async function DashboardPage() {
       valeur: nbChequesEnAttente,
       href: "/paiements",
       accent: "rust",
+      sousTexte: "Reçus ou déposés, pas encore encaissés",
     },
     {
       label: "Séances non validées",
@@ -229,7 +298,24 @@ export default async function DashboardPage() {
       valeur: nbSeancesNonValidees,
       href: "/presences",
       accent: "ochre",
+      sousTexte: `Séances passées, ${FENETRE_SEANCES_NON_VALIDEES_JOURS} derniers jours`,
     },
+    ...(peutVoirListesAttente
+      ? [
+          {
+            label: "En liste d'attente",
+            icon: Hourglass,
+            valeur: affectationsEnAttente.length,
+            href: "#listes-attente",
+            accent: "ochre" as Accent,
+            badge: nbNotificationsListeAttenteNonLues,
+            sousTexte:
+              listesAttenteParCohorte.length > 0
+                ? `Sur ${listesAttenteParCohorte.length} bloc${listesAttenteParCohorte.length > 1 ? "s" : ""}`
+                : undefined,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -243,6 +329,9 @@ export default async function DashboardPage() {
           <p className="text-sm text-ink-muted">
             Connecté en tant que {ROLE_LABELS[session.role]}
             {anneeActive ? ` · Année active : ${anneeActive.libelle}` : ""}.
+          </p>
+          <p className="mt-0.5 text-xs text-ink-faint">
+            Vue d&apos;ensemble mise à jour automatiquement, pas besoin de recharger la page.
           </p>
         </div>
       </div>
@@ -284,10 +373,77 @@ export default async function DashboardPage() {
               <div className={`mt-2 text-2xl font-bold ${ACCENT_TEXT[m.accent]}`}>
                 {m.valeur}
               </div>
+              {m.sousTexte && <div className="mt-1 text-xs text-ink-faint">{m.sousTexte}</div>}
             </Card>
           </Link>
         ))}
       </div>
+
+      {peutVoirListesAttente && (
+        <Card id="listes-attente">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle>Listes d&apos;attente ({affectationsEnAttente.length})</CardTitle>
+            {nbNotificationsListeAttenteNonLues > 0 && (
+              <Badge variant="warning">
+                {nbNotificationsListeAttenteNonLues} nouvelle
+                {nbNotificationsListeAttenteNonLues > 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-ink-faint">
+            La promotion depuis une liste d&apos;attente est toujours manuelle
+            (même quand une place se libère) : ces étudiants restent en
+            attente jusqu&apos;à ce qu&apos;un membre du staff les promeuve
+            depuis la fiche de leur bloc.
+          </p>
+          {listesAttenteParCohorte.length === 0 ? (
+            <div className="mt-3">
+              <EmptyState message="Personne en liste d'attente pour l'instant." />
+            </div>
+          ) : (
+            <ul className="mt-3 divide-y divide-border">
+              {listesAttenteParCohorte.map((groupe) => (
+                <li key={groupe.cohorteId} className="py-2">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-bg-sunken">
+                      <span className="text-sm font-medium text-ink">
+                        {groupe.label}
+                        <span className="ml-2 text-xs font-normal text-ink-faint">
+                          {JOUR_LABELS[groupe.jour]}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Badge variant="neutral">
+                          {groupe.attente.length} en attente
+                        </Badge>
+                        <Link
+                          href={`/classes/cohortes/${groupe.cohorteId}`}
+                          className="text-xs font-medium text-pine-strong hover:underline"
+                        >
+                          Ouvrir
+                        </Link>
+                      </span>
+                    </summary>
+                    <ul className="mt-2 space-y-1 pl-2">
+                      {groupe.attente.map((a, index) => (
+                        <li key={a.id} className="flex items-center gap-2 text-sm text-ink-muted">
+                          <Badge variant="neutral">#{index + 1}</Badge>
+                          <Link href={`/etudiants/${a.etudiant.id}`} className="hover:underline">
+                            {a.etudiant.prenom} {a.etudiant.nom}
+                          </Link>
+                          <span className="text-xs text-ink-faint">
+                            depuis le {a.creeLe.toLocaleDateString("fr-FR")}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       {!anneeActive && (
         <p className="text-sm text-ink-faint">

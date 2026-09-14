@@ -6,8 +6,10 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { NAV_ITEMS } from "@/lib/nav";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
+import { JOUR_LABELS, type JourSemaine } from "@/lib/planning";
 import { logoutAction } from "@/app/(app)/logout-action";
 import { marquerNotificationPreinscriptionLueAction } from "@/app/(app)/inscriptions/actions";
+import { marquerNotificationListeAttenteLueAction } from "@/app/(app)/classes/cohortes/actions";
 
 // Intervalle de rafraîchissement léger (voir plus bas) : assez court pour
 // qu'une nouvelle préinscription apparaisse « automatiquement » dans un
@@ -22,6 +24,20 @@ export type NotificationPreinscriptionTopbar = {
   etudiantId: string;
   nom: string;
   prenom: string;
+  creeLe: Date;
+  lue: boolean;
+};
+
+export type NotificationListeAttenteTopbar = {
+  id: string;
+  etudiantId: string;
+  nomEtudiant: string;
+  prenomEtudiant: string;
+  cohorteId: string;
+  sectionNom: string;
+  niveau: string | null;
+  jour: JourSemaine;
+  rangListeAttente: number | null;
   creeLe: Date;
   lue: boolean;
 };
@@ -42,6 +58,9 @@ type TopbarProps = {
   nombreNotificationsNonLues: number;
   /** Dernières notifications (lues ou non), état de lecture déjà calculé pour cet utilisateur. */
   dernieresNotifications: NotificationPreinscriptionTopbar[];
+  /** Même principe que ci-dessus, pour les mises en liste d'attente (voir NotificationListeAttente). */
+  nombreListeAttenteNonLues: number;
+  dernieresListeAttente: NotificationListeAttenteTopbar[];
 };
 
 export function Topbar({
@@ -52,6 +71,8 @@ export function Topbar({
   anneeActive,
   nombreNotificationsNonLues,
   dernieresNotifications,
+  nombreListeAttenteNonLues,
+  dernieresListeAttente,
 }: TopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -152,87 +173,150 @@ export function Topbar({
             </span>
           )}
 
-          {/* Cloche de notifications (préinscriptions) : disclosure HTML pur
-              (même mécanisme que le menu mobile ci-dessus), pas de state
-              React nécessaire pour ouvrir/fermer. N'apparaît que pour les
-              rôles ayant LECTURE sur Module.INSCRIPTIONS — voir
-              (app)/layout.tsx, qui passe alors des tableaux non vides. */}
-          {(dernieresNotifications.length > 0 || nombreNotificationsNonLues > 0) && (
+          {/* Cloche de notifications (préinscriptions + mises en liste
+              d'attente) : disclosure HTML pur (même mécanisme que le menu
+              mobile ci-dessus), pas de state React nécessaire pour
+              ouvrir/fermer. Chaque section n'apparaît que pour les rôles
+              ayant LECTURE sur le module correspondant — voir
+              (app)/layout.tsx, qui passe alors des tableaux non vides pour
+              cette section uniquement (l'autre reste vide). */}
+          {(dernieresNotifications.length > 0 ||
+            nombreNotificationsNonLues > 0 ||
+            dernieresListeAttente.length > 0 ||
+            nombreListeAttenteNonLues > 0) && (
             <details ref={notificationsDetailsRef} className="relative">
               <summary
                 className="relative flex list-none cursor-pointer items-center rounded-md border border-border p-1.5 text-ink-muted transition-colors hover:bg-bg-sunken"
                 aria-label="Notifications"
               >
                 <Bell aria-hidden size={16} />
-                {nombreNotificationsNonLues > 0 && (
+                {nombreNotificationsNonLues + nombreListeAttenteNonLues > 0 && (
                   <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ochre px-1 text-[10px] font-semibold text-on-accent">
-                    {nombreNotificationsNonLues > 9 ? "9+" : nombreNotificationsNonLues}
+                    {nombreNotificationsNonLues + nombreListeAttenteNonLues > 9
+                      ? "9+"
+                      : nombreNotificationsNonLues + nombreListeAttenteNonLues}
                   </span>
                 )}
               </summary>
-              <div className="absolute right-0 top-full z-20 mt-2 w-80 rounded-lg border border-border bg-bg-elevated shadow-elevated">
-                <div className="border-b border-border px-4 py-2.5 text-xs font-semibold text-ink-muted">
-                  Nouvelles préinscriptions
-                </div>
-                <ul className="max-h-96 overflow-y-auto">
-                  {dernieresNotifications.length === 0 && (
-                    <li className="px-4 py-6 text-center text-xs text-ink-faint">
-                      Aucune notification pour l&apos;instant.
-                    </li>
-                  )}
-                  {dernieresNotifications.map((notif) => (
-                    <li key={notif.id} className="border-b border-border last:border-b-0">
-                      <Link
-                        href={`/etudiants/${notif.etudiantId}`}
-                        onClick={() => {
-                          // Fire-and-forget : la navigation ne doit pas
-                          // attendre la confirmation serveur. Le compteur se
-                          // met ensuite à jour via le polling ci-dessus
-                          // (router.refresh()), pas par un revalidatePath
-                          // dédié ici.
-                          startTransition(() => {
-                            marquerNotificationPreinscriptionLueAction(notif.id);
-                          });
-                          if (notificationsDetailsRef.current) {
-                            notificationsDetailsRef.current.open = false;
-                          }
-                        }}
-                        className={`flex items-start gap-2 px-4 py-2.5 text-sm hover:bg-bg-sunken ${
-                          notif.lue ? "text-ink-muted" : "text-ink"
-                        }`}
-                      >
-                        {!notif.lue && (
-                          <span
-                            aria-hidden
-                            className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ochre"
-                          />
-                        )}
-                        <span className={notif.lue ? "ml-3.5" : ""}>
-                          <span className="font-medium">
-                            {notif.prenom} {notif.nom}
-                          </span>
-                          <span className="block text-xs text-ink-faint">
-                            {notif.creeLe.toLocaleString("fr-FR", {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            })}
-                          </span>
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/inscriptions"
-                  onClick={() => {
-                    if (notificationsDetailsRef.current) {
-                      notificationsDetailsRef.current.open = false;
-                    }
-                  }}
-                  className="block border-t border-border px-4 py-2.5 text-center text-xs font-medium text-pine-strong hover:bg-bg-sunken"
-                >
-                  Voir toutes les préinscriptions
-                </Link>
+              <div className="absolute right-0 top-full z-20 mt-2 max-h-[32rem] w-80 overflow-y-auto rounded-lg border border-border bg-bg-elevated shadow-elevated">
+                {(dernieresNotifications.length > 0 || nombreNotificationsNonLues > 0) && (
+                  <div>
+                    <div className="border-b border-border px-4 py-2.5 text-xs font-semibold text-ink-muted">
+                      Nouvelles préinscriptions
+                    </div>
+                    <ul>
+                      {dernieresNotifications.map((notif) => (
+                        <li key={notif.id} className="border-b border-border last:border-b-0">
+                          <Link
+                            href={`/etudiants/${notif.etudiantId}`}
+                            onClick={() => {
+                              // Fire-and-forget : la navigation ne doit pas
+                              // attendre la confirmation serveur. Le compteur
+                              // se met ensuite à jour via le polling
+                              // ci-dessus (router.refresh()), pas par un
+                              // revalidatePath dédié ici.
+                              startTransition(() => {
+                                marquerNotificationPreinscriptionLueAction(notif.id);
+                              });
+                              if (notificationsDetailsRef.current) {
+                                notificationsDetailsRef.current.open = false;
+                              }
+                            }}
+                            className={`flex items-start gap-2 px-4 py-2.5 text-sm hover:bg-bg-sunken ${
+                              notif.lue ? "text-ink-muted" : "text-ink"
+                            }`}
+                          >
+                            {!notif.lue && (
+                              <span
+                                aria-hidden
+                                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ochre"
+                              />
+                            )}
+                            <span className={notif.lue ? "ml-3.5" : ""}>
+                              <span className="font-medium">
+                                {notif.prenom} {notif.nom}
+                              </span>
+                              <span className="block text-xs text-ink-faint">
+                                {notif.creeLe.toLocaleString("fr-FR", {
+                                  dateStyle: "short",
+                                  timeStyle: "short",
+                                })}
+                              </span>
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href="/inscriptions"
+                      onClick={() => {
+                        if (notificationsDetailsRef.current) {
+                          notificationsDetailsRef.current.open = false;
+                        }
+                      }}
+                      className="block border-b border-border px-4 py-2 text-center text-xs font-medium text-pine-strong hover:bg-bg-sunken"
+                    >
+                      Voir toutes les préinscriptions
+                    </Link>
+                  </div>
+                )}
+
+                {(dernieresListeAttente.length > 0 || nombreListeAttenteNonLues > 0) && (
+                  <div>
+                    <div className="border-b border-border px-4 py-2.5 text-xs font-semibold text-ink-muted">
+                      Nouvelles mises en liste d&apos;attente
+                    </div>
+                    <ul>
+                      {dernieresListeAttente.map((notif) => (
+                        <li key={notif.id} className="border-b border-border last:border-b-0">
+                          <Link
+                            href={`/classes/cohortes/${notif.cohorteId}`}
+                            onClick={() => {
+                              startTransition(() => {
+                                marquerNotificationListeAttenteLueAction(notif.id);
+                              });
+                              if (notificationsDetailsRef.current) {
+                                notificationsDetailsRef.current.open = false;
+                              }
+                            }}
+                            className={`flex items-start gap-2 px-4 py-2.5 text-sm hover:bg-bg-sunken ${
+                              notif.lue ? "text-ink-muted" : "text-ink"
+                            }`}
+                          >
+                            {!notif.lue && (
+                              <span
+                                aria-hidden
+                                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-ochre"
+                              />
+                            )}
+                            <span className={notif.lue ? "ml-3.5" : ""}>
+                              <span className="font-medium">
+                                {notif.prenomEtudiant} {notif.nomEtudiant}
+                              </span>
+                              <span className="block text-xs text-ink-faint">
+                                {notif.sectionNom}
+                                {notif.niveau ? ` — ${notif.niveau}` : ""} ·{" "}
+                                {JOUR_LABELS[notif.jour]}
+                                {notif.rangListeAttente ? ` · #${notif.rangListeAttente}` : ""}
+                              </span>
+                            </span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href="/classes"
+                      onClick={() => {
+                        if (notificationsDetailsRef.current) {
+                          notificationsDetailsRef.current.open = false;
+                        }
+                      }}
+                      className="block px-4 py-2 text-center text-xs font-medium text-pine-strong hover:bg-bg-sunken"
+                    >
+                      Voir les listes d&apos;attente
+                    </Link>
+                  </div>
+                )}
               </div>
             </details>
           )}

@@ -86,6 +86,10 @@ export async function affecterEtudiantACohorte({
         anneeScolaireId,
         statut: placeDisponible ? "AFFECTE" : "EN_ATTENTE",
         rangListeAttente: placeDisponible ? null : compteEnAttente + 1,
+        // Alerte staff uniquement quand la place manque dès le départ (voir
+        // NotificationListeAttente, prisma/schema.prisma) — rien à signaler
+        // pour une affectation qui obtient sa place du premier coup.
+        ...(placeDisponible ? {} : { notification: { create: {} } }),
       },
     }),
     ...(fanOutAutorise && classesDuBloc.length > 0

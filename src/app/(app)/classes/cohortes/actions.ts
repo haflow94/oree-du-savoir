@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
 import { capaciteDepuisClasses } from "@/lib/cohortes";
+import { marquerNotificationListeAttenteLue } from "@/lib/notifications-liste-attente";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -91,6 +92,19 @@ export async function promouvoirAffectationCohorteAction(formData: FormData): Pr
 
   revalidatePath(`/classes/cohortes/${cohorteId}`);
   retour(cohorteId, affectation.anneeScolaireId);
+}
+
+// Marque une notification « mise en liste d'attente » comme lue pour
+// l'utilisateur courant (cloche du Topbar + Dashboard, voir
+// src/lib/notifications-liste-attente.ts) — même patron que
+// marquerNotificationPreinscriptionLueAction (inscriptions/actions.ts).
+// LECTURE suffit : consulter la notification n'est pas un acte de gestion.
+export async function marquerNotificationListeAttenteLueAction(
+  notificationId: string,
+): Promise<{ ok: true }> {
+  const session = await requireModule(Module.CLASSES, "LECTURE");
+  await marquerNotificationListeAttenteLue(notificationId, session.id);
+  return { ok: true };
 }
 
 // Retire un étudiant affecté (ou en attente) de la Cohorte : supprime les

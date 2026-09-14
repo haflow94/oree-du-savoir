@@ -146,6 +146,7 @@ model Utilisateur {
   documentsAssociationAjoutes         DocumentAssociation[]
   codesPreinscriptionCrees            CodePreinscription[]
   lecturesNotificationsPreinscription LecturePreinscription[]
+  lecturesNotificationsListeAttente   LectureListeAttente[]
   demandesCorrectionTraitees          DemandeCorrection[]
   // Spécialités déclarées d'un enseignant (Section dans laquelle il peut
   // intervenir), affectées à la création/modification du compte — sert à
@@ -1020,9 +1021,53 @@ model AffectationCohorte {
   rangListeAttente Int?
   creeLe           DateTime                 @default(now())
 
+  // Une notification est créée quand cette affectation naît EN_ATTENTE (voir
+  // src/lib/cohortes.ts#affecterEtudiantACohorte), jamais quand elle naît
+  // directement AFFECTE — pas de notification pour une place obtenue du
+  // premier coup. Jamais recréée ni supprimée à la promotion (voir
+  // promouvoirAffectationCohorteAction) : son caractère « actif » est
+  // entièrement dérivé du statut courant de cette même affectation (même
+  // philosophie que NotificationPreinscription/Etudiant.statutInscription
+  // ci-dessous), pas un second état à resynchroniser. Supprimée seulement en
+  // cascade si l'affectation elle-même est retirée
+  // (retirerAffectationCohorteAction).
+  notification NotificationListeAttente?
+
   @@unique([etudiantId, cohorteId, anneeScolaireId])
   @@index([cohorteId, anneeScolaireId, statut])
   @@map("affectations_cohorte")
+}
+
+// Alerte staff « un étudiant vient de passer en liste d'attente », affichée
+// dans la cloche du Topbar et sur le Dashboard (voir
+// src/lib/notifications-liste-attente.ts) — même patron que
+// NotificationPreinscription/LecturePreinscription plus haut : lu/non-lu
+// individuel par utilisateur (LectureListeAttente), « active » tant que
+// l'AffectationCohorte liée est toujours EN_ATTENTE (dérivé à la lecture,
+// jamais un flag dupliqué à maintenir).
+model NotificationListeAttente {
+  id                   String             @id @default(cuid())
+  affectationCohorteId String             @unique
+  affectationCohorte   AffectationCohorte @relation(fields: [affectationCohorteId], references: [id], onDelete: Cascade)
+  creeLe               DateTime           @default(now())
+
+  lectures LectureListeAttente[]
+
+  @@map("notifications_liste_attente")
+}
+
+// Une ligne = « cet utilisateur a lu cette notification de liste d'attente »
+// (voir LecturePreinscription pour la même logique côté préinscriptions).
+model LectureListeAttente {
+  id             String                    @id @default(cuid())
+  notificationId String
+  notification   NotificationListeAttente  @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  utilisateurId  String
+  utilisateur    Utilisateur               @relation(fields: [utilisateurId], references: [id], onDelete: Cascade)
+  luLe           DateTime                  @default(now())
+
+  @@unique([notificationId, utilisateurId])
+  @@map("lectures_notification_liste_attente")
 }
 
 model ClasseEnseignant {
