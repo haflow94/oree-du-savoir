@@ -18,7 +18,7 @@ export type CandidatNotification = {
   nomFichier: string;
 };
 
-// Étudiants validés dont le dossier a déjà été généré mais pas encore
+// Étudiants validés dont le dossier a déjà été signé mais pas encore
 // notifiés (voir Etudiant.notificationBienvenueEnvoyeeLe) : source unique de
 // vérité pour l'idempotence du flux 1 (email de bienvenue). n8n ne lit
 // jamais Postgres directement — uniquement via cette route, qui revérifie
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     where: {
       statutInscription: "VALIDE",
       notificationBienvenueEnvoyeeLe: null,
-      documents: { some: { type: "DOSSIER_GENERE" } },
+      documents: { some: { type: "DOSSIER_SIGNE" } },
     },
     select: {
       id: true,
@@ -86,13 +86,16 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
+    // Le dossier réellement SIGNÉ (jamais DOSSIER_GENERE, le formulaire
+    // pré-signature) : c'est ce que la famille attend en pièce jointe de
+    // l'email de bienvenue, pas le brouillon envoyé à Documenso.
     const document = etudiant.documents
-      .filter((d) => d.type === "DOSSIER_GENERE")
+      .filter((d) => d.type === "DOSSIER_SIGNE")
       .sort((a, b) => b.creeLe.getTime() - a.creeLe.getTime())[0];
     const responsable = etudiant.responsables[0];
     // Destinataire : le responsable légal en priorité (cas Jeunes), sinon
     // l'étudiant lui-même (cas Adultes, sans responsable saisi). Un candidat
-    // sans aucun email exploitable ou sans dossier généré est simplement
+    // sans aucun email exploitable ou sans dossier signé est simplement
     // exclu ici plutôt que remonté en erreur : rien à notifier tant que ces
     // données ne sont pas là, le staff les complète depuis la fiche.
     const destinataireEmail = responsable?.email ?? etudiant.email;

@@ -78,8 +78,8 @@ describe("GET /api/internal/n8n/inscriptions-a-notifier", () => {
         prenom: "Léo",
         destinataireEmail: "parent@example.com",
         destinatairePrenom: "Karim",
-        documentId: "doc1",
-        nomFichier: "dossier-leo.pdf",
+        documentId: "doc4",
+        nomFichier: "signe.pdf",
       },
     ]);
   });
@@ -102,14 +102,14 @@ describe("GET /api/internal/n8n/inscriptions-a-notifier", () => {
     expect(corps.candidats[0].destinatairePrenom).toBe("Sofia");
   });
 
-  it("exclut un candidat sans dossier généré ou sans email exploitable", async () => {
+  it("exclut un candidat sans dossier signé ou sans email exploitable", async () => {
     findMany.mockResolvedValue([
       etudiantConforme({
         id: "et3",
         nom: "SansDossier",
         prenom: "X",
         email: "x@example.com",
-        documents: etudiantConforme().documents.filter((d) => d.type !== "DOSSIER_GENERE"),
+        documents: etudiantConforme().documents.filter((d) => d.type !== "DOSSIER_SIGNE"),
       }),
       etudiantConforme({
         id: "et4",
