@@ -15,6 +15,7 @@ import {
 } from "@/lib/preinscription-code";
 import { adresseIpClient, limiteDebitDepassee } from "@/lib/rate-limit";
 import { genererNouvelleVersionDossier } from "@/lib/dossier/generation";
+import { NIVEAUX_PAR_CATALOGUE } from "@/lib/niveaux-section";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -134,9 +135,14 @@ export async function preinscrireAction(
       // Carte du catalogue CS/S/D de la section (voir Administration →
       // Sections) — voir preinscription-form.tsx.
       creneauSouhaiteId: champTexte(formData, `creneauSouhaiteId-${ligneId}`),
+      // Niveau coché pour cette ligne (radio, un seul choix — voir
+      // Section.catalogueNiveaux) : revérifié ci-dessous une fois la section
+      // chargée, jamais fait confiance au client seul.
+      niveau: champTexte(formData, `niveau-${ligneId}`),
     }))
     .filter(
-      (l): l is { sectionId: string; creneauSouhaiteId: string | null } => !!l.sectionId,
+      (l): l is { sectionId: string; creneauSouhaiteId: string | null; niveau: string | null } =>
+        !!l.sectionId,
     );
 
   if (!civilite || !nom || !prenom || !dateNaissanceBrute || !villeNaissance || lignes.length === 0) {
@@ -214,6 +220,20 @@ export async function preinscrireAction(
     return { erreur: "Section invalide." };
   }
   const sectionParId = new Map(sectionsChoisies.map((s) => [s.id, s]));
+
+  // Niveau obligatoire dès que la section choisie porte un catalogue (voir
+  // Section.catalogueNiveaux) — pour CHAQUE ligne, pas seulement la première
+  // (une famille inscrivant le même enfant à Coran ET Islamiques doit
+  // préciser un niveau pour les deux). Valeur revérifiée contre le catalogue
+  // réel de la section (jamais fait confiance à la seule présence du champ,
+  // un client altéré pourrait envoyer n'importe quelle chaîne).
+  for (const ligne of lignes) {
+    const section = sectionParId.get(ligne.sectionId)!;
+    const optionsNiveau = NIVEAUX_PAR_CATALOGUE[section.catalogueNiveaux];
+    if (optionsNiveau.length > 0 && (!ligne.niveau || !optionsNiveau.includes(ligne.niveau))) {
+      return { erreur: `Le niveau est obligatoire pour la section « ${section.nom} ».` };
+    }
+  }
 
   // Mêmes règles d'affichage que côté client (voir preinscription-form.tsx) :
   // pour une inscription "Jeunes", ce sont les coordonnées du responsable
@@ -298,6 +318,7 @@ export async function preinscrireAction(
   const sectionsSouhaitees: {
     id: string;
     nom: string;
+    niveau: string | null;
     creneau: { id: string; code: string; jour: string; horaire: string } | null;
   }[] = lignes.map((ligne) => {
     const section = sectionParId.get(ligne.sectionId)!;
@@ -307,6 +328,7 @@ export async function preinscrireAction(
     return {
       id: section.id,
       nom: section.nom,
+      niveau: ligne.niveau,
       creneau:
         creneauSouhaite && creneauSouhaite.sectionId === ligne.sectionId
           ? {
@@ -348,7 +370,13 @@ export async function preinscrireAction(
     sectionsSouhaitees.length > 1
       ? `Autre(s) section(s) souhaitée(s) à la préinscription : ${sectionsSouhaitees
           .slice(1)
-          .map((s) => (s.creneau ? `${s.nom} (créneau souhaité : ${s.creneau.code} — ${s.creneau.jour}, ${s.creneau.horaire})` : s.nom))
+          .map((s) => {
+            const details = [
+              s.niveau ? `niveau : ${s.niveau}` : null,
+              s.creneau ? `créneau souhaité : ${s.creneau.code} — ${s.creneau.jour}, ${s.creneau.horaire}` : null,
+            ].filter((d): d is string => !!d);
+            return details.length > 0 ? `${s.nom} (${details.join(", ")})` : s.nom;
+          })
           .join(", ")}.`
       : null;
 
@@ -411,12 +439,13 @@ export async function preinscrireAction(
       niveauEtudes: champTexte(formData, "niveauEtudes"),
       dernierDiplome: champTexte(formData, "dernierDiplome"),
       remarque: remarqueFinale,
-      // Déclaration libre de la famille (voir Etudiant.niveauDeclare) —
-      // jamais utilisée pour une affectation automatique de cohorte/classe,
-      // volontairement hors périmètre de cette version (voir CLAUDE.md/
-      // analyse de conversation : "ne pas gérer les tests de niveau
-      // maintenant"). Affichée telle quelle sur le dossier généré.
-      niveauDeclare: champTexte(formData, "niveauDeclare"),
+      // Niveau coché pour la section principale (première ligne — voir
+      // Etudiant.niveauDeclare et sectionSouhaiteeId ci-dessous, même
+      // logique de "seule la première ligne est portée structurellement").
+      // Jamais utilisé pour une affectation automatique de cohorte/classe :
+      // affiché tel quel sur le dossier généré et sur la fiche étudiant pour
+      // aider le staff à choisir la bonne cohorte.
+      niveauDeclare: sectionsSouhaitees[0]?.niveau ?? null,
       autorisationPhotoVideo,
       statutInscription: "PREINSCRIT",
       sectionSouhaiteeId: sectionsSouhaitees[0]?.id ?? null,

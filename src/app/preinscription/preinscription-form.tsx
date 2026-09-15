@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import { preinscrireAction } from "./actions";
 import { Card } from "@/components/ui/card";
-import { Champ, ChampSelect } from "@/components/ui/champ";
+import { Champ, ChampSelect, ChampRadioGroup } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
 import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
+import { NIVEAUX_PAR_CATALOGUE } from "@/lib/niveaux-section";
+import type { CatalogueNiveaux } from "@/generated/prisma/enums";
 
-type Section = { id: string; nom: string };
+type Section = { id: string; nom: string; catalogueNiveaux: CatalogueNiveaux };
 type Creneau = { id: string; sectionId: string; label: string };
 type Ligne = { id: number; sectionId: string };
 
@@ -265,6 +267,22 @@ export function PreinscriptionForm({
                   <option value="">Aucun créneau disponible pour le moment</option>
                 </ChampSelect>
               )}
+
+              {(() => {
+                const section = sections.find((s) => s.id === ligne.sectionId);
+                const options = section ? NIVEAUX_PAR_CATALOGUE[section.catalogueNiveaux] : [];
+                if (options.length === 0) return null;
+                return (
+                  <ChampRadioGroup
+                    key={ligne.sectionId}
+                    label="Niveau"
+                    name={`niveau-${ligne.id}`}
+                    options={options}
+                    required
+                    hint="Le niveau réel sera confirmé par l'association lors de la première séance."
+                  />
+                );
+              })()}
             </div>
           );
         })}
@@ -275,12 +293,6 @@ export function PreinscriptionForm({
         >
           + Ajouter un autre cours ou section
         </button>
-        <Champ
-          label="Niveau déclaré (facultatif)"
-          name="niveauDeclare"
-          placeholder="ex. débutant, 2e année, je ne sais pas…"
-          hint="Une simple indication : le niveau réel et la classe seront confirmés par l'association."
-        />
       </Card>
 
       <fieldset id="section-identite" className={FIELDSET_CLASSES}>

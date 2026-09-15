@@ -168,7 +168,7 @@ export default async function PreinscriptionPage({
             <Alert variant="success">Code vérifié. Vous pouvez compléter votre dossier ci-dessous.</Alert>
             <div className="mt-4">
               <PreinscriptionForm
-                sections={sections.map((s) => ({ id: s.id, nom: s.nom }))}
+                sections={sections.map((s) => ({ id: s.id, nom: s.nom, catalogueNiveaux: s.catalogueNiveaux }))}
                 creneaux={creneaux}
                 code={code}
               />
@@ -179,7 +179,7 @@ export default async function PreinscriptionPage({
           // pas de code à consommer, pas de champ de saisie manuelle à
           // proposer — l'utilisateur atterrit directement sur le formulaire.
           <PreinscriptionForm
-            sections={sections.map((s) => ({ id: s.id, nom: s.nom }))}
+            sections={sections.map((s) => ({ id: s.id, nom: s.nom, catalogueNiveaux: s.catalogueNiveaux }))}
             creneaux={creneaux}
           />
         ) : (
@@ -188,7 +188,7 @@ export default async function PreinscriptionPage({
               <FormulaireCode />
             </div>
             <PreinscriptionForm
-              sections={sections.map((s) => ({ id: s.id, nom: s.nom }))}
+              sections={sections.map((s) => ({ id: s.id, nom: s.nom, catalogueNiveaux: s.catalogueNiveaux }))}
               creneaux={creneaux}
             />
           </>

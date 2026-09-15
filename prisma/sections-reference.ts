@@ -16,6 +16,9 @@ export const SECTIONS_REFERENCE = [
     remboursementAvant15Jours: 75,
     remboursementAvant29Jours: 50,
     modeleDossier: "JEUNES",
+    // Formation Jeunes a son propre niveauScolaire (libre, voir Etudiant) :
+    // pas de catalogue de niveau à cocher à la préinscription.
+    catalogueNiveaux: "AUCUN",
   },
   {
     nom: "Langue Arabe",
@@ -25,6 +28,7 @@ export const SECTIONS_REFERENCE = [
     remboursementAvant15Jours: 50,
     remboursementAvant29Jours: 25,
     modeleDossier: "ADULTES",
+    catalogueNiveaux: "DEBUTANT_INTERMEDIAIRE",
   },
   {
     nom: "Études Coraniques",
@@ -34,6 +38,7 @@ export const SECTIONS_REFERENCE = [
     remboursementAvant15Jours: 50,
     remboursementAvant29Jours: 25,
     modeleDossier: "ADULTES",
+    catalogueNiveaux: "DEBUTANT_INTERMEDIAIRE",
   },
   {
     nom: "Études Islamiques",
@@ -43,6 +48,7 @@ export const SECTIONS_REFERENCE = [
     remboursementAvant15Jours: 50,
     remboursementAvant29Jours: 25,
     modeleDossier: "ADULTES",
+    catalogueNiveaux: "ANNEES_1_A_5",
   },
 ] as const;
 

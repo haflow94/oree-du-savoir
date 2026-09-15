@@ -111,7 +111,7 @@ describe("preinscrireAction — notification de préinscription", () => {
   beforeEach(() => {
     adresseIpClient.mockResolvedValue("1.2.3.4");
     limiteDebitDepassee.mockReturnValue(false);
-    sectionFindMany.mockResolvedValue([{ id: "sec-jeunes", nom: "Jeunes" }]);
+    sectionFindMany.mockResolvedValue([{ id: "sec-jeunes", nom: "Jeunes", catalogueNiveaux: "AUCUN" }]);
     trouverDoublonEtudiant.mockResolvedValue(null);
     etudiantCreate.mockResolvedValue({ id: "etu1" });
     enregistrerDocumentEtudiant.mockResolvedValue("etu1/photo.jpg");
@@ -201,7 +201,7 @@ describe("preinscrireAction — autorisation photo/vidéo (OUI/NON explicite)", 
   beforeEach(() => {
     adresseIpClient.mockResolvedValue("1.2.3.4");
     limiteDebitDepassee.mockReturnValue(false);
-    sectionFindMany.mockResolvedValue([{ id: "sec-jeunes", nom: "Jeunes" }]);
+    sectionFindMany.mockResolvedValue([{ id: "sec-jeunes", nom: "Jeunes", catalogueNiveaux: "AUCUN" }]);
     trouverDoublonEtudiant.mockResolvedValue(null);
     etudiantCreate.mockResolvedValue({ id: "etu1" });
     enregistrerDocumentEtudiant.mockResolvedValue("etu1/photo.jpg");
@@ -251,12 +251,75 @@ describe("preinscrireAction — autorisation photo/vidéo (OUI/NON explicite)", 
   });
 });
 
+// Régression : le niveau (Débutant/Intermédiaire, 1ère…5ème année — voir
+// Section.catalogueNiveaux, src/lib/niveaux-section.ts) doit être un choix
+// unique obligatoire dès que la section choisie porte un catalogue, pour
+// permettre au staff de choisir la bonne cohorte — jamais fait confiance au
+// seul client, revalidé contre le catalogue réel de la section.
+describe("preinscrireAction — niveau obligatoire selon le catalogue de la section", () => {
+  beforeEach(() => {
+    adresseIpClient.mockResolvedValue("1.2.3.4");
+    limiteDebitDepassee.mockReturnValue(false);
+    sectionFindMany.mockResolvedValue([
+      { id: "sec-coran", nom: "Études Coraniques", catalogueNiveaux: "DEBUTANT_INTERMEDIAIRE" },
+    ]);
+    trouverDoublonEtudiant.mockResolvedValue(null);
+    etudiantCreate.mockResolvedValue({ id: "etu1" });
+    enregistrerDocumentEtudiant.mockResolvedValue("etu1/photo.jpg");
+    documentCreate.mockResolvedValue({});
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  function formulaireCoran(): FormData {
+    const fd = formulaireValide();
+    fd.set("sectionId-1", "sec-coran");
+    // Une section hors "Jeunes" exige les coordonnées propres de l'étudiant
+    // (voir la branche !estJeunes de preinscrireAction), pas seulement
+    // celles du responsable légal.
+    fd.set("telephoneMobile", "0611223344");
+    fd.set("email", "ali@example.com");
+    fd.set("adresse", "1 rue des Lilas");
+    fd.set("codePostal", "75001");
+    fd.set("ville", "Paris");
+    fd.set("niveauEtudes", "Terminale");
+    return fd;
+  }
+
+  it("refuse la préinscription si aucun niveau n'est coché pour une section à catalogue", async () => {
+    const resultat = await preinscrireAction(formulaireCoran());
+
+    expect(resultat).toEqual({ erreur: expect.any(String) });
+    expect(etudiantCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuse une valeur de niveau hors catalogue (client altéré, jamais fait confiance)", async () => {
+    const fd = formulaireCoran();
+    fd.set("niveau-1", "Avancé");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ erreur: expect.any(String) });
+    expect(etudiantCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepte un niveau du catalogue et l'enregistre sur niveauDeclare", async () => {
+    const fd = formulaireCoran();
+    fd.set("niveau-1", "Débutant");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ ok: true });
+    expect(etudiantCreate.mock.calls[0][0].data.niveauDeclare).toBe("Débutant");
+  });
+});
+
 describe("preinscrireAction — génération automatique du dossier (DossierAnnuel + PDF)", () => {
   beforeEach(() => {
     adresseIpClient.mockResolvedValue("1.2.3.4");
     limiteDebitDepassee.mockReturnValue(false);
     sectionFindMany.mockResolvedValue([
-      { id: "sec-jeunes", nom: "Jeunes", fraisFormation: "100", fraisDossier: "20" },
+      { id: "sec-jeunes", nom: "Jeunes", fraisFormation: "100", fraisDossier: "20", catalogueNiveaux: "AUCUN" },
     ]);
     trouverDoublonEtudiant.mockResolvedValue(null);
     etudiantCreate.mockResolvedValue({ id: "etu1" });

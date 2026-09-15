@@ -373,16 +373,16 @@ model Etudiant {
   // inscrireEtudiantAction, même geste que sectionSouhaiteeId).
   creneauSouhaiteId              String?
   creneauSouhaite                CreneauSection?   @relation(fields: [creneauSouhaiteId], references: [id], onDelete: SetNull)
-  // Niveau/année déclaré librement par la famille à la préinscription (ex.
-  // "Débutant", "2e année", "Je ne sais pas") — jamais une FK vers Cohorte
-  // (la famille ne connaît pas le catalogue interne des cohortes) ni une
-  // notion d'affectation : c'est une simple déclaration, affichée sur le
-  // dossier généré. Le niveau réellement retenu et la classe effective sont
-  // toujours l'affaire du staff (voir AffectationCohorte/InscriptionClasse),
-  // jamais déduits automatiquement de ce champ — en particulier pour les
-  // sections nécessitant une évaluation de niveau sur place (Arabe/Coran),
-  // volontairement hors périmètre de cette version (voir CLAUDE.md/analyse
-  // de conversation sur le parcours préinscription → signature).
+  // Niveau déclaré par la famille à la préinscription — choix unique parmi
+  // le catalogue de la section choisie (voir Section.catalogueNiveaux,
+  // src/lib/niveaux-section.ts ; ex. "Débutant"/"Intermédiaire" pour
+  // Arabe/Coran, "1ère année"…"5ème année" pour Islamiques), obligatoire
+  // quand ce catalogue n'est pas AUCUN (voir preinscription-form.tsx).
+  // Jamais une FK vers Cohorte (pas de garantie qu'une Cohorte de ce niveau
+  // existe déjà) : reste une déclaration affichée sur le dossier généré et
+  // sur la fiche étudiant pour aider le staff à choisir la bonne cohorte au
+  // moment de l'inscription effective (voir AffectationCohorte), jamais
+  // déduite automatiquement de ce champ.
   niveauDeclare                  String?
   // Consentement à être filmé/photographié lors des activités de
   // l'association (case "Engagement" du dossier généré, voir
@@ -758,22 +758,40 @@ enum ModeleDossier {
   JEUNES
 }
 
+// Catalogue de niveaux proposé à la préinscription pour choisir la section
+// (voir Section.catalogueNiveaux, src/lib/niveaux-section.ts) : AUCUN pour
+// une section sans notion de niveau (ex. Jeunes, qui a son propre
+// niveauScolaire libre), DEBUTANT_INTERMEDIAIRE pour Langue Arabe/Études
+// Coraniques, ANNEES_1_A_5 pour Études Islamiques — mêmes exigences que
+// modeleDossier ci-dessus : un catalogue fixe par valeur d'enum, jamais une
+// liste de niveaux éditable en texte libre (le choix associatif porte sur
+// QUEL catalogue s'applique à une section, pas sur son contenu).
+enum CatalogueNiveaux {
+  AUCUN
+  DEBUTANT_INTERMEDIAIRE
+  ANNEES_1_A_5
+}
+
 model Section {
-  id                        String        @id @default(cuid())
-  nom                       String        @unique
-  fraisFormation            Decimal       @db.Decimal(10, 2)
-  fraisDossier              Decimal       @db.Decimal(10, 2)
+  id                        String           @id @default(cuid())
+  nom                       String           @unique
+  fraisFormation            Decimal          @db.Decimal(10, 2)
+  fraisDossier              Decimal          @db.Decimal(10, 2)
   volumeHoraireAnnuel       Int? // heures indicatives par an, ex. 120
   remboursementAvant15Jours Int // % des frais de formation remboursé
   remboursementAvant29Jours Int // % des frais de formation remboursé
-  modeleDossier             ModeleDossier @default(ADULTES)
+  modeleDossier             ModeleDossier    @default(ADULTES)
+  // Catalogue de niveaux à cocher obligatoirement à la préinscription pour
+  // cette section (voir preinscription-form.tsx, Etudiant.niveauDeclare) :
+  // AUCUN désactive le champ pour cette section.
+  catalogueNiveaux          CatalogueNiveaux @default(AUCUN)
   // Dispositions propres à la section affichées dans le règlement du
   // dossier généré (bloc "Dispositions propres à la section", visible
   // seulement si non vide) — donnée éditable par l'association, jamais une
   // règle écrite en dur dans le template (voir CLAUDE.md, règles non
   // négociables).
-  reglesSpecifiques         String[]      @default([])
-  creeLe                    DateTime      @default(now())
+  reglesSpecifiques         String[]         @default([])
+  creeLe                    DateTime         @default(now())
 
   cours                   Cours[]
   cohortes                Cohorte[]

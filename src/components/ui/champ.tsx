@@ -76,6 +76,54 @@ export function ChampSelect({
   );
 }
 
+// Groupe de boutons radio — un seul choix possible parmi `options`, jamais
+// une case cochée par défaut (même esprit que le OUI/NON d'autorisation
+// image, voir preinscription-form.tsx) : `defaultValue` ne coche rien si
+// absent/non trouvé, à la différence d'un <select> qui retomberait sur sa
+// première <option>.
+export function ChampRadioGroup({
+  label,
+  hint,
+  className,
+  name,
+  options,
+  required,
+  defaultValue,
+}: {
+  label: string;
+  hint?: string;
+  className?: string;
+  name: string;
+  options: string[];
+  required?: boolean;
+  defaultValue?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className={LABEL_CLASSES}>
+        {label}
+        {required && REQUIRED_MARK}
+      </p>
+      <div className="flex flex-wrap gap-4">
+        {options.map((option) => (
+          <label key={option} className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="radio"
+              name={name}
+              value={option}
+              required={required}
+              defaultChecked={defaultValue === option}
+              className="h-4 w-4 border-border"
+            />
+            {option}
+          </label>
+        ))}
+      </div>
+      {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
+    </div>
+  );
+}
+
 export function ChampTextarea({
   label,
   hint,

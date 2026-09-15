@@ -11,6 +11,7 @@ import {
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
+import { LABEL_CATALOGUE_NIVEAUX } from "@/lib/niveaux-section";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -105,6 +106,7 @@ export default async function SectionsPage({
                   remboursementAvant15Jours: s.remboursementAvant15Jours.toString(),
                   remboursementAvant29Jours: s.remboursementAvant29Jours.toString(),
                   modeleDossier: s.modeleDossier,
+                  catalogueNiveaux: s.catalogueNiveaux,
                   reglesSpecifiques: s.reglesSpecifiques.join("\n"),
                 }}
               />
@@ -225,6 +227,7 @@ function ChampsSection({
     remboursementAvant15Jours: string;
     remboursementAvant29Jours: string;
     modeleDossier: string;
+    catalogueNiveaux: string;
     reglesSpecifiques: string;
   };
 }) {
@@ -297,6 +300,20 @@ function ChampsSection({
       >
         <option value="ADULTES">Adultes</option>
         <option value="JEUNES">Jeunes</option>
+      </ChampSelect>
+      <ChampSelect
+        label="Niveau à préciser à la préinscription"
+        name="catalogueNiveaux"
+        id={`catalogueNiveaux${idSuffix}`}
+        required
+        defaultValue={defaults?.catalogueNiveaux ?? "AUCUN"}
+        hint="Détermine si un niveau est demandé (choix unique) à la préinscription pour cette section."
+      >
+        {Object.entries(LABEL_CATALOGUE_NIVEAUX).map(([valeur, libelle]) => (
+          <option key={valeur} value={valeur}>
+            {libelle}
+          </option>
+        ))}
       </ChampSelect>
       <ChampTextarea
         label="Dispositions propres à la section (optionnel, une par ligne)"

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModule, Module } from "@/lib/permissions";
+import { CatalogueNiveaux } from "@/generated/prisma/enums";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -50,6 +51,11 @@ function champModeleDossier(formData: FormData): "ADULTES" | "JEUNES" | null {
   return valeur === "ADULTES" || valeur === "JEUNES" ? valeur : null;
 }
 
+function champCatalogueNiveaux(formData: FormData): CatalogueNiveaux | null {
+  const valeur = champTexte(formData, "catalogueNiveaux");
+  return valeur && valeur in CatalogueNiveaux ? (valeur as CatalogueNiveaux) : null;
+}
+
 function retour(erreur?: string): never {
   redirect(
     erreur
@@ -68,6 +74,7 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
   const remboursementAvant15Jours = champPourcentage(formData, "remboursementAvant15Jours");
   const remboursementAvant29Jours = champPourcentage(formData, "remboursementAvant29Jours");
   const modeleDossier = champModeleDossier(formData);
+  const catalogueNiveaux = champCatalogueNiveaux(formData);
   const reglesSpecifiques = champListeLignes(formData, "reglesSpecifiques");
 
   if (
@@ -77,7 +84,8 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
     volumeHoraireAnnuel === undefined ||
     remboursementAvant15Jours === null ||
     remboursementAvant29Jours === null ||
-    !modeleDossier
+    !modeleDossier ||
+    !catalogueNiveaux
   ) {
     retour("CHAMPS_INVALIDES");
   }
@@ -94,6 +102,7 @@ export async function creerSectionAction(formData: FormData): Promise<void> {
       remboursementAvant15Jours,
       remboursementAvant29Jours,
       modeleDossier,
+      catalogueNiveaux,
       reglesSpecifiques,
     },
   });
@@ -124,6 +133,7 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
   const remboursementAvant15Jours = champPourcentage(formData, "remboursementAvant15Jours");
   const remboursementAvant29Jours = champPourcentage(formData, "remboursementAvant29Jours");
   const modeleDossier = champModeleDossier(formData);
+  const catalogueNiveaux = champCatalogueNiveaux(formData);
   const reglesSpecifiques = champListeLignes(formData, "reglesSpecifiques");
 
   if (
@@ -134,7 +144,8 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
     volumeHoraireAnnuel === undefined ||
     remboursementAvant15Jours === null ||
     remboursementAvant29Jours === null ||
-    !modeleDossier
+    !modeleDossier ||
+    !catalogueNiveaux
   ) {
     retour("CHAMPS_INVALIDES");
   }
@@ -156,6 +167,7 @@ export async function modifierSectionAction(formData: FormData): Promise<void> {
         remboursementAvant15Jours,
         remboursementAvant29Jours,
         modeleDossier,
+        catalogueNiveaux,
         reglesSpecifiques,
       },
     }),

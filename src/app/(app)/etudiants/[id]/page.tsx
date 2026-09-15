@@ -1014,6 +1014,11 @@ export default async function EtudiantDetailPage({
             <Alert variant="info">
               Section souhaitée à la préinscription :{" "}
               <strong>{etudiant.sectionSouhaitee.nom}</strong>
+              {etudiant.niveauDeclare && (
+                <>
+                  {" "}— niveau déclaré : <strong>{etudiant.niveauDeclare}</strong>
+                </>
+              )}
               {etudiant.creneauSouhaite && (
                 <>
                   {" "}— créneau souhaité :{" "}
