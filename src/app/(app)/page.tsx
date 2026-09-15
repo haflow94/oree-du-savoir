@@ -585,9 +585,14 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {metrics.map((m) => (
-          <Link key={m.label} href={m.href}>
-            <Card className="relative transition-colors hover:border-border-strong">
+        {metrics.map((m, index) => (
+          <Link
+            key={m.label}
+            href={m.href}
+            className="group block animate-fade-up motion-reduce:animate-none"
+            style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+          >
+            <Card className="relative transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-border-strong group-hover:shadow-elevated">
               {!!m.badge && (
                 <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-ochre px-1.5 text-[11px] font-semibold text-on-accent">
                   {m.badge > 9 ? "9+" : m.badge}
@@ -612,7 +617,7 @@ export default async function DashboardPage() {
       </div>
 
       {activiteRecente.length > 0 && (
-        <Card>
+        <Card className="animate-fade-up motion-reduce:animate-none" style={{ animationDelay: "160ms" }}>
           <div className="flex items-center gap-2">
             <Activity aria-hidden size={16} className="text-pine-strong" />
             <CardTitle>Activité récente</CardTitle>
@@ -626,7 +631,7 @@ export default async function DashboardPage() {
               <li key={e.id}>
                 <Link
                   href={e.href}
-                  className="flex items-start gap-3 rounded-md px-2 py-2 text-sm hover:bg-bg-sunken"
+                  className="flex items-start gap-3 rounded-md px-2 py-2 text-sm transition-colors hover:bg-bg-sunken"
                 >
                   <span className={`mt-0.5 shrink-0 ${ACCENT_TEXT[e.accent]}`}>
                     <e.icon aria-hidden size={16} />
@@ -646,7 +651,11 @@ export default async function DashboardPage() {
       )}
 
       {peutVoirListesAttente && (
-        <Card id="listes-attente">
+        <Card
+          id="listes-attente"
+          className="animate-fade-up motion-reduce:animate-none"
+          style={{ animationDelay: "220ms" }}
+        >
           <div className="flex items-center justify-between gap-3">
             <CardTitle>Listes d&apos;attente ({affectationsEnAttente.length})</CardTitle>
             {nbNotificationsListeAttenteNonLues > 0 && (
@@ -687,7 +696,7 @@ export default async function DashboardPage() {
               {listesAttenteParCohorte.map((groupe) => (
                 <li key={groupe.cohorteId} className="py-2">
                   <details className="group">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-bg-sunken">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-bg-sunken">
                       <span className="text-sm font-medium text-ink">
                         {groupe.label}
                         <span className="ml-2 text-xs font-normal text-ink-faint">

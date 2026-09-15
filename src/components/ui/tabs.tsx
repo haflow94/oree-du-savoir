@@ -38,7 +38,13 @@ export function Tabs({
       </div>
       <div className="mt-4">
         {tabs.map((t) => (
-          <div key={t.id} hidden={actif !== t.id}>
+          <div
+            key={t.id}
+            hidden={actif !== t.id}
+            className={
+              actif === t.id ? "animate-fade-up [animation-duration:150ms] motion-reduce:animate-none" : undefined
+            }
+          >
             {t.content}
           </div>
         ))}

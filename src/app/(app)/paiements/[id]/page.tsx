@@ -32,9 +32,9 @@ import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
 
 const CONTROL_XS_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1 text-xs text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1 text-xs text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const CONTROL_SM_CLASSES =
-  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+  "rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_XS_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -156,7 +156,7 @@ export default async function DossierPaiementPage({
 
         <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
-        <Card className="p-4">
+        <Card className="animate-fade-up p-4 motion-reduce:animate-none">
           <div className="text-xs uppercase text-ink-faint">Dû</div>
           <div className="mt-1 text-lg font-semibold text-ink">{formaterMontant(du)}</div>
           {peutGererCheque && (
@@ -182,11 +182,17 @@ export default async function DossierPaiementPage({
             </details>
           )}
         </Card>
-        <Card className="p-4">
+        <Card
+          className="animate-fade-up p-4 motion-reduce:animate-none"
+          style={{ animationDelay: "40ms" }}
+        >
           <div className="text-xs uppercase text-ink-faint">Encaissé</div>
           <div className="mt-1 text-lg font-semibold text-sage">{formaterMontant(encaisse)}</div>
         </Card>
-        <Card className="p-4">
+        <Card
+          className="animate-fade-up p-4 motion-reduce:animate-none"
+          style={{ animationDelay: "80ms" }}
+        >
           <div className="text-xs uppercase text-ink-faint">Reste</div>
           <div className="mt-1 text-lg font-semibold text-ink">{formaterMontant(reste)}</div>
         </Card>

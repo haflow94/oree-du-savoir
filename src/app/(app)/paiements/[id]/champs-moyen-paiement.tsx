@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { MoyenPaiement, MOYEN_LABELS } from "@/lib/paiements";
 
 const CHAMP_CLASSES =
-  "w-28 rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+  "w-28 rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 const LABEL_CLASSES = "mb-1 block text-xs font-medium text-ink-muted";
 
 // Les champs bancaires n'ont de sens que pour le moyen choisi (chèque vs
@@ -38,7 +38,7 @@ export function ChampsMoyenPaiement({
           required
           value={moyen}
           onChange={(e) => setMoyen(e.target.value as MoyenPaiement)}
-          className="rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
+          className="rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
         >
           {Object.values(MoyenPaiement).map((m) => (
             <option key={m} value={m}>

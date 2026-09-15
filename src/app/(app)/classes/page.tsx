@@ -419,7 +419,7 @@ export default async function ClassesPage({
                       </td>
                     </tr>
                     {classesCohorte.map((c) => (
-                      <tr key={c.id} className="hover:bg-bg-sunken/40">
+                      <tr key={c.id} className="transition-colors hover:bg-bg-sunken/40">
                         <td className="px-4 py-3 font-medium text-ink">
                           <Link href={`/classes/${c.id}`} className="hover:underline">
                             {c.cours.nom}

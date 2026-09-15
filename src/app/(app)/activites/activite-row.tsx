@@ -89,7 +89,7 @@ export function ActiviteRow({
   );
 
   if (!peutGerer) {
-    return <div className="hover:bg-bg-sunken/40">{contenuLigne}</div>;
+    return <div className="transition-colors hover:bg-bg-sunken/40">{contenuLigne}</div>;
   }
 
   return (
@@ -97,7 +97,7 @@ export function ActiviteRow({
       <button
         type="button"
         onClick={() => dialogRef.current?.showModal()}
-        className="block w-full hover:bg-bg-sunken/40"
+        className="block w-full transition-colors hover:bg-bg-sunken/40"
       >
         {contenuLigne}
       </button>

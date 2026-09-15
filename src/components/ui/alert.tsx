@@ -19,7 +19,7 @@ export function Alert({
   return (
     <div
       role="alert"
-      className={`rounded-lg border border-l-4 px-3 py-2 text-sm ${VARIANTS[variant]}`}
+      className={`animate-fade-up rounded-lg border border-l-4 px-3 py-2 text-sm motion-reduce:animate-none ${VARIANTS[variant]}`}
     >
       {children}
     </div>

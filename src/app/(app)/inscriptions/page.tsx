@@ -289,7 +289,7 @@ export default async function InscriptionsPage({
         </TableHead>
         <tbody className="divide-y divide-border">
           {preinscritsAffiches.map((e) => (
-            <tr key={e.id} className="relative hover:bg-bg-sunken/40">
+            <tr key={e.id} className="relative transition-colors hover:bg-bg-sunken/40">
               <td className="px-4 py-3 font-medium text-ink">
                 <Link
                   href={`/etudiants/${e.id}`}

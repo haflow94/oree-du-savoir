@@ -1,17 +1,20 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export function Card({
   children,
   className = "",
   id,
+  style,
 }: {
   children: ReactNode;
   className?: string;
   id?: string;
+  style?: CSSProperties;
 }) {
   return (
     <div
       id={id}
+      style={style}
       className={`rounded-xl border border-border bg-bg-elevated p-5 shadow-card ${className}`}
     >
       {children}

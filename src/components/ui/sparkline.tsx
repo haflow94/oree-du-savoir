@@ -32,12 +32,15 @@ export function Sparkline({ values }: { values: number[] }) {
     >
       <polyline
         points={points}
+        pathLength={1}
         fill="none"
         stroke="currentColor"
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
+        strokeDasharray={1}
         opacity={0.7}
+        className="animate-draw-line motion-reduce:animate-none"
       />
       <circle cx={LARGEUR} cy={dernierY} r={2.5} fill="currentColor" />
     </svg>

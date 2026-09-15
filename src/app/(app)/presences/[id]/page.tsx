@@ -109,7 +109,7 @@ export default async function SeancePage({
               type="text"
               name="motifAnnulation"
               placeholder="ex. enseignant absent, jour férié"
-              className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
+              className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-2 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
             />
           </div>
           <SubmitButton variant="danger" pendingLabel="Annulation…">

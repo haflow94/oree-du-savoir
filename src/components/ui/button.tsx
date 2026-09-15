@@ -4,7 +4,7 @@ export type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
 export type Size = "default" | "sm";
 
 const BASE =
-  "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky disabled:cursor-not-allowed disabled:opacity-40";
+  "inline-flex items-center justify-center gap-1.5 rounded-md font-semibold transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97] motion-reduce:active:scale-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100";
 
 const VARIANTS: Record<Variant, string> = {
   primary: "bg-pine text-on-accent hover:bg-pine-strong",

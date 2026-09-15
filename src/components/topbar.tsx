@@ -128,7 +128,7 @@ export function Topbar({
             <summary className="list-none cursor-pointer rounded-md border border-border px-2.5 py-1.5 text-ink-muted">
               <Menu aria-hidden size={18} />
             </summary>
-            <div className="absolute left-0 right-0 top-16 z-20 border-b border-border bg-bg-elevated p-3 shadow-elevated">
+            <div className="absolute left-0 right-0 top-16 z-20 animate-fade-up border-b border-border bg-bg-elevated p-3 shadow-elevated [animation-duration:150ms] motion-reduce:animate-none">
               <nav className="flex flex-col gap-1">
                 {items.map((item) => {
                   const Icon = item.icon;
@@ -198,7 +198,7 @@ export function Topbar({
                   </span>
                 )}
               </summary>
-              <div className="absolute right-0 top-full z-20 mt-2 max-h-[32rem] w-80 overflow-y-auto rounded-lg border border-border bg-bg-elevated shadow-elevated">
+              <div className="absolute right-0 top-full z-20 mt-2 max-h-[32rem] w-80 animate-fade-up overflow-y-auto rounded-lg border border-border bg-bg-elevated shadow-elevated [animation-duration:150ms] motion-reduce:animate-none">
                 {(dernieresNotifications.length > 0 || nombreNotificationsNonLues > 0) && (
                   <div>
                     <div className="border-b border-border px-4 py-2.5 text-xs font-semibold text-ink-muted">

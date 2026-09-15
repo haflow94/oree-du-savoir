@@ -87,7 +87,7 @@ function RechercheEtudiantExistant() {
         value={recherche}
         onChange={(e) => setRecherche(e.target.value)}
         placeholder="Nom ou prénom…"
-        className="w-full rounded-md border border-border-strong bg-bg px-3 py-1.5 text-sm text-ink focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
+        className="w-full rounded-md border border-border-strong bg-bg px-3 py-1.5 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
       />
       <p className="mt-1 text-xs text-ink-faint">
         Un ancien étudiant qui se réinscrit doit rouvrir sa fiche existante

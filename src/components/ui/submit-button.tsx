@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { Loader2 } from "lucide-react";
 import { buttonVariants, type Variant, type Size } from "./button";
 
 // À utiliser à la place d'un <button type="submit"> nu à l'intérieur d'un
@@ -36,6 +37,9 @@ export function SubmitButton({
       title={title}
       className={buttonVariants({ variant, size, className })}
     >
+      {pending && (
+        <Loader2 aria-hidden size={14} className="animate-spin motion-reduce:animate-none" />
+      )}
       {pending ? (pendingLabel ?? children) : children}
     </button>
   );

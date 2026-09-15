@@ -160,23 +160,32 @@ export default async function TresoreriePage({
       {ok && !message && <Alert variant="success">Modification enregistrée.</Alert>}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Card>
+        <Card className="animate-fade-up motion-reduce:animate-none">
           <div className="text-xs uppercase text-ink-faint">Solde actuel</div>
           <div className="mt-1 text-2xl font-bold text-ink">{formaterMontant(soldeActuel)}</div>
         </Card>
-        <Card>
+        <Card
+          className="animate-fade-up motion-reduce:animate-none"
+          style={{ animationDelay: "40ms" }}
+        >
           <div className="text-xs uppercase text-ink-faint">
             Crédit{filtresActifs ? " (filtré)" : ""}
           </div>
           <div className="mt-1 text-2xl font-bold text-sage">{formaterMontant(totalCredits)}</div>
         </Card>
-        <Card>
+        <Card
+          className="animate-fade-up motion-reduce:animate-none"
+          style={{ animationDelay: "80ms" }}
+        >
           <div className="text-xs uppercase text-ink-faint">
             Débit{filtresActifs ? " (filtré)" : ""}
           </div>
           <div className="mt-1 text-2xl font-bold text-rust">{formaterMontant(totalDebits)}</div>
         </Card>
-        <Card>
+        <Card
+          className="animate-fade-up motion-reduce:animate-none"
+          style={{ animationDelay: "120ms" }}
+        >
           <div className="text-xs uppercase text-ink-faint">
             Résultat{filtresActifs ? " (filtré)" : ""}
           </div>
@@ -294,7 +303,7 @@ export default async function TresoreriePage({
                 </TableHead>
                 <tbody className="divide-y divide-border">
                   {lignesAffichees.map((m) => (
-                    <tr key={m.id} className="hover:bg-bg-sunken/40">
+                    <tr key={m.id} className="transition-colors hover:bg-bg-sunken/40">
                       <td className="px-4 py-3 text-ink-muted">
                         {new Date(m.date).toLocaleDateString("fr-FR")}
                       </td>
@@ -365,7 +374,7 @@ export default async function TresoreriePage({
                       {lignesAffichees
                         .filter((m) => m.type === "RECETTE")
                         .map((m) => (
-                          <tr key={m.id} className="hover:bg-bg-sunken/40">
+                          <tr key={m.id} className="transition-colors hover:bg-bg-sunken/40">
                             <td className="px-4 py-3 text-ink-muted">
                               {new Date(m.date).toLocaleDateString("fr-FR")}
                             </td>
@@ -420,7 +429,7 @@ export default async function TresoreriePage({
                       {lignesAffichees
                         .filter((m) => m.type === "DEPENSE")
                         .map((m) => (
-                          <tr key={m.id} className="hover:bg-bg-sunken/40">
+                          <tr key={m.id} className="transition-colors hover:bg-bg-sunken/40">
                             <td className="px-4 py-3 text-ink-muted">
                               {new Date(m.date).toLocaleDateString("fr-FR")}
                             </td>

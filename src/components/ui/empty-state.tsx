@@ -6,7 +6,7 @@ export function EmptyState({
   hint?: string;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-border bg-bg-sunken/40 p-5 text-center">
+    <div className="animate-fade-up rounded-lg border border-dashed border-border bg-bg-sunken/40 p-5 text-center motion-reduce:animate-none">
       <p className="text-sm text-ink-faint">{message}</p>
       {hint && <p className="mt-1 text-xs text-ink-faint">{hint}</p>}
     </div>

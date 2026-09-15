@@ -51,12 +51,18 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2.5 rounded-md px-3 py-2 font-display text-base tracking-tight transition-colors ${
+              className={`relative flex items-center gap-2.5 rounded-md px-3 py-2 font-display text-base tracking-tight transition-colors ${
                 active
                   ? "bg-ochre/25 font-semibold text-on-accent"
                   : "font-medium text-sage-bg/80 hover:bg-white/10 hover:text-on-accent"
               }`}
             >
+              <span
+                aria-hidden
+                className={`absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-ochre transition-transform duration-200 motion-reduce:transition-none ${
+                  active ? "scale-y-100" : "scale-y-0"
+                }`}
+              />
               <Icon aria-hidden size={16} strokeWidth={1.75} />
               {item.label}
               {!!badges?.[item.href] && (
