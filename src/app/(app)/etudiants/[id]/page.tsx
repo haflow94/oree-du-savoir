@@ -1284,7 +1284,7 @@ export default async function EtudiantDetailPage({
       <section id="zone-documents" className={ZONE_CLASSES}>
       <p className={ZONE_TITLE_CLASSES}>Documents</p>
         <Card>
-          <CardTitle>Dossier d&apos;inscription</CardTitle>
+          <CardTitle>Générer le dossier d&apos;inscription</CardTitle>
           <p className="mb-3 mt-1 text-xs text-ink-faint">
             Génère le dossier d&apos;inscription en PDF (modèle Adultes ou
             Jeunes, tarifs et créneaux propres à la section suivie, mise en
@@ -1370,7 +1370,7 @@ export default async function EtudiantDetailPage({
               </div>
               {documentsGeneres.length > 0 && (
                 <div>
-                  <p className={ZONE_TITLE_CLASSES}>Documents générés (dossier, reçus, attestations)</p>
+                  <p className={ZONE_TITLE_CLASSES}>Documents générés (brouillons PDF, reçus, attestations)</p>
                   <p className="mb-1.5 text-xs text-ink-faint">
                     Sorties automatiques en lecture seule — le document qui fait foi est le dossier signé
                     ci-dessus.
