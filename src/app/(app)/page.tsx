@@ -86,11 +86,16 @@ export default async function DashboardPage() {
     peutVoirListesAttente,
     peutVoirPaiements,
     peutVoirPresencesActivite,
+    peutVoirEtudiants,
   ] = await Promise.all([
     peutAccederModule(session.role, Module.INSCRIPTIONS, "LECTURE"),
     peutAccederModule(session.role, Module.CLASSES, "LECTURE"),
     peutAccederModule(session.role, Module.PAIEMENTS, "LECTURE"),
-    peutAccederModule(session.role, Module.PRESENCES, "LECTURE"),
+    // ECRITURE, pas LECTURE : la carte "Séances non validées" mène à
+    // /presences, qui exige désormais ECRITURE (voir nav.ts#niveauRequis) —
+    // pas de sens d'afficher la carte pour un rôle qui n'y accéderait pas.
+    peutAccederModule(session.role, Module.PRESENCES, "ECRITURE"),
+    peutAccederModule(session.role, Module.ETUDIANTS, "LECTURE"),
   ]);
 
   const [
@@ -395,7 +400,12 @@ export default async function DashboardPage() {
   const attenteMaxJours = dureesAttente.length > 0 ? Math.max(...dureesAttente) : 0;
   const nbAttentesLongues = dureesAttente.filter((j) => j >= SEUIL_ATTENTE_LONGUE_JOURS).length;
 
-  const metrics: {
+  // Chaque carte reste liée à un seul module métier (voir tableau des hrefs
+  // ci-dessous) : gatée par le même peutVoirXxx que la requête Prisma qui a
+  // produit sa valeur, jamais affichée pour un rôle sans LECTURE sur ce
+  // module (ex. le rôle ACTIVITE, qui n'a accès qu'à Activités/Calendrier,
+  // ne doit voir aucune de ces cartes).
+  type Metric = {
     label: string;
     icon: LucideIcon;
     valeur: string | number;
@@ -407,9 +417,15 @@ export default async function DashboardPage() {
     sousTexte?: string;
     /** Mini-courbe de tendance sur FENETRE_ACTIVITE_JOURS jours (voir components/ui/sparkline.tsx) — absente = pas de courbe affichée. */
     sparkline?: number[];
-  }[] = [
-    { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage" },
-    { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage" },
+    /** Module dont dépend la carte (voir peutAccederModule ci-dessus) — carte masquée si false. */
+    visible: boolean;
+  };
+  // Typé directement sur ce const (pas via .filter() plus bas, qui casserait
+  // le typage contextuel des littéraux `accent` en `string` générique) :
+  // voir metrics = toutesLesMetrics.filter(...) juste après.
+  const toutesLesMetrics: Metric[] = [
+    { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage", visible: peutVoirEtudiants },
+    { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage", visible: peutVoirListesAttente },
     {
       label: "Reste à encaisser",
       icon: CreditCard,
@@ -419,6 +435,7 @@ export default async function DashboardPage() {
       sousTexte:
         dossiersAnnee.length > 0 ? `Sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} cette année` : undefined,
       sparkline: sparklineEncaissements,
+      visible: peutVoirPaiements,
     },
     {
       label: "Paiements incomplets",
@@ -430,6 +447,7 @@ export default async function DashboardPage() {
         dossiersAnnee.length > 0
           ? `${Math.round((nbPaiementsIncomplets / dossiersAnnee.length) * 100)}% des dossiers de l'année`
           : undefined,
+      visible: peutVoirPaiements,
     },
     {
       label: "Dossiers à traiter",
@@ -439,6 +457,7 @@ export default async function DashboardPage() {
       accent: "sky",
       badge: nbNotificationsPreinscriptionNonLues,
       sparkline: sparklinePreinscriptions,
+      visible: peutVoirNotificationsPreinscription,
     },
     {
       label: "Doublons potentiels",
@@ -446,6 +465,7 @@ export default async function DashboardPage() {
       valeur: nbDoublonsPotentiels,
       href: "/etudiants/doublons",
       accent: "rust",
+      visible: peutVoirEtudiants,
     },
     {
       label: "Dossiers incomplets",
@@ -457,6 +477,7 @@ export default async function DashboardPage() {
         etudiantsValides.length > 0
           ? `Sur ${etudiantsValides.length} dossier${etudiantsValides.length > 1 ? "s" : ""} validé${etudiantsValides.length > 1 ? "s" : ""}`
           : undefined,
+      visible: peutVoirEtudiants,
     },
     {
       label: "Non réinscrits",
@@ -465,6 +486,7 @@ export default async function DashboardPage() {
       href: "/etudiants?reinscription=non",
       accent: "rust",
       sousTexte: anneeActive ? `Non réinscrits sur ${anneeActive.libelle}` : undefined,
+      visible: peutVoirEtudiants,
     },
     {
       label: "Chèques en attente",
@@ -473,6 +495,7 @@ export default async function DashboardPage() {
       href: "/paiements",
       accent: "rust",
       sousTexte: "Reçus ou déposés, pas encore encaissés",
+      visible: peutVoirPaiements,
     },
     {
       label: "Séances non validées",
@@ -482,24 +505,42 @@ export default async function DashboardPage() {
       accent: "ochre",
       sousTexte: `Séances passées, ${FENETRE_SEANCES_NON_VALIDEES_JOURS} derniers jours`,
       sparkline: sparklineSeancesValidees,
+      visible: peutVoirPresencesActivite,
     },
-    ...(peutVoirListesAttente
-      ? [
-          {
-            label: "En liste d'attente",
-            icon: Hourglass,
-            valeur: affectationsEnAttente.length,
-            href: "#listes-attente",
-            accent: "ochre" as Accent,
-            badge: nbNotificationsListeAttenteNonLues,
-            sousTexte:
-              listesAttenteParCohorte.length > 0
-                ? `Sur ${listesAttenteParCohorte.length} bloc${listesAttenteParCohorte.length > 1 ? "s" : ""}`
-                : undefined,
-          },
-        ]
-      : []),
+    {
+      label: "En liste d'attente",
+      icon: Hourglass,
+      valeur: affectationsEnAttente.length,
+      href: "#listes-attente",
+      accent: "ochre",
+      badge: nbNotificationsListeAttenteNonLues,
+      sousTexte:
+        listesAttenteParCohorte.length > 0
+          ? `Sur ${listesAttenteParCohorte.length} bloc${listesAttenteParCohorte.length > 1 ? "s" : ""}`
+          : undefined,
+      visible: peutVoirListesAttente,
+    },
   ];
+  const metrics = toutesLesMetrics.filter((m) => m.visible);
+
+  // Même règle de visibilité que les cartes `metrics` juste en dessous : ce
+  // résumé en prose (sous "Bonjour") affichait ces mêmes chiffres sans les
+  // gater, même faille que les cartes (voir peutVoirXxx plus haut).
+  const ligneResume: string[] = [];
+  if (peutVoirEtudiants) {
+    ligneResume.push(`${nbEtudiants} étudiant${nbEtudiants > 1 ? "s" : ""} inscrit${nbEtudiants > 1 ? "s" : ""}`);
+  }
+  if (peutVoirListesAttente && anneeActive) {
+    ligneResume.push(`${nbClasses} classe${nbClasses > 1 ? "s" : ""} cette année`);
+  }
+  if (peutVoirPaiements) {
+    ligneResume.push(`${formaterMontant(resteAEncaisser)} restant à encaisser`);
+  }
+  if (activiteRecente.length > 0) {
+    ligneResume.push(
+      `${activiteRecente.length} événement${activiteRecente.length > 1 ? "s" : ""} récent${activiteRecente.length > 1 ? "s" : ""}`,
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -513,18 +554,9 @@ export default async function DashboardPage() {
             Connecté en tant que {ROLE_LABELS[session.role]}
             {anneeActive ? ` · Année active : ${anneeActive.libelle}` : ""}.
           </p>
-          <p className="mt-1 text-sm text-ink">
-            {nbEtudiants} étudiant{nbEtudiants > 1 ? "s" : ""} inscrit
-            {nbEtudiants > 1 ? "s" : ""}
-            {anneeActive ? `, ${nbClasses} classe${nbClasses > 1 ? "s" : ""} cette année` : ""}
-            {` · ${formaterMontant(resteAEncaisser)} restant à encaisser`}
-            {activiteRecente.length > 0
-              ? ` · ${activiteRecente.length} événement${activiteRecente.length > 1 ? "s" : ""} récent${
-                  activiteRecente.length > 1 ? "s" : ""
-                }`
-              : ""}
-            .
-          </p>
+          {ligneResume.length > 0 && (
+            <p className="mt-1 text-sm text-ink">{ligneResume.join(" · ")}.</p>
+          )}
           <p className="mt-0.5 text-xs text-ink-faint">
             Vue d&apos;ensemble mise à jour automatiquement, pas besoin de recharger la page.
           </p>

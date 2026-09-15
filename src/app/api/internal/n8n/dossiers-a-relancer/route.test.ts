@@ -149,24 +149,19 @@ describe("GET /api/internal/n8n/dossiers-a-relancer", () => {
     expect(corps.candidats).toEqual([]);
   });
 
-  it("exclut un dossier pas encore assez ancien (délai non atteint)", async () => {
-    findMany.mockResolvedValue([dossier({ creeLe: new Date(Date.now() - 5 * JOUR) })]);
-    const reponse = await GET(requete(SECRET));
-    const corps = await reponse.json();
-    expect(corps.candidats).toEqual([]);
-  });
+  it("filtre les dossiers pas encore dus via le seuil de date passé à Prisma, pas en JS après coup (évite l'effet de tête de file)", async () => {
+    findMany.mockResolvedValue([]);
+    const avant = Date.now();
+    await GET(requete(SECRET));
 
-  it("ancre le délai sur la dernière relance plutôt que la création si elle existe", async () => {
-    findMany.mockResolvedValue([
-      dossier({
-        creeLe: new Date(Date.now() - 100 * JOUR),
-        derniereRelanceEnvoyeeLe: new Date(Date.now() - 5 * JOUR),
-        nombreRelancesEnvoyees: 1,
-      }),
+    const appel = findMany.mock.calls[0][0];
+    expect(appel.where.OR).toEqual([
+      { derniereRelanceEnvoyeeLe: null, creeLe: { lte: expect.any(Date) } },
+      { derniereRelanceEnvoyeeLe: { lte: expect.any(Date) } },
     ]);
-    const reponse = await GET(requete(SECRET));
-    const corps = await reponse.json();
-    expect(corps.candidats).toEqual([]);
+    // Seuil ancré sur delaiJours (15, voir mock ParametresRelance ci-dessus) avant maintenant.
+    const seuil = appel.where.OR[0].creeLe.lte.getTime();
+    expect(Math.abs(seuil - (avant - 15 * JOUR))).toBeLessThan(2000);
   });
 
   it("exclut un candidat sans email exploitable", async () => {

@@ -104,6 +104,7 @@ export function CohortePanel({
 
   useEffect(() => {
     const sauvegarde = lireSectionMemorisee();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restauration post-montage volontaire (voir commentaire ligne 98) : ne peut pas être lue dans l'initializer sans provoquer un mismatch d'hydratation.
     if (sauvegarde) setSectionSelectionnee(sauvegarde);
   }, []);
   const niveauxSuggeres = useMemo(

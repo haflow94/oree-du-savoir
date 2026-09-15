@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
       statutInscription: "VALIDE",
       notificationBienvenueEnvoyeeLe: null,
       documents: { some: { type: "DOSSIER_SIGNE" } },
+      anonymiseLe: null,
     },
     select: {
       id: true,

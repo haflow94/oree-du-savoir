@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
   if (nonAutorise) return nonAutorise;
 
   const notifications = await prisma.notificationPreinscription.findMany({
-    where: { notifieParEmailLe: null },
+    where: { notifieParEmailLe: null, etudiant: { anonymiseLe: null } },
     select: {
       id: true,
       creeLe: true,

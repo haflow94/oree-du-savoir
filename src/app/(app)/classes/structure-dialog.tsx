@@ -68,6 +68,7 @@ export function StructureDialog({
       // popup reste simplement fermée par défaut.
     }
     if (ongletAuChargement) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- réouverture post-montage volontaire depuis une source uniquement disponible côté client (props serveur déjà appliquées à l'état initial, ceci ne fait que rouvrir la popup sur le bon onglet après une erreur de formulaire).
       setOnglet(ongletAuChargement);
       dialogRef.current?.showModal();
     } else if (ongletMemorise === "cours" || ongletMemorise === "cohortes") {

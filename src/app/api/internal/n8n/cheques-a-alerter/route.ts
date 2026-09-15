@@ -41,6 +41,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ destinataires: [], candidats: [] });
   }
 
+  // Seuil calculé une fois, appliqué dans le `where` (pas après le `take`) :
+  // même raisonnement que dossiers-a-relancer/route.ts — sinon des chèques
+  // correspondant au filtre grossier mais pas encore dus pourraient occuper
+  // les LIMITE places et masquer des chèques réellement dus plus récents.
+  const seuil = new Date(Date.now() - parametres.delaiJoursCheque * MS_PAR_JOUR);
+
   const cheques = await prisma.cheque.findMany({
     where: {
       statut: "RECU",
@@ -53,6 +59,10 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+      OR: [
+        { derniereAlerteEnvoyeeLe: null, paiement: { datePaiement: { lte: seuil } } },
+        { derniereAlerteEnvoyeeLe: { lte: seuil } },
+      ],
     },
     select: {
       id: true,
@@ -78,13 +88,8 @@ export async function GET(request: NextRequest) {
     take: LIMITE,
   });
 
-  const maintenant = Date.now();
   const candidats: CandidatAlerteCheque[] = [];
   for (const cheque of cheques) {
-    const derniereAction = cheque.derniereAlerteEnvoyeeLe ?? cheque.paiement.datePaiement;
-    const joursEcoules = (maintenant - derniereAction.getTime()) / MS_PAR_JOUR;
-    if (joursEcoules < parametres.delaiJoursCheque) continue;
-
     const etudiant = cheque.paiement.echeance.dossierAnnuel.etudiant;
     candidats.push({
       chequeId: cheque.id,

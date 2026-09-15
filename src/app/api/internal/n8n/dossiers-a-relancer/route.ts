@@ -43,6 +43,14 @@ export async function GET(request: NextRequest) {
   const parametres = await prisma.parametresRelance.findFirst();
   if (!parametres) return NextResponse.json({ candidats: [] });
 
+  // Seuil calculé une fois, appliqué dans le `where` (pas après le `take`) :
+  // sinon, avec plus de LIMITE dossiers correspondant au filtre grossier
+  // mais pas encore dus, les places occupées par ces dossiers "en tête"
+  // masqueraient indéfiniment des dossiers réellement dus mais créés plus
+  // tard (effet de tête de file). derniereRelanceEnvoyeeLe null = jamais
+  // relancé, le délai part alors de la création du dossier.
+  const seuil = new Date(Date.now() - parametres.delaiJours * MS_PAR_JOUR);
+
   const dossiers = await prisma.dossierAnnuel.findMany({
     where: {
       rembourse: false,
@@ -50,6 +58,10 @@ export async function GET(request: NextRequest) {
       nombreRelancesEnvoyees: { lt: parametres.nombreMaxRelances },
       anneeScolaire: { archivee: false },
       etudiant: { anonymiseLe: null },
+      OR: [
+        { derniereRelanceEnvoyeeLe: null, creeLe: { lte: seuil } },
+        { derniereRelanceEnvoyeeLe: { lte: seuil } },
+      ],
     },
     select: {
       id: true,
@@ -81,13 +93,8 @@ export async function GET(request: NextRequest) {
     take: LIMITE,
   });
 
-  const maintenant = Date.now();
   const candidats: CandidatRelance[] = [];
   for (const dossier of dossiers) {
-    const derniereAction = dossier.derniereRelanceEnvoyeeLe ?? dossier.creeLe;
-    const joursEcoules = (maintenant - derniereAction.getTime()) / MS_PAR_JOUR;
-    if (joursEcoules < parametres.delaiJours) continue;
-
     const aucunPaiement = dossier.echeances.every((e) => e.paiements.length === 0);
     const pieceIdentiteManquante = dossier.etudiant.documents.length === 0;
     if (!aucunPaiement && !pieceIdentiteManquante) continue;

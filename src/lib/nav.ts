@@ -24,6 +24,14 @@ export type NavItem = {
    * tableau de bord, qui agrège plusieurs modules).
    */
   module?: Module;
+  /**
+   * Niveau requis pour voir le lien — LECTURE par défaut (absent). Présences
+   * exige ECRITURE : il n'existe pas de vue "lecture seule" d'une séance
+   * (voir peutAccederClasse, lib/acces-presence.ts, qui exige déjà ECRITURE
+   * pour tout rôle non-Enseignant) — un rôle en LECTURE seule sur ce module
+   * verrait sinon un lien qui mène systématiquement à un accès refusé.
+   */
+  niveauRequis?: "LECTURE" | "ECRITURE";
 };
 
 // Reprend l'arborescence de la maquette (05_Maquette_interactive.html). Le
@@ -37,7 +45,13 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/etudiants", label: "Étudiants", icon: Users, module: Module.ETUDIANTS },
   { href: "/inscriptions", label: "Inscriptions", icon: ClipboardList, module: Module.INSCRIPTIONS },
   { href: "/classes", label: "Classes", icon: GraduationCap, module: Module.CLASSES },
-  { href: "/presences", label: "Présences", icon: CheckSquare, module: Module.PRESENCES },
+  {
+    href: "/presences",
+    label: "Présences",
+    icon: CheckSquare,
+    module: Module.PRESENCES,
+    niveauRequis: "ECRITURE",
+  },
   { href: "/calendrier", label: "Planning", icon: CalendarDays, module: Module.CALENDRIER },
   { href: "/activites", label: "Activités", icon: PartyPopper, module: Module.ACTIVITES },
   { href: "/paiements", label: "Paiements", icon: CreditCard, module: Module.PAIEMENTS },

@@ -58,7 +58,9 @@ export default async function AppLayout({
     activitesARappeler(),
     Promise.all(
       NAV_ITEMS.map((item) =>
-        !item.module ? true : peutAccederModule(session.role, item.module, "LECTURE"),
+        !item.module
+          ? true
+          : peutAccederModule(session.role, item.module, item.niveauRequis ?? "LECTURE"),
       ),
     ),
     peutVoirNotificationsPreinscription

@@ -98,27 +98,19 @@ describe("GET /api/internal/n8n/cheques-a-alerter", () => {
     ]);
   });
 
-  it("exclut un chèque reçu depuis moins longtemps que le délai", async () => {
-    chequeFindMany.mockResolvedValue([
-      cheque({ paiement: { ...cheque().paiement, datePaiement: new Date(Date.now() - 2 * JOUR) } }),
-    ]);
-    const reponse = await GET(requete(SECRET));
-    const corps = await reponse.json();
-    expect(corps.candidats).toEqual([]);
-    expect(corps.destinataires).toEqual([]);
-  });
+  it("filtre les chèques pas encore dus via le seuil de date passé à Prisma, pas en JS après coup (évite l'effet de tête de file)", async () => {
+    chequeFindMany.mockResolvedValue([]);
+    const avant = Date.now();
+    await GET(requete(SECRET));
 
-  it("ancre le délai sur la dernière alerte plutôt que le paiement si elle existe", async () => {
-    chequeFindMany.mockResolvedValue([
-      cheque({
-        paiement: { ...cheque().paiement, datePaiement: new Date(Date.now() - 100 * JOUR) },
-        derniereAlerteEnvoyeeLe: new Date(Date.now() - 2 * JOUR),
-        nombreAlertesEnvoyees: 1,
-      }),
+    const appel = chequeFindMany.mock.calls[0][0];
+    expect(appel.where.OR).toEqual([
+      { derniereAlerteEnvoyeeLe: null, paiement: { datePaiement: { lte: expect.any(Date) } } },
+      { derniereAlerteEnvoyeeLe: { lte: expect.any(Date) } },
     ]);
-    const reponse = await GET(requete(SECRET));
-    const corps = await reponse.json();
-    expect(corps.candidats).toEqual([]);
+    // Seuil ancré sur delaiJoursCheque (10, voir mock ParametresRelance ci-dessus) avant maintenant.
+    const seuil = appel.where.OR[0].paiement.datePaiement.lte.getTime();
+    expect(Math.abs(seuil - (avant - 10 * JOUR))).toBeLessThan(2000);
   });
 
   it("propage le bon numéro d'alerte à envoyer", async () => {

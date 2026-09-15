@@ -57,7 +57,10 @@ describe("GET /api/internal/n8n/preinscriptions-a-notifier", () => {
     const corps = await reponse.json();
 
     expect(reponse.status).toBe(200);
-    expect(findMany.mock.calls[0][0].where).toEqual({ notifieParEmailLe: null });
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      notifieParEmailLe: null,
+      etudiant: { anonymiseLe: null },
+    });
     expect(corps.candidats).toEqual([
       {
         notificationId: "notif1",

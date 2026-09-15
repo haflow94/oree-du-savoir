@@ -21,7 +21,12 @@ export default async function PresencesPage({
 }: {
   searchParams: Promise<{ date?: string; archives?: string }>;
 }) {
-  const session = await requireModule(Module.PRESENCES, "LECTURE");
+  // ECRITURE (pas LECTURE) : chaque séance de la liste ci-dessous mène à la
+  // feuille d'appel, qui exige elle-même ECRITURE (voir peutAccederClasse,
+  // lib/acces-presence.ts — pas de vue "lecture seule" séparée pour une
+  // séance). Un rôle en LECTURE seule sur Présences verrait sinon la liste
+  // sans jamais pouvoir ouvrir une seule séance.
+  const session = await requireModule(Module.PRESENCES, "ECRITURE");
   const { date, archives } = await searchParams;
   const voirArchives = archives === "1";
 
