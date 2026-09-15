@@ -238,7 +238,7 @@ export function PreinscriptionForm({
 
               {creneauxLigne.length > 0 ? (
                 <ChampSelect
-                  key={ligne.sectionId}
+                  key={`creneau-${ligne.sectionId}`}
                   id={`creneauSouhaiteId-${ligne.id}`}
                   label="Créneau souhaité"
                   name={`creneauSouhaiteId-${ligne.id}`}
@@ -256,7 +256,7 @@ export function PreinscriptionForm({
                 </ChampSelect>
               ) : (
                 <ChampSelect
-                  key={ligne.sectionId}
+                  key={`creneau-${ligne.sectionId}`}
                   id={`creneauSouhaiteId-${ligne.id}`}
                   label="Créneau souhaité"
                   name={`creneauSouhaiteId-${ligne.id}`}
@@ -274,7 +274,7 @@ export function PreinscriptionForm({
                 if (options.length === 0) return null;
                 return (
                   <ChampRadioGroup
-                    key={ligne.sectionId}
+                    key={`niveau-${ligne.sectionId}`}
                     label="Niveau"
                     name={`niveau-${ligne.id}`}
                     options={options}
