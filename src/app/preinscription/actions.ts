@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Civilite, Sexe, TypePieceIdentite } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant, LIBELLE_CRITERE_DOUBLON } from "@/lib/doublons-etudiant";
-import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
+import { estEmailValide, estTelephoneValide, estCodePostalValide, estMineur } from "@/lib/champs-formulaire";
 import { enregistrerDocumentEtudiant, nomFichierDocument } from "@/lib/documents";
 import { detecterTypeMimeReel, TAILLE_MAX_FICHIER_MO, TAILLE_MAX_FICHIER_OCTETS } from "@/lib/fichiers-uploades";
 import {
@@ -151,6 +151,7 @@ export async function preinscrireAction(
         "La civilité, le nom, le prénom, la date de naissance, la ville de naissance et au moins une section sont obligatoires.",
     };
   }
+  const dateNaissance = new Date(dateNaissanceBrute);
   if (formData.get("rgpd") !== "on") {
     return {
       erreur: "Merci de confirmer avoir pris connaissance de l'information sur les données personnelles.",
@@ -282,10 +283,14 @@ export async function preinscrireAction(
 
   // Un mineur a toujours un responsable légal au dossier (voir
   // preinscription-form.tsx#BlocResponsable, index 1 obligatoire) — le
-  // second est facultatif (ex. père et mère tous deux au dossier).
+  // second est facultatif (ex. père et mère tous deux au dossier). Déclenché
+  // par la section "Jeunes" OU par l'âge réel : un mineur de 17 ans peut
+  // très bien s'inscrire à un cours pensé pour des adultes (ex. Langue
+  // Arabe), il lui faut quand même un responsable légal au dossier.
+  const responsableRequis = estJeunes || estMineur(dateNaissance);
   const responsable1 = responsableDepuisFormulaire(formData, 1);
   const responsable2 = responsableDepuisFormulaire(formData, 2);
-  if (estJeunes && (!responsable1 || !responsable1.telephone || !responsable1.email)) {
+  if (responsableRequis && (!responsable1 || !responsable1.telephone || !responsable1.email)) {
     return {
       erreur: "Le nom, le prénom, le téléphone et l'email du responsable légal sont obligatoires.",
     };
@@ -341,7 +346,6 @@ export async function preinscrireAction(
     };
   });
 
-  const dateNaissance = new Date(dateNaissanceBrute);
   const responsablesACreer = [responsable1, responsable2].filter(
     (r): r is NonNullable<typeof r> => r !== null,
   );

@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampRadioGroup } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
-import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
+import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL, estMineur } from "@/lib/champs-formulaire";
 import { NIVEAUX_PAR_CATALOGUE } from "@/lib/niveaux-section";
 import type { CatalogueNiveaux } from "@/generated/prisma/enums";
 
@@ -27,11 +27,15 @@ const STEP_NAV_LINK_CLASSES =
 // Responsable 1 obligatoire (un mineur a toujours un responsable légal),
 // responsable 2 facultatif (ex. père et mère tous deux au dossier — voir
 // rl_pere/rl_mere sur la dernière page du gabarit Jeunes).
-function BlocResponsable({ index }: { index: 1 | 2 }) {
+function BlocResponsable({ index, requis }: { index: 1 | 2; requis: boolean }) {
+  // Seul le responsable 1 peut devenir obligatoire, et seulement pour la
+  // section "Jeunes" (voir estJeunes plus bas) : le responsable 2 (ex. père
+  // ET mère au dossier) reste toujours facultatif.
+  const obligatoire = index === 1 && requis;
   return (
     <fieldset id={index === 1 ? "section-responsables" : undefined} className={FIELDSET_CLASSES}>
       <legend className={LEGEND_CLASSES}>
-        Responsable légal {index} {index === 2 && "(optionnel)"}
+        Responsable légal {index} {!obligatoire && "(optionnel)"}
       </legend>
       <div className="grid gap-4 sm:grid-cols-2">
         <ChampSelect label="Civilité" name={`responsable${index}Civilite`} defaultValue="">
@@ -39,13 +43,13 @@ function BlocResponsable({ index }: { index: 1 | 2 }) {
           <option value="M">M.</option>
           <option value="MME">Mme</option>
         </ChampSelect>
-        <Champ label="Lien (père, mère, tuteur…)" name={`responsable${index}Lien`} required={index === 1} />
-        <Champ label="Nom" name={`responsable${index}Nom`} required={index === 1} />
-        <Champ label="Prénom" name={`responsable${index}Prenom`} required={index === 1} />
+        <Champ label="Lien (père, mère, tuteur…)" name={`responsable${index}Lien`} required={obligatoire} />
+        <Champ label="Nom" name={`responsable${index}Nom`} required={obligatoire} />
+        <Champ label="Prénom" name={`responsable${index}Prenom`} required={obligatoire} />
         <Champ
           label="Téléphone"
           name={`responsable${index}Telephone`}
-          required={index === 1}
+          required={obligatoire}
           inputMode="tel"
           pattern={PATTERN_TELEPHONE}
           title="Numéro français, ex. 06 12 34 56 78"
@@ -59,7 +63,7 @@ function BlocResponsable({ index }: { index: 1 | 2 }) {
           title="Numéro français, ex. 04 91 23 45 67"
           placeholder="04 91 23 45 67"
         />
-        <Champ label="Email" name={`responsable${index}Email`} type="email" required={index === 1} />
+        <Champ label="Email" name={`responsable${index}Email`} type="email" required={obligatoire} />
         <Champ label="Profession" name={`responsable${index}Profession`} />
         <Champ
           label="Adresse"
@@ -128,6 +132,17 @@ export function PreinscriptionForm({
     (l) => sections.find((s) => s.id === l.sectionId)?.nom === "Jeunes",
   );
 
+  // Rubrique "Identité" (voir plus bas) : suivie en state (au lieu d'un
+  // simple <input> non contrôlé) uniquement pour recalculer ci-dessous si le
+  // responsable légal est requis — la section Jeunes ne couvre pas tout un
+  // mineur peut très bien s'inscrire à un cours pensé pour des adultes (ex.
+  // Langue Arabe à 17 ans), et lui aussi a besoin d'un responsable légal au
+  // dossier. Vide tant que le champ n'est pas rempli : pas encore mineur
+  // avéré, donc pas encore affiché — la rubrique apparaît dès la saisie.
+  const [dateNaissance, setDateNaissance] = useState("");
+  const mineur = dateNaissance ? estMineur(new Date(dateNaissance)) : false;
+  const responsableRequis = estJeunes || mineur;
+
   const [error, setError] = useState<string | null>(null);
   const [succes, setSucces] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -170,36 +185,20 @@ export function PreinscriptionForm({
         aria-label="Sections du formulaire"
         className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-bg px-4 py-2 sm:mx-0 sm:flex-wrap sm:px-0"
       >
-        <a href="#section-cours" className={STEP_NAV_LINK_CLASSES}>
-          1. Cours
-        </a>
-        <a href="#section-identite" className={STEP_NAV_LINK_CLASSES}>
-          2. {estJeunes ? "Enfant" : "Vous"}
-        </a>
-        {!estJeunes && (
-          <a href="#section-coordonnees" className={STEP_NAV_LINK_CLASSES}>
-            3. Coordonnées
+        {[
+          { href: "#section-cours", label: "Cours" },
+          { href: "#section-identite", label: estJeunes ? "Enfant" : "Vous" },
+          ...(!estJeunes ? [{ href: "#section-coordonnees", label: "Coordonnées" }] : []),
+          ...(!estJeunes ? [{ href: "#section-situation", label: "Situation" }] : []),
+          ...(responsableRequis ? [{ href: "#section-responsables", label: "Responsable(s)" }] : []),
+          { href: "#section-documents", label: "Documents" },
+          { href: "#section-autorisation-image", label: "Autorisation image" },
+          { href: "#section-rgpd", label: "Confidentialité" },
+        ].map((etape, index) => (
+          <a key={etape.href} href={etape.href} className={STEP_NAV_LINK_CLASSES}>
+            {index + 1}. {etape.label}
           </a>
-        )}
-        {!estJeunes && (
-          <a href="#section-situation" className={STEP_NAV_LINK_CLASSES}>
-            4. Situation
-          </a>
-        )}
-        <a href="#section-documents" className={STEP_NAV_LINK_CLASSES}>
-          {estJeunes ? "3." : "5."} Documents
-        </a>
-        {estJeunes && (
-          <a href="#section-responsables" className={STEP_NAV_LINK_CLASSES}>
-            4. Responsable(s)
-          </a>
-        )}
-        <a href="#section-autorisation-image" className={STEP_NAV_LINK_CLASSES}>
-          {estJeunes ? "5." : "6."} Autorisation image
-        </a>
-        <a href="#section-rgpd" className={STEP_NAV_LINK_CLASSES}>
-          {estJeunes ? "6." : "7."} Confidentialité
-        </a>
+        ))}
       </nav>
 
       <Card id="section-cours" className="scroll-mt-20 space-y-4">
@@ -308,7 +307,14 @@ export function PreinscriptionForm({
           <div />
           <Champ label="Nom" name="nom" required />
           <Champ label="Prénom" name="prenom" required />
-          <Champ label="Date de naissance" name="dateNaissance" type="date" required />
+          <Champ
+            label="Date de naissance"
+            name="dateNaissance"
+            type="date"
+            required
+            defaultValue={dateNaissance}
+            onChange={(e) => setDateNaissance(e.target.value)}
+          />
           <Champ label="Ville de naissance" name="villeNaissance" required />
           {estJeunes && (
             <>
@@ -390,6 +396,13 @@ export function PreinscriptionForm({
         </fieldset>
       )}
 
+      {responsableRequis && (
+        <>
+          <BlocResponsable index={1} requis={responsableRequis} />
+          <BlocResponsable index={2} requis={responsableRequis} />
+        </>
+      )}
+
       <fieldset id="section-documents" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Documents</legend>
         <p className="mb-3 text-sm text-ink-muted">
@@ -437,13 +450,6 @@ export function PreinscriptionForm({
           <Champ label="Date d'expiration" name="dateExpirationPiece" type="date" required />
         </div>
       </fieldset>
-
-      {estJeunes && (
-        <>
-          <BlocResponsable index={1} />
-          <BlocResponsable index={2} />
-        </>
-      )}
 
       <fieldset id="section-autorisation-image" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Autorisation image</legend>

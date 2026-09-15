@@ -71,3 +71,17 @@ export const LIBELLE_CRITERE_DOUBLON: Record<CritereCorrespondanceDoublon, strin
   TELEPHONE: "même téléphone",
   EMAIL_ET_TELEPHONE: "même e-mail et téléphone",
 };
+
+// Majorité légale (18 ans) calculée sur la date de naissance elle-même,
+// jamais déduite de la section choisie seule (voir preinscription-form.tsx
+// et preinscription/actions.ts) : un mineur peut s'inscrire à un cours pensé
+// pour des adultes (ex. Langue Arabe à 17 ans), auquel cas il lui faut quand
+// même un responsable légal au dossier.
+export function estMineur(dateNaissance: Date, reference: Date = new Date()): boolean {
+  let age = reference.getFullYear() - dateNaissance.getFullYear();
+  const moisDecalage = reference.getMonth() - dateNaissance.getMonth();
+  if (moisDecalage < 0 || (moisDecalage === 0 && reference.getDate() < dateNaissance.getDate())) {
+    age--;
+  }
+  return age < 18;
+}
