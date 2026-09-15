@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { buttonVariants } from "@/components/ui/button";
@@ -118,8 +119,9 @@ export function PopupDoublon({
         }
       >
         <p className="mt-2 text-sm text-ink-muted">
-          Comparez les deux fiches avant de choisir. Les lignes surlignées
-          diffèrent entre les deux.
+          Ces deux fiches se ressemblent (même nom/prénom/date de naissance,
+          ou mêmes coordonnées). Comparez-les avant de choisir — les lignes
+          surlignées diffèrent entre les deux.
         </p>
 
         <div className="mt-4 overflow-x-auto">
@@ -144,30 +146,69 @@ export function PopupDoublon({
         </div>
 
         {fusionBloquee ? (
-          <div className="mt-4">
+          <div className="mt-4 space-y-2">
             <Alert variant="warning">
-              Fusion automatique impossible : la fiche à supprimer porte déjà
-              un dossier annuel ou des présences enregistrées. Transférez ces
-              données à la main avant de la supprimer.
+              <p className="font-medium">La fusion automatique est désactivée pour cette fiche.</p>
+              <p className="mt-1">
+                La fiche « Sera supprimée » a déjà un dossier annuel (paiements)
+                ou des présences enregistrées à son nom. Les fusionner
+                automatiquement risquerait de mélanger ou perdre ces données —
+                l&apos;application le refuse volontairement.
+              </p>
+              <p className="mt-1">
+                Il n&apos;y a pas encore d&apos;outil dans l&apos;application
+                pour déplacer un dossier annuel ou des présences d&apos;une
+                fiche à l&apos;autre. Pour l&apos;instant :
+              </p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                <li>
+                  si ce sont bien deux personnes différentes (homonymes), utilisez
+                  le bouton ci-dessous — les deux fiches resteront distinctes ;
+                </li>
+                <li>
+                  si c&apos;est vraiment un doublon, ouvrez la fiche à
+                  supprimer pour voir en détail ce qu&apos;elle contient, puis
+                  contactez la personne qui gère la base de données pour faire
+                  consolider les deux fiches à la main — ne supprimez pas la
+                  fiche vous-même, vous perdriez ses paiements/présences.
+                </li>
+              </ul>
             </Alert>
+            <Link
+              href={`/etudiants/${doublon.id}`}
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              Voir le détail de la fiche à supprimer
+            </Link>
           </div>
         ) : (
           <form action={fusionnerAction} className="mt-4">
             <input type="hidden" name="etudiantId" value={doublon.id} />
             {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
             <SubmitButton variant="primary" size="sm" pendingLabel="Fusion…">
-              Fusionner : garder la fiche conservée
+              Fusionner : supprimer cette fiche et garder l&apos;autre
             </SubmitButton>
+            <p className="mt-1 text-xs text-ink-faint">
+              Supprime la fiche « Sera supprimée » ; ses inscriptions,
+              responsables et documents sont repris automatiquement sur la
+              fiche « Conservée ».
+            </p>
           </form>
         )}
 
-        <form action={confirmerHomonymeAction} className="mt-2">
-          <input type="hidden" name="etudiantId" value={doublon.id} />
-          {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
-          <SubmitButton variant="secondary" size="sm">
-            Ce n&apos;est pas un doublon (homonymie)
-          </SubmitButton>
-        </form>
+        <div className="mt-3 border-t border-border pt-3">
+          <form action={confirmerHomonymeAction}>
+            <input type="hidden" name="etudiantId" value={doublon.id} />
+            {redirectTo && <input type="hidden" name="redirectTo" value={redirectTo} />}
+            <SubmitButton variant="secondary" size="sm">
+              Ce n&apos;est pas un doublon (homonymie)
+            </SubmitButton>
+          </form>
+          <p className="mt-1 text-xs text-ink-faint">
+            Aucune suppression ni fusion : les deux fiches restent séparées et
+            ce message n&apos;apparaîtra plus pour cette paire.
+          </p>
+        </div>
       </ModalShell>
     </>
   );

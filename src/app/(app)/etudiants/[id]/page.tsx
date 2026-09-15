@@ -67,7 +67,7 @@ const MESSAGES: Record<string, string> = {
   AFFECTATION_INVALIDE: "Sélectionnez une cohorte à affecter.",
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
   DOUBLON_NON_FUSIONNABLE:
-    "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles. Transférez-les manuellement avant de la supprimer.",
+    "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles (elles ont dû être ajoutées entre-temps). Aucune donnée n'a été modifiée.",
   DOSSIER_INCOMPLET:
     "Impossible de valider l'inscription : le dossier documentaire n'est pas complet ou aucun dossier de paiement n'a été ouvert pour cet étudiant.",
   FORCAGE_RESERVE_BUREAU: "Forcer la validation malgré un dossier incomplet est réservé au Bureau.",
