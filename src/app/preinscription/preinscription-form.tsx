@@ -311,23 +311,6 @@ export function PreinscriptionForm({
         </div>
       </fieldset>
 
-      <fieldset id="section-contact-urgence" className={FIELDSET_CLASSES}>
-        <legend className={LEGEND_CLASSES}>Contact d&apos;urgence</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Champ label="Nom" name="contactUrgenceNom" required />
-          <Champ label="Prénom" name="contactUrgencePrenom" required />
-          <Champ
-            label="Téléphone"
-            name="contactUrgenceTelephone"
-            required
-            inputMode="tel"
-            pattern={PATTERN_TELEPHONE}
-            title="Numéro français, ex. 06 12 34 56 78"
-            placeholder="06 12 34 56 78"
-          />
-        </div>
-      </fieldset>
-
       {!estJeunes && (
         <fieldset id="section-coordonnees" className={FIELDSET_CLASSES}>
           <legend className={LEGEND_CLASSES}>Coordonnées</legend>
@@ -366,6 +349,23 @@ export function PreinscriptionForm({
           </div>
         </fieldset>
       )}
+
+      <fieldset id="section-contact-urgence" className={FIELDSET_CLASSES}>
+        <legend className={LEGEND_CLASSES}>Contact d&apos;urgence</legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Champ label="Nom" name="contactUrgenceNom" required />
+          <Champ label="Prénom" name="contactUrgencePrenom" required />
+          <Champ
+            label="Téléphone"
+            name="contactUrgenceTelephone"
+            required
+            inputMode="tel"
+            pattern={PATTERN_TELEPHONE}
+            title="Numéro français, ex. 06 12 34 56 78"
+            placeholder="06 12 34 56 78"
+          />
+        </div>
+      </fieldset>
 
       {!estJeunes && (
         <fieldset id="section-situation" className={FIELDSET_CLASSES}>
