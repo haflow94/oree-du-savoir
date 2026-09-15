@@ -27,7 +27,11 @@ const MESSAGES: Record<string, string> = {
   EMAIL_INVALIDE: "Cet email n'a pas un format valide.",
 };
 
-const TYPE_REUNION_LABELS: Record<string, string> = { CA: "Conseil d'administration", AG: "Assemblée générale" };
+const TYPE_REUNION_LABELS: Record<string, string> = {
+  CA: "Conseil d'administration",
+  AG: "Assemblée générale",
+  BUREAU: "Bureau",
+};
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
@@ -60,9 +64,9 @@ export default async function GouvernancePage({
         <BackLink href="/administration" label="Administration" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">Gouvernance</h1>
         <p className="text-sm text-ink-muted">
-          Membres du Conseil d&apos;administration, réunions CA/AG et PV, règlement
-          intérieur et statuts. Accès réservé au Bureau — les membres du CA n&apos;ont
-          pas de compte dans l&apos;application.
+          Membres du Conseil d&apos;administration, réunions (CA, AG, Bureau) et
+          leurs PV, règlement intérieur et statuts. Accès réservé au Bureau —
+          les membres du CA n&apos;ont pas de compte dans l&apos;application.
         </p>
       </div>
 
@@ -132,11 +136,17 @@ export default async function GouvernancePage({
       </Card>
 
       <Card>
-        <CardTitle>Réunions CA / AG et PV</CardTitle>
+        <CardTitle>Réunions (CA / AG / Bureau)</CardTitle>
+        <p className="mt-1 text-sm text-ink-muted">
+          Enregistrez d&apos;abord la réunion (type, date, ordre du jour).
+          Une fois le procès-verbal (PV) rédigé et signé, joignez-le au bon
+          endroit : sous la réunion concernée, plus bas.
+        </p>
         <form action={creerReunionAction} className="mt-3 grid gap-3 sm:grid-cols-4">
           <ChampSelect label="Type" name="type" id="type-reunion" required>
             <option value="CA">Conseil d&apos;administration</option>
             <option value="AG">Assemblée générale</option>
+            <option value="BUREAU">Bureau</option>
           </ChampSelect>
           <Champ label="Date" name="date" id="date-reunion" type="date" required />
           <Champ
@@ -158,10 +168,9 @@ export default async function GouvernancePage({
             <div key={r.id} className="rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="font-medium text-ink">
-                    {TYPE_REUNION_LABELS[r.type]} — {formatDate(r.date)}
-                  </div>
-                  {r.ordreDuJour && <div className="text-xs text-ink-faint">{r.ordreDuJour}</div>}
+                  <Badge variant="neutral">{TYPE_REUNION_LABELS[r.type]}</Badge>
+                  <span className="ml-2 font-medium text-ink">{formatDate(r.date)}</span>
+                  {r.ordreDuJour && <div className="mt-1 text-xs text-ink-faint">{r.ordreDuJour}</div>}
                 </div>
                 <div className="flex items-center gap-2">
                   <form id={`supprimer-reunion-${r.id}`} action={supprimerReunionAction}>
@@ -177,42 +186,51 @@ export default async function GouvernancePage({
                 </div>
               </div>
 
-              <div className="mt-2 space-y-1">
-                {r.documents.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between gap-2 text-sm">
-                    <a
-                      href={`/administration/gouvernance/documents/${d.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-pine hover:underline"
-                    >
-                      {d.nomFichier}
-                    </a>
-                    <form id={`supprimer-doc-${d.id}`} action={supprimerDocumentAssociationAction}>
-                      <input type="hidden" name="documentId" value={d.id} />
-                    </form>
-                    <ConfirmDialog
-                      formId={`supprimer-doc-${d.id}`}
-                      triggerLabel="Retirer"
-                      title="Retirer ce document ?"
-                      description={`Supprime définitivement « ${d.nomFichier} ».`}
-                      confirmLabel="Retirer définitivement"
-                    />
-                  </div>
-                ))}
-              </div>
+              <div className="mt-3 rounded-md border border-border bg-bg-sunken/40 p-2.5">
+                <div className="text-xs font-medium uppercase text-ink-faint">
+                  Procès-verbal (PV) de cette réunion
+                </div>
 
-              <form
-                action={televerserDocumentAssociationAction}
-                className="mt-2 flex flex-wrap items-center gap-2"
-              >
-                <input type="hidden" name="reunionId" value={r.id} />
-                <input type="hidden" name="type" value="PV" />
-                <input type="file" name="fichier" required className="text-xs" />
-                <SubmitButton variant="secondary" size="sm" pendingLabel="Envoi…">
-                  Joindre le PV
-                </SubmitButton>
-              </form>
+                <div className="mt-1.5 space-y-1">
+                  {r.documents.map((d) => (
+                    <div key={d.id} className="flex items-center justify-between gap-2 text-sm">
+                      <a
+                        href={`/administration/gouvernance/documents/${d.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-pine hover:underline"
+                      >
+                        {d.nomFichier}
+                      </a>
+                      <form id={`supprimer-doc-${d.id}`} action={supprimerDocumentAssociationAction}>
+                        <input type="hidden" name="documentId" value={d.id} />
+                      </form>
+                      <ConfirmDialog
+                        formId={`supprimer-doc-${d.id}`}
+                        triggerLabel="Retirer"
+                        title="Retirer ce document ?"
+                        description={`Supprime définitivement « ${d.nomFichier} ».`}
+                        confirmLabel="Retirer définitivement"
+                      />
+                    </div>
+                  ))}
+                  {r.documents.length === 0 && (
+                    <p className="text-xs text-ink-faint">Aucun PV joint pour l&apos;instant.</p>
+                  )}
+                </div>
+
+                <form
+                  action={televerserDocumentAssociationAction}
+                  className="mt-2 flex flex-wrap items-center gap-2"
+                >
+                  <input type="hidden" name="reunionId" value={r.id} />
+                  <input type="hidden" name="type" value="PV" />
+                  <input type="file" name="fichier" required className="text-xs" />
+                  <SubmitButton variant="secondary" size="sm" pendingLabel="Envoi…">
+                    Joindre le PV
+                  </SubmitButton>
+                </form>
+              </div>
             </div>
           ))}
           {reunions.length === 0 && <EmptyState message="Aucune réunion enregistrée." />}

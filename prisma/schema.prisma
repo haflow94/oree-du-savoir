@@ -1473,6 +1473,7 @@ model MembreCA {
 enum TypeReunionGouvernance {
   CA
   AG
+  BUREAU
 }
 
 model ReunionGouvernance {
