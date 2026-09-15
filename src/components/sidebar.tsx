@@ -37,11 +37,11 @@ export function Sidebar({
           backgroundSize: "56px 56px",
         }}
       />
-      <div className="mb-16 px-3 font-display text-3xl font-semibold tracking-tight text-on-accent underline decoration-ochre decoration-2 underline-offset-8">
+      <div className="mb-16 animate-fade-up px-3 font-display text-3xl font-semibold tracking-tight text-on-accent underline decoration-ochre decoration-2 underline-offset-8 motion-reduce:animate-none">
         L&apos;Orée du Savoir
       </div>
       <nav className="flex flex-1 flex-col gap-1">
-        {items.map((item) => {
+        {items.map((item, index) => {
           const active =
             item.href === "/"
               ? pathname === "/"
@@ -51,7 +51,8 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`relative flex items-center gap-2.5 rounded-md px-3 py-2 font-display text-base tracking-tight transition-colors ${
+              style={{ animationDelay: `${60 + Math.min(index, 10) * 30}ms` }}
+              className={`relative flex animate-fade-up items-center gap-2.5 rounded-md px-3 py-2 font-display text-base tracking-tight transition-colors motion-reduce:animate-none ${
                 active
                   ? "bg-ochre/25 font-semibold text-on-accent"
                   : "font-medium text-sage-bg/80 hover:bg-white/10 hover:text-on-accent"

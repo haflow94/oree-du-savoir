@@ -68,7 +68,7 @@ export async function AdminSubNav({ current }: { current: string }) {
   ];
 
   return (
-    <div className="space-y-3 border-b border-border pb-4">
+    <div className="animate-fade-up space-y-3 border-b border-border pb-4 motion-reduce:animate-none">
       <nav aria-label="Sections d'administration" className="flex flex-wrap items-start gap-x-6 gap-y-3">
         {groupes.map((groupe) => (
           <div key={groupe.label} className="flex flex-col gap-1.5">
