@@ -30,6 +30,7 @@ import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/c
 import { redetecterDoublonApresModification } from "@/lib/doublons-etudiant";
 import { construireContexteDossierEtudiant } from "@/lib/dossier/context";
 import { rendreDossierHtml, rendreDossierPdf } from "@/lib/dossier/render";
+import { annulerDocumentSignature } from "@/lib/documenso";
 import { affecterEtudiantACohorte, synchroniserInscriptionsClasse } from "@/lib/cohortes";
 
 function champTexte(formData: FormData, nom: string): string | null {
@@ -994,10 +995,21 @@ export async function supprimerEtudiantAction(formData: FormData): Promise<void>
   const etudiantId = champTexte(formData, "etudiantId");
   if (!etudiantId) redirect("/etudiants");
 
+  // Forçage : réservé au Bureau (même logique que validerInscriptionAction
+  // ci-dessus — requireRole en plus de la ECRITURE déjà exigée par
+  // requireModule, jamais via le grid éditable) et soumis à un motif
+  // explicite (voir page.tsx) : contourne sciemment un dossier signé, des
+  // paiements déjà encaissés ou des présences existantes (cas réel : erreur
+  // de saisie à corriger, doublon découvert tardivement...). La fiche
+  // disparaissant avec la suppression, le motif et l'état exact contourné
+  // sont journalisés en détail — seule trace qui subsiste ensuite.
+  const force = champTexte(formData, "force") === "1";
+  const motif = champTexte(formData, "motif");
+
   // Le contrôle et la suppression doivent être dans la même transaction :
   // sinon un dossier/une inscription/une présence créée entre les deux
   // passerait sous le radar (cascade silencieuse malgré le garde-fou).
-  const documentsASupprimer = await prisma.$transaction(async (tx) => {
+  const { documentsASupprimer, documensoDocumentIds } = await prisma.$transaction(async (tx) => {
     const cible = await tx.etudiant.findUnique({
       where: { id: etudiantId },
       include: {
@@ -1011,6 +1023,7 @@ export async function supprimerEtudiantAction(formData: FormData): Promise<void>
         dossiersAnnuels: {
           select: {
             statutSignature: true,
+            documensoDocumentId: true,
             echeances: { select: { _count: { select: { paiements: true } } } },
           },
         },
@@ -1029,28 +1042,54 @@ export async function supprimerEtudiantAction(formData: FormData): Promise<void>
         dossier.statutSignature === StatutSignature.SIGNEE ||
         dossier.echeances.some((echeance) => echeance._count.paiements > 0),
     );
+    const etudiantUtilise = dossierEngage || cible._count.inscriptions > 0 || cible._count.presences > 0;
 
-    if (dossierEngage || cible._count.inscriptions > 0 || cible._count.presences > 0) {
-      retour(etudiantId, "ETUDIANT_UTILISE");
+    if (etudiantUtilise) {
+      if (!force) retour(etudiantId, "ETUDIANT_UTILISE");
+      if (session.role !== Role.BUREAU) retour(etudiantId, "FORCAGE_SUPPRESSION_RESERVE_BUREAU");
+      if (!motif) retour(etudiantId, "MOTIF_SUPPRESSION_MANQUANT");
     }
 
     await tx.etudiant.delete({ where: { id: etudiantId } });
     await tx.journalAudit.create({
       data: {
         utilisateurId: session.id,
-        action: "suppression_etudiant",
+        action: etudiantUtilise ? "suppression_etudiant_forcee" : "suppression_etudiant",
         entite: "Etudiant",
         entiteId: etudiantId,
-        details: { nom: cible.nom, prenom: cible.prenom },
+        details: etudiantUtilise
+          ? {
+              nom: cible.nom,
+              prenom: cible.prenom,
+              motif,
+              statutsSignatureContournes: cible.dossiersAnnuels.map((d) => d.statutSignature),
+              paiementsContournes: cible.dossiersAnnuels.reduce(
+                (total, d) => total + d.echeances.reduce((t, e) => t + e._count.paiements, 0),
+                0,
+              ),
+              inscriptionsContournees: cible._count.inscriptions,
+              presencesContournees: cible._count.presences,
+            }
+          : { nom: cible.nom, prenom: cible.prenom },
       },
     });
 
-    return cible.documents;
+    return {
+      documentsASupprimer: cible.documents,
+      documensoDocumentIds: cible.dossiersAnnuels
+        .map((d) => d.documensoDocumentId)
+        .filter((id): id is number => id !== null),
+    };
   });
   await Promise.all(documentsASupprimer.map((d) => supprimerFichierDocument(d.cheminRelatif)));
   if (documentsASupprimer.length > 0) {
     await nettoyerDossierEtudiantSiVide(documentsASupprimer[0].cheminRelatif);
   }
+  // Best-effort (voir annulerDocumentSignature) : évite de laisser une
+  // enveloppe orpheline chez Documenso quand on force la suppression d'un
+  // dossier envoyé/signé — sans jamais faire échouer la suppression déjà
+  // actée en base pour autant.
+  await Promise.all(documensoDocumentIds.map((id) => annulerDocumentSignature(id)));
 
   revalidatePath("/etudiants");
   redirect("/etudiants?supprime=1");

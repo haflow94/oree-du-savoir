@@ -95,6 +95,10 @@ vi.mock("@/lib/documents", async () => {
 vi.mock("@/lib/doublons-etudiant", () => ({ redetecterDoublonApresModification: vi.fn() }));
 vi.mock("@/lib/dossier/context", () => ({ construireContexteDossierEtudiant: vi.fn() }));
 vi.mock("@/lib/dossier/render", () => ({ rendreDossierHtml: vi.fn(), rendreDossierPdf: vi.fn() }));
+const annulerDocumentSignature = vi.fn();
+vi.mock("@/lib/documenso", () => ({
+  annulerDocumentSignature: (...args: unknown[]) => annulerDocumentSignature(...args),
+}));
 const synchroniserInscriptionsClasse = vi.fn();
 vi.mock("@/lib/cohortes", () => ({
   affecterEtudiantACohorte: vi.fn(),
@@ -460,6 +464,88 @@ describe("supprimerEtudiantAction — dossier annuel engagé ou non", () => {
       "REDIRECT:/etudiants/et1?error=ETUDIANT_UTILISE",
     );
     expect(etudiantDelete).not.toHaveBeenCalled();
+  });
+
+  function formulaireForce(etudiantId: string, motif?: string): FormData {
+    const fd = formulaire(etudiantId);
+    fd.set("force", "1");
+    if (motif !== undefined) fd.set("motif", motif);
+    return fd;
+  }
+
+  it("refuse le forçage à un rôle autre que Bureau, même avec un motif", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "ADMINISTRATION" });
+    etudiantFindUnique.mockResolvedValue(
+      etudiant({ dossiersAnnuels: [{ statutSignature: "SIGNEE", echeances: [] }] }),
+    );
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(
+      supprimerEtudiantAction(formulaireForce("et1", "erreur de saisie")),
+    ).rejects.toThrow("REDIRECT:/etudiants/et1?error=FORCAGE_SUPPRESSION_RESERVE_BUREAU");
+    expect(etudiantDelete).not.toHaveBeenCalled();
+  });
+
+  it("refuse le forçage Bureau sans motif renseigné", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(
+      etudiant({ dossiersAnnuels: [{ statutSignature: "SIGNEE", echeances: [] }] }),
+    );
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(supprimerEtudiantAction(formulaireForce("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants/et1?error=MOTIF_SUPPRESSION_MANQUANT",
+    );
+    expect(etudiantDelete).not.toHaveBeenCalled();
+  });
+
+  it("le Bureau peut forcer la suppression d'un dossier signé avec un motif, et l'enveloppe Documenso est annulée", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(
+      etudiant({
+        dossiersAnnuels: [
+          {
+            statutSignature: "SIGNEE",
+            documensoDocumentId: 42,
+            echeances: [{ _count: { paiements: 1 } }],
+          },
+        ],
+        _count: { inscriptions: 1, presences: 3 },
+      }),
+    );
+    etudiantDelete.mockResolvedValue({});
+    journalAuditCreate.mockResolvedValue({});
+    supprimerFichierDocument.mockResolvedValue(undefined);
+    nettoyerDossierEtudiantSiVide.mockResolvedValue(undefined);
+    annulerDocumentSignature.mockResolvedValue(undefined);
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(
+      supprimerEtudiantAction(formulaireForce("et1", "doublon découvert tardivement")),
+    ).rejects.toThrow("REDIRECT:/etudiants?supprime=1");
+
+    expect(etudiantDelete).toHaveBeenCalledWith({ where: { id: "et1" } });
+    expect(annulerDocumentSignature).toHaveBeenCalledWith(42);
+    expect(journalAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "suppression_etudiant_forcee",
+          details: expect.objectContaining({
+            motif: "doublon découvert tardivement",
+            statutsSignatureContournes: ["SIGNEE"],
+            paiementsContournes: 1,
+            inscriptionsContournees: 1,
+            presencesContournees: 3,
+          }),
+        }),
+      }),
+    );
   });
 });
 

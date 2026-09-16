@@ -22,6 +22,7 @@ import { ChampsTeleversementDocument } from "./champs-televersement-document";
 import { cumulerTarif, estNouveau, estReinscrit } from "@/lib/sections-etudiant";
 import { capacitesCohortesPourAnnee } from "@/lib/cohortes";
 import { BackLink } from "@/components/ui/back-link";
+import { ForcerSuppressionEtudiantDialog } from "./forcer-suppression-dialog";
 import { retirerEtudiantAction } from "../../presences/actions";
 import { creerDossierAction } from "../../paiements/nouveau/actions";
 import {
@@ -62,6 +63,8 @@ const MESSAGES: Record<string, string> = {
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
     "Impossible de supprimer : cet étudiant a un dossier engagé (signature envoyée ou faite, ou un paiement déjà enregistré), une inscription ou des présences.",
+  FORCAGE_SUPPRESSION_RESERVE_BUREAU: "Forcer la suppression malgré un dossier engagé est réservé au Bureau.",
+  MOTIF_SUPPRESSION_MANQUANT: "Le motif est obligatoire pour forcer la suppression.",
   INSCRIPTION_INVALIDE: "Sélectionnez une classe à inscrire.",
   AFFECTATION_INVALIDE: "Sélectionnez une cohorte à affecter.",
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
@@ -416,6 +419,22 @@ export default async function EtudiantDetailPage({
   );
   const etudiantSupprimable =
     !dossierEngage && etudiant.inscriptions.length === 0 && etudiant._count.presences === 0;
+  // Détail lisible de ce que le forçage Bureau contournerait (voir
+  // ForcerSuppressionEtudiantDialog) — même logique que dossierEngage
+  // ci-dessus, mais énuméré plutôt qu'un simple booléen.
+  const motifsBlocageSuppression: string[] = [];
+  if (
+    etudiant.dossiersAnnuels.some(
+      (d) => d.statutSignature === StatutSignature.ENVOYEE_SIGNATURE || d.statutSignature === StatutSignature.SIGNEE,
+    )
+  ) {
+    motifsBlocageSuppression.push("le dossier signé ou en cours de signature");
+  }
+  if (etudiant.dossiersAnnuels.some((d) => d.echeances.some((e) => e.paiements.length > 0))) {
+    motifsBlocageSuppression.push("les paiements déjà enregistrés");
+  }
+  if (etudiant.inscriptions.length > 0) motifsBlocageSuppression.push("les inscriptions");
+  if (etudiant._count.presences > 0) motifsBlocageSuppression.push("les présences");
 
   const typesGeneres: readonly string[] = TYPES_DOCUMENTS_GENERES;
   const documentsGeneres = etudiant.documents.filter((d) => typesGeneres.includes(d.type));
@@ -542,7 +561,7 @@ export default async function EtudiantDetailPage({
               )}
             </div>
           )}
-          {peutSupprimer && (
+          {peutSupprimer && etudiantSupprimable && (
             <>
               <form id="supprimer-etudiant" action={supprimerEtudiantAction}>
                 <input type="hidden" name="etudiantId" value={etudiant.id} />
@@ -553,10 +572,26 @@ export default async function EtudiantDetailPage({
                 title="Supprimer cette fiche ?"
                 description={`Cette action supprime définitivement la fiche de ${etudiant.prenom} ${etudiant.nom}, ses documents (photo, dossier généré...) et ne peut pas être annulée.`}
                 confirmLabel="Supprimer définitivement"
-                disabled={!etudiantSupprimable}
-                disabledTitle="Un dossier engagé (signature envoyée/faite ou paiement), une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
               />
             </>
+          )}
+          {peutSupprimer && !etudiantSupprimable && session.role === Role.BUREAU && (
+            <ForcerSuppressionEtudiantDialog
+              action={supprimerEtudiantAction}
+              etudiantId={etudiant.id}
+              nomComplet={`${etudiant.prenom} ${etudiant.nom}`}
+              motifsBlocage={motifsBlocageSuppression}
+            />
+          )}
+          {peutSupprimer && !etudiantSupprimable && session.role !== Role.BUREAU && (
+            <button
+              type="button"
+              disabled
+              title="Un dossier engagé (signature envoyée/faite ou paiement), une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
+              className={buttonVariants({ variant: "danger", size: "sm" })}
+            >
+              Supprimer la fiche
+            </button>
           )}
         </div>
       </div>
