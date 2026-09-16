@@ -17,6 +17,10 @@ function formaterDate(date: Date | string | null): string {
   return date ? new Date(date).toLocaleDateString("fr-FR") : "—";
 }
 
+function formaterDateHeure(date: Date | string | null): string {
+  return date ? new Date(date).toLocaleString("fr-FR") : "—";
+}
+
 function identite(f: FicheComparaisonDoublon): string {
   return `${f.civilite ? `${CIVILITE_LABELS[f.civilite]} ` : ""}${f.prenom} ${f.nom}`;
 }
@@ -96,7 +100,11 @@ export function PopupDoublon({
       aSupprimer: STATUT_LABELS[doublon.statutInscription],
       aConserver: STATUT_LABELS[existant.statutInscription],
     },
-    { label: "Créée le", aSupprimer: formaterDate(doublon.creeLe), aConserver: formaterDate(existant.creeLe) },
+    {
+      label: "Créée le",
+      aSupprimer: formaterDateHeure(doublon.creeLe),
+      aConserver: formaterDateHeure(existant.creeLe),
+    },
   ];
 
   return (

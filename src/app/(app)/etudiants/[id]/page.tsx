@@ -865,7 +865,7 @@ export default async function EtudiantDetailPage({
               <div>
                 <dt className={DT_CLASSES}>Date d&apos;inscription</dt>
                 <dd className={DD_CLASSES}>
-                  {new Date(etudiant.dateInscription).toLocaleDateString("fr-FR")}
+                  {new Date(etudiant.dateInscription).toLocaleString("fr-FR")}
                 </dd>
               </div>
             </dl>

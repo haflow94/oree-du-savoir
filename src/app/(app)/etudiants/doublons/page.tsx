@@ -64,12 +64,12 @@ export default async function DoublonsPage({
                     <p className="text-sm font-medium text-ink">
                       {d.prenom} {d.nom}
                       <span className="ml-2 font-normal text-ink-muted">
-                        · créée le {new Date(d.creeLe).toLocaleDateString("fr-FR")}
+                        · créée le {new Date(d.creeLe).toLocaleString("fr-FR")}
                       </span>
                     </p>
                     <p className="text-xs text-ink-faint">
                       Ressemble à {d.doublonPotentiel!.prenom} {d.doublonPotentiel!.nom} · créée le{" "}
-                      {new Date(d.doublonPotentiel!.creeLe).toLocaleDateString("fr-FR")}
+                      {new Date(d.doublonPotentiel!.creeLe).toLocaleString("fr-FR")}
                     </p>
                   </div>
                   {peutResoudre && (
