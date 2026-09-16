@@ -189,6 +189,7 @@ export function PreinscriptionForm({
           { href: "#section-cours", label: "Cours" },
           { href: "#section-identite", label: estJeunes ? "Enfant" : "Vous" },
           ...(!estJeunes ? [{ href: "#section-coordonnees", label: "Coordonnées" }] : []),
+          { href: "#section-contact-urgence", label: "Contact d'urgence" },
           ...(!estJeunes ? [{ href: "#section-situation", label: "Situation" }] : []),
           ...(responsableRequis ? [{ href: "#section-responsables", label: "Responsable(s)" }] : []),
           { href: "#section-documents", label: "Documents" },
