@@ -1,0 +1,10 @@
+[Unit]
+Description=Déclenche la vérification des montages NAS toutes les 2 minutes (cadence resserrée pour la période d'inscription 2026-09-16 -> 2026-09-30, à desserrer ensuite si besoin)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+Unit=oree-surveille-nas.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=Alerte ntfy générique quand l'unité %i échoue
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/oree
+ExecStart=/opt/oree/scripts/alerte-echec-service.sh %i

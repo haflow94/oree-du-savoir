@@ -3,6 +3,7 @@ Description=Sauvegarde complète L'Orée du Savoir (DB app, DB Documenso, docume
 After=docker.service mnt-nas-Administration.mount
 Requires=docker.service
 RequiresMountsFor=/mnt/nas/Administration
+OnFailure=oree-alerte-echec@%n.service
 
 [Service]
 Type=oneshot

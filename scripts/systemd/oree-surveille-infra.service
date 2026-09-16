@@ -1,0 +1,9 @@
+[Unit]
+Description=Vérifie les conteneurs Docker, l'accès public à la préinscription et l'espace disque de l'hôte
+After=docker.service
+OnFailure=oree-alerte-echec@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/oree
+ExecStart=/opt/oree/scripts/surveille-infra.sh

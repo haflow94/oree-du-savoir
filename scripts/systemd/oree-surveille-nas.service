@@ -1,0 +1,12 @@
+[Unit]
+Description=Vérifie l'état des montages NAS (Étudiant + Administration) et tente un remount automatique en cas de panne
+After=docker.service
+OnFailure=oree-alerte-echec@%n.service
+
+[Service]
+Type=oneshot
+# Pas de User= : reste root, nécessaire pour `systemctl restart` sur les
+# unités de montage sans sudo interactif (voir la panne du 2026-09-16 du
+# montage Étudiant, restée sans intervention plusieurs heures).
+WorkingDirectory=/opt/oree
+ExecStart=/opt/oree/scripts/surveille-nas.sh
