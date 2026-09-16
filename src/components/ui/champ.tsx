@@ -10,8 +10,12 @@ const REQUIRED_MARK = <span className="text-rust" aria-hidden="true"> *</span>;
 // Source unique : réutilisée par tout input/select/textarea de l'appli,
 // géré par ce fichier ou construit à la main ailleurs (voir auto-submit.tsx
 // et les formulaires de filtre qui l'importent directement).
+// scroll-mt-20 : quand le navigateur amène un champ invalide dans le
+// viewport (validation native au submit, ou reportValidity() manuel — voir
+// preinscription-form.tsx), ce décalage évite que le champ se retrouve
+// caché sous une éventuelle nav sticky (voir STEP_NAV_LINK_CLASSES).
 export const CONTROL_CLASSES =
-  "w-full rounded-md border border-field-border bg-field-bg px-3 py-2 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
+  "w-full scroll-mt-20 rounded-md border border-field-border bg-field-bg px-3 py-2 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
 
 // Variante sans `w-full`, pour les contrôles alignés en ligne (barres de
 // filtres, formulaires inline) : sans elle, un <select> hérite de w-full et
@@ -113,7 +117,7 @@ export function ChampRadioGroup({
               value={option}
               required={required}
               defaultChecked={defaultValue === option}
-              className="h-4 w-4 border-border"
+              className="h-4 w-4 scroll-mt-20 border-border"
             />
             {option}
           </label>
