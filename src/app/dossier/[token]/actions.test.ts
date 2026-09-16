@@ -226,7 +226,7 @@ describe("confirmerEtSignerAction", () => {
     expect(creerEtEnvoyerDocumentSignature).not.toHaveBeenCalled();
   });
 
-  it("scénario 7 — un étudiant majeur signe lui-même", async () => {
+  it("scénario 7 — un étudiant du modèle Adultes signe lui-même", async () => {
     resoudreAccesDossier.mockResolvedValue({ valide: true, dossierAnnuelId: "dos1" });
     dossierAnnuelFindUnique.mockResolvedValue(dossier());
     documentFindFirst.mockResolvedValue({ numeroVersion: 3, nomFichier: "dossier-v3.pdf", cheminRelatif: "et1/dossier-v3.pdf" });
@@ -252,15 +252,14 @@ describe("confirmerEtSignerAction", () => {
     });
   });
 
-  it("scénario 6 — un étudiant mineur fait signer son responsable légal", async () => {
-    const dansDixAns = new Date();
-    dansDixAns.setFullYear(dansDixAns.getFullYear() - 15);
+  it("scénario 6 — un étudiant du modèle Jeunes fait signer son responsable légal", async () => {
     resoudreAccesDossier.mockResolvedValue({ valide: true, dossierAnnuelId: "dos1" });
     dossierAnnuelFindUnique.mockResolvedValue(
       dossier({
         etudiant: {
           sectionSouhaiteeId: "sec1",
-          dateNaissance: dansDixAns,
+          sectionSouhaitee: { modeleDossier: "JEUNES" },
+          dateNaissance: new Date("2015-01-01"),
           prenom: "Léa",
           nom: "Martin",
           email: null,
@@ -281,15 +280,42 @@ describe("confirmerEtSignerAction", () => {
     );
   });
 
-  it("bloque la signature si aucun signataire exploitable n'est disponible (mineur sans responsable connu)", async () => {
-    const dansDixAns = new Date();
-    dansDixAns.setFullYear(dansDixAns.getFullYear() - 15);
+  it("un étudiant mineur inscrit en section Adultes signe quand même lui-même (aucun responsable légal n'est collecté pour ce modèle)", async () => {
     resoudreAccesDossier.mockResolvedValue({ valide: true, dossierAnnuelId: "dos1" });
     dossierAnnuelFindUnique.mockResolvedValue(
       dossier({
         etudiant: {
           sectionSouhaiteeId: "sec1",
-          dateNaissance: dansDixAns,
+          sectionSouhaitee: { modeleDossier: "ADULTES" },
+          dateNaissance: new Date("2015-01-01"),
+          prenom: "Yanis",
+          nom: "Kader",
+          email: "yanis@example.com",
+          responsables: [],
+        },
+      }),
+    );
+    documentFindFirst.mockResolvedValue({ numeroVersion: 1, nomFichier: "dossier-v1.pdf", cheminRelatif: "et3/dossier-v1.pdf" });
+    lireDocument.mockResolvedValue(Buffer.from("pdf"));
+    creerEtEnvoyerDocumentSignature.mockResolvedValue({ documentId: 101, signingUrl: "https://documenso.local/sign/yanis" });
+
+    await expect(confirmerEtSignerAction(form({ token: "x" }))).rejects.toMatchObject({
+      url: "https://documenso.local/sign/yanis",
+    });
+
+    expect(creerEtEnvoyerDocumentSignature).toHaveBeenCalledWith(
+      expect.objectContaining({ signataireNom: "Yanis Kader", signataireEmail: "yanis@example.com" }),
+    );
+  });
+
+  it("bloque la signature si aucun signataire exploitable n'est disponible (modèle Jeunes sans responsable connu)", async () => {
+    resoudreAccesDossier.mockResolvedValue({ valide: true, dossierAnnuelId: "dos1" });
+    dossierAnnuelFindUnique.mockResolvedValue(
+      dossier({
+        etudiant: {
+          sectionSouhaiteeId: "sec1",
+          sectionSouhaitee: { modeleDossier: "JEUNES" },
+          dateNaissance: new Date("2015-01-01"),
           prenom: "Léa",
           nom: "Martin",
           email: null,

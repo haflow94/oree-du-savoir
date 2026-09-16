@@ -47,20 +47,14 @@ async function dossierDepuisToken(tokenBrut: string) {
   return prisma.dossierAnnuel.findUnique({
     where: { id: resolution.dossierAnnuelId },
     include: {
-      etudiant: { include: { responsables: { orderBy: { creeLe: "asc" } } } },
+      etudiant: {
+        include: {
+          responsables: { orderBy: { creeLe: "asc" } },
+          sectionSouhaitee: { select: { modeleDossier: true } },
+        },
+      },
     },
   });
-}
-
-function ageAns(dateNaissance: Date | null): number | null {
-  if (!dateNaissance) return null;
-  const maintenant = new Date();
-  let age = maintenant.getFullYear() - dateNaissance.getFullYear();
-  const pasEncoreAnniversaire =
-    maintenant.getMonth() < dateNaissance.getMonth() ||
-    (maintenant.getMonth() === dateNaissance.getMonth() && maintenant.getDate() < dateNaissance.getDate());
-  if (pasEncoreAnniversaire) age -= 1;
-  return age;
 }
 
 export async function modifierChampsAction(
@@ -192,14 +186,21 @@ export async function confirmerEtSignerAction(formData: FormData): Promise<void>
   });
   if (!derniereVersion) redirect(`/dossier/${token}?erreur=DOSSIER_INDISPONIBLE`);
 
-  const majeur = (ageAns(dossier.etudiant.dateNaissance) ?? 0) >= 18;
+  // Le signataire dépend du modèle de dossier, jamais de l'âge réel (voir
+  // etudiants/[id]/page.tsx#estFormationJeunesConfirmee, même règle) : un
+  // étudiant Adultes signe toujours lui-même, quel que soit son âge — un
+  // représentant légal n'est plus jamais collecté pour ce modèle (décision
+  // association du 2026-09-16). Modèle inconnu (fiche créée à la main par le
+  // staff sans section connue) traité comme Adultes, par cohérence avec le
+  // reste de la fiche étudiant.
+  const estFormationJeunes = dossier.etudiant.sectionSouhaitee?.modeleDossier === "JEUNES";
   const responsablePrincipal = dossier.etudiant.responsables[0];
-  const signataireNom = majeur
-    ? `${dossier.etudiant.prenom} ${dossier.etudiant.nom}`
-    : responsablePrincipal
+  const signataireNom = estFormationJeunes
+    ? responsablePrincipal
       ? `${responsablePrincipal.prenom} ${responsablePrincipal.nom}`
-      : null;
-  const signataireEmail = majeur ? dossier.etudiant.email : responsablePrincipal?.email;
+      : null
+    : `${dossier.etudiant.prenom} ${dossier.etudiant.nom}`;
+  const signataireEmail = estFormationJeunes ? responsablePrincipal?.email : dossier.etudiant.email;
 
   if (!signataireNom || !signataireEmail) {
     redirect(`/dossier/${token}?erreur=SIGNATAIRE_INCOMPLET`);
