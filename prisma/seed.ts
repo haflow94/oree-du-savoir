@@ -163,7 +163,7 @@ async function seedCreneaux() {
 
 // Identité de l'association (voir modèle Organisation) : une seule ligne,
 // jamais recréée ni écrasée une fois présente — les coordonnées réelles
-// (adresse, SIRET, NAF, téléphone, email) restent à saisir par le Bureau
+// (adresse, RNA, téléphone, email) restent à saisir par le Bureau
 // depuis Administration → Organisation, faute de les connaître ici. Le logo
 // de démarrage reprend le fichier déjà utilisé par l'application
 // (public/logo-loree-du-savoir.png), copié dans DOCUMENTS_DIR pour rester

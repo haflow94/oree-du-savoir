@@ -107,8 +107,10 @@ model Organisation {
   ville             String?
   telephone         String?
   email             String?
-  siret             String?
-  naf               String?
+  // Numéro RNA (Répertoire National des Associations), remplace le
+  // couple SIRET/NAF sur les dossiers générés (décision associative, voir
+  // migration 20260916150000_remplace_siret_naf_par_rna).
+  rna               String?
   // Fichier stocké comme les autres documents (jamais en base — voir
   // lib/documents.ts) ; remplacer le fichier suffit à changer de logo, sans
   // toucher aux templates (voir SPEC-dossiers.md §2 "Logo — interchangeable").

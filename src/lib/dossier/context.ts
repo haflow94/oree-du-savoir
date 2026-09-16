@@ -25,8 +25,7 @@ async function contexteOrganisation() {
     sousTitre: v(organisation.sousTitre),
     ville: v(organisation.ville),
     telephone: v(organisation.telephone),
-    siret: v(organisation.siret),
-    naf: v(organisation.naf),
+    rna: v(organisation.rna),
     adresseComplete,
     logoDataUri: await chargerLogoDataUri(),
   };

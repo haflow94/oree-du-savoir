@@ -67,8 +67,7 @@ export default async function OrganisationPage({
             <Champ label="Ville" name="ville" defaultValue={organisation.ville ?? ""} />
             <Champ label="Téléphone" name="telephone" defaultValue={organisation.telephone ?? ""} />
             <Champ label="Email" name="email" type="email" defaultValue={organisation.email ?? ""} />
-            <Champ label="SIRET" name="siret" defaultValue={organisation.siret ?? ""} />
-            <Champ label="NAF" name="naf" defaultValue={organisation.naf ?? ""} />
+            <Champ label="RNA" name="rna" defaultValue={organisation.rna ?? ""} />
 
             <div className="sm:col-span-2">
               <p className="mb-1 block text-sm font-medium text-ink">Logo</p>
