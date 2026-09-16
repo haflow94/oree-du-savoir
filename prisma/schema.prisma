@@ -357,6 +357,15 @@ model Etudiant {
   // jamais directement Postgres — uniquement via ces routes internes (voir
   // lib/auth-n8n.ts).
   notificationBienvenueEnvoyeeLe DateTime?
+  // Dernier échec d'envoi signalé par n8n (nœud Error Trigger du workflow)
+  // via POST .../etudiants/[etudiantId]/notification-bienvenue-echec :
+  // distinct de notificationBienvenueEnvoyeeLe ci-dessus, qui reste null tant
+  // qu'aucun envoi n'a réussi — permet à la Traçabilité de distinguer "email
+  // jamais tenté" de "email tenté mais rejeté côté fournisseur". Écrasé par
+  // chaque nouvel échec (pas d'historique, seulement le dernier) ; remis à
+  // null dès qu'un envoi finit par réussir (voir POST .../notification-bienvenue).
+  notificationBienvenueErreurLe      DateTime?
+  notificationBienvenueErreurMessage String?
   // Section demandée à la préinscription en ligne quand aucun créneau
   // n'était encore ouvert pour l'assigner directement à une classe (voir
   // preinscription/actions.ts) : reste affichée comme « à assigner » sur la
@@ -1243,6 +1252,14 @@ model DossierAnnuel {
   // apporté, peu importe son état de traitement.
   nombreRelancesEnvoyees   Int           @default(0)
   derniereRelanceEnvoyeeLe DateTime?
+  // Dernier échec d'envoi d'une relance signalé par n8n (même patron que
+  // Etudiant.notificationBienvenueErreurLe) via POST
+  // .../dossiers-annuels/[dossierAnnuelId]/relance-echec : n'incrémente
+  // jamais nombreRelancesEnvoyees ni ne touche derniereRelanceEnvoyeeLe,
+  // laisse le compteur de succès intact. Remis à null dès qu'une relance
+  // finit par réussir (voir POST .../relance-envoyee).
+  derniereRelanceErreurLe      DateTime?
+  derniereRelanceErreurMessage String?
 
   // --- Parcours dossier → vérification → signature (Documenso) ---
   // Version confirmée par la famille (voir Document.numeroVersion pour
@@ -1267,12 +1284,24 @@ model DossierAnnuel {
   // POST /api/internal/n8n/dossiers-a-verifier/.../notifie après envoi
   // réussi.
   notificationVerificationEnvoyeeLe DateTime?
+  // Dernier échec d'envoi signalé par n8n (même patron que
+  // Etudiant.notificationBienvenueErreurLe) via POST
+  // .../dossiers-a-verifier/[dossierAnnuelId]/notifie-echec. Remis à null dès
+  // qu'un envoi finit par réussir (voir POST .../dossiers-a-verifier/.../notifie).
+  notificationVerificationErreurLe      DateTime?
+  notificationVerificationErreurMessage String?
   // Idempotence du flux n8n "signature confirmée" (même patron que
   // notificationVerificationEnvoyeeLe ci-dessus) : posé uniquement par
   // POST /api/internal/n8n/etudiants/[etudiantId]/notification-signature-confirmee
   // après envoi réussi. Ne peut être renseigné qu'une fois statutSignature =
   // SIGNEE (posé exclusivement par le webhook Documenso, jamais deviné).
   notificationSignatureEnvoyeeLe    DateTime?
+  // Dernier échec d'envoi signalé par n8n (même patron que
+  // notificationVerificationErreurLe ci-dessus) via POST
+  // .../dossiers-annuels/[dossierAnnuelId]/notification-signature-confirmee-echec.
+  // Remis à null dès qu'un envoi finit par réussir.
+  notificationSignatureErreurLe      DateTime?
+  notificationSignatureErreurMessage String?
 
   echeances          Echeance[]
   documents          Document[]

@@ -6,7 +6,9 @@ import { verifierAuthN8n } from "@/lib/auth-n8n";
 // GET .../inscriptions-a-notifier). Idempotent par construction : le
 // updateMany ne pose la date que si elle est encore null, jamais un simple
 // update qui écraserait une date déjà posée — un second appel (retry n8n,
-// exécution répétée) ne fait jamais repartir le compteur ni échouer.
+// exécution répétée) ne fait jamais repartir le compteur ni échouer. Efface
+// aussi un échec précédent (voir .../notification-bienvenue-echec) : ce
+// succès rend cet échec caduc pour la Traçabilité.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ etudiantId: string }> },
@@ -18,7 +20,11 @@ export async function POST(
 
   const resultat = await prisma.etudiant.updateMany({
     where: { id: etudiantId, notificationBienvenueEnvoyeeLe: null },
-    data: { notificationBienvenueEnvoyeeLe: new Date() },
+    data: {
+      notificationBienvenueEnvoyeeLe: new Date(),
+      notificationBienvenueErreurLe: null,
+      notificationBienvenueErreurMessage: null,
+    },
   });
 
   if (resultat.count === 1) {

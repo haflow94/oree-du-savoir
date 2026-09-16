@@ -8,7 +8,9 @@ import { verifierAuthN8n } from "@/lib/auth-n8n";
 // simple booléen/date comme notification-bienvenue) : le updateMany
 // n'incrémente que si nombreRelancesEnvoyees vaut encore numeroRelance - 1
 // au moment de l'appel — un retry ou une double exécution n8n avec le même
-// numeroRelance n'incrémente jamais deux fois.
+// numeroRelance n'incrémente jamais deux fois. Efface aussi un échec
+// précédent (voir .../relance-echec) : ce succès rend cet échec caduc pour
+// la Traçabilité.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ dossierAnnuelId: string }> },
@@ -29,7 +31,12 @@ export async function POST(
 
   const resultat = await prisma.dossierAnnuel.updateMany({
     where: { id: dossierAnnuelId, nombreRelancesEnvoyees: numeroRelance - 1 },
-    data: { nombreRelancesEnvoyees: numeroRelance, derniereRelanceEnvoyeeLe: new Date() },
+    data: {
+      nombreRelancesEnvoyees: numeroRelance,
+      derniereRelanceEnvoyeeLe: new Date(),
+      derniereRelanceErreurLe: null,
+      derniereRelanceErreurMessage: null,
+    },
   });
 
   if (resultat.count === 1) {

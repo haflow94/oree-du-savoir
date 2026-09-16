@@ -14,7 +14,9 @@ import { verifierAuthN8n } from "@/lib/auth-n8n";
 // distincts d'un même étudiant réinscrit pouvaient tous les deux retrouver
 // le même "plus ancien" dossier, laissant l'autre — pourtant réellement
 // notifié par email — sans jamais être marqué (candidat perpétuel, email
-// dupliqué à chaque prochain cycle).
+// dupliqué à chaque prochain cycle). Efface aussi un échec précédent (voir
+// .../notification-signature-confirmee-echec) : ce succès rend cet échec
+// caduc pour la Traçabilité.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ dossierAnnuelId: string }> },
@@ -26,7 +28,11 @@ export async function POST(
 
   const resultat = await prisma.dossierAnnuel.updateMany({
     where: { id: dossierAnnuelId, notificationSignatureEnvoyeeLe: null },
-    data: { notificationSignatureEnvoyeeLe: new Date() },
+    data: {
+      notificationSignatureEnvoyeeLe: new Date(),
+      notificationSignatureErreurLe: null,
+      notificationSignatureErreurMessage: null,
+    },
   });
 
   if (resultat.count === 1) {

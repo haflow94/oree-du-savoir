@@ -56,7 +56,11 @@ describe("POST /api/internal/n8n/dossiers-annuels/[dossierAnnuelId]/notification
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: "dos1", notificationSignatureEnvoyeeLe: null },
-      data: { notificationSignatureEnvoyeeLe: expect.any(Date) },
+      data: {
+        notificationSignatureEnvoyeeLe: expect.any(Date),
+        notificationSignatureErreurLe: null,
+        notificationSignatureErreurMessage: null,
+      },
     });
     expect(corps).toEqual({ ok: true, dejaMarque: false });
     expect(count).not.toHaveBeenCalled();
@@ -72,11 +76,19 @@ describe("POST /api/internal/n8n/dossiers-annuels/[dossierAnnuelId]/notification
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: "dos1", notificationSignatureEnvoyeeLe: null },
-      data: { notificationSignatureEnvoyeeLe: expect.any(Date) },
+      data: {
+        notificationSignatureEnvoyeeLe: expect.any(Date),
+        notificationSignatureErreurLe: null,
+        notificationSignatureErreurMessage: null,
+      },
     });
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: "dos2", notificationSignatureEnvoyeeLe: null },
-      data: { notificationSignatureEnvoyeeLe: expect.any(Date) },
+      data: {
+        notificationSignatureEnvoyeeLe: expect.any(Date),
+        notificationSignatureErreurLe: null,
+        notificationSignatureErreurMessage: null,
+      },
     });
     expect((await reponseA.json()).dejaMarque).toBe(false);
     expect((await reponseB.json()).dejaMarque).toBe(false);

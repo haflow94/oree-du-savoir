@@ -56,7 +56,11 @@ describe("POST /api/internal/n8n/dossiers-a-verifier/[dossierAnnuelId]/notifie",
 
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: "dos1", notificationVerificationEnvoyeeLe: null },
-      data: { notificationVerificationEnvoyeeLe: expect.any(Date) },
+      data: {
+        notificationVerificationEnvoyeeLe: expect.any(Date),
+        notificationVerificationErreurLe: null,
+        notificationVerificationErreurMessage: null,
+      },
     });
     expect(corps).toEqual({ ok: true, dejaMarque: false });
     expect(count).not.toHaveBeenCalled();

@@ -9,7 +9,6 @@ import { JOUR_LABELS } from "@/lib/planning";
 import {
   MIME_DOCX,
   TYPE_DOCUMENT_LABELS,
-  TYPE_PIECE_IDENTITE_LABELS,
   TYPES_DOCUMENTS_GENERES,
   TYPES_DOCUMENTS_REQUIS,
   statutDocumentsRequis,
@@ -60,7 +59,6 @@ const MESSAGES: Record<string, string> = {
   CODE_POSTAL_INVALIDE: "Le code postal doit comporter 5 chiffres.",
   FICHIER_MANQUANT: "Choisissez un fichier et un type de document.",
   TYPE_RESERVE: "Ce type de document est réservé au dossier généré automatiquement par l'application.",
-  PIECE_IDENTITE_INCOMPLETE: "Le type de pièce et sa date d'expiration sont obligatoires pour une pièce d'identité.",
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
     "Impossible de supprimer : cet étudiant a un dossier engagé (signature envoyée ou faite, ou un paiement déjà enregistré), une inscription ou des présences.",
@@ -143,19 +141,41 @@ function ListeDocuments({
   );
 }
 
+// Regroupe la paire de champs `...ErreurLe`/`...ErreurMessage` (voir
+// prisma/schema.prisma, ex. Etudiant.notificationBienvenueErreurLe) en un
+// objet unique pour TracabiliteEvenements, ou null si aucun échec en cours.
+function erreurEnvoi(le: Date | null, message: string | null): { le: Date; message: string } | null {
+  if (!le || !message) return null;
+  return { le, message };
+}
+
 function TracabiliteEvenements({
   evenements,
 }: {
-  evenements: { label: string; date: Date | null }[];
+  evenements: {
+    label: string;
+    date: Date | null;
+    erreur?: { le: Date; message: string } | null;
+  }[];
 }) {
   return (
     <ul className="divide-y divide-border">
       {evenements.map((e) => (
-        <li key={e.label} className="flex items-center justify-between py-2.5 text-sm">
-          <span className="text-ink">{e.label}</span>
-          <span className={e.date ? "text-ink-muted" : "text-ink-faint"}>
-            {e.date ? new Date(e.date).toLocaleString("fr-FR") : "Non renseigné"}
-          </span>
+        <li key={e.label} className="flex flex-col gap-1 py-2.5 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-ink">{e.label}</span>
+            <span className={e.date ? "text-ink-muted" : "text-ink-faint"}>
+              {e.date ? new Date(e.date).toLocaleString("fr-FR") : "Non renseigné"}
+            </span>
+          </div>
+          {e.erreur && (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-rust-border bg-rust-bg px-2.5 py-1.5 text-xs text-rust">
+              <span>Échec du dernier envoi : {e.erreur.message}</span>
+              <span className="shrink-0 whitespace-nowrap">
+                {new Date(e.erreur.le).toLocaleString("fr-FR")}
+              </span>
+            </div>
+          )}
         </li>
       ))}
     </ul>
@@ -531,7 +551,7 @@ export default async function EtudiantDetailPage({
                 formId="supprimer-etudiant"
                 triggerLabel="Supprimer la fiche"
                 title="Supprimer cette fiche ?"
-                description={`Cette action supprime définitivement la fiche de ${etudiant.prenom} ${etudiant.nom}, ses documents (photo, pièce d'identité, dossier généré...) et ne peut pas être annulée.`}
+                description={`Cette action supprime définitivement la fiche de ${etudiant.prenom} ${etudiant.nom}, ses documents (photo, dossier généré...) et ne peut pas être annulée.`}
                 confirmLabel="Supprimer définitivement"
                 disabled={!etudiantSupprimable}
                 disabledTitle="Un dossier engagé (signature envoyée/faite ou paiement), une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
@@ -1429,12 +1449,8 @@ export default async function EtudiantDetailPage({
             <input type="hidden" name="etudiantId" value={etudiant.id} />
             <ChampsTeleversementDocument
               typesDocument={Object.values(TypeDocument)
-                .filter((t) => t !== "DOSSIER_GENERE")
+                .filter((t) => t !== "DOSSIER_GENERE" && t !== "PIECE_IDENTITE")
                 .map((t) => ({ value: t, label: TYPE_DOCUMENT_LABELS[t] }))}
-              typesPieceIdentite={Object.entries(TYPE_PIECE_IDENTITE_LABELS).map(([value, label]) => ({
-                value,
-                label,
-              }))}
             />
             <div>
               <label className="mb-1 block text-sm font-medium text-ink">Fichier</label>
@@ -1460,15 +1476,22 @@ export default async function EtudiantDetailPage({
       <p className="mb-3 text-xs text-ink-faint">
         Horodatages enregistrés automatiquement (envois d&apos;email, accès de la
         famille au lien, confirmation, signature). Une date absente signifie
-        que l&apos;étape n&apos;a pas encore eu lieu — ou que l&apos;email envoyé par
-        n8n n&apos;est pas arrivé à destination, ce que l&apos;application ne peut
-        pas distinguer pour l&apos;instant.
+        que l&apos;étape n&apos;a pas encore eu lieu. Un échec d&apos;envoi signalé par
+        n8n (rejet côté fournisseur, etc.) s&apos;affiche en rouge sous
+        l&apos;étape concernée tant qu&apos;un envoi ultérieur n&apos;a pas réussi.
       </p>
       <Card>
         <CardTitle>Étudiant</CardTitle>
         <TracabiliteEvenements
           evenements={[
-            { label: "Email de bienvenue envoyé", date: etudiant.notificationBienvenueEnvoyeeLe },
+            {
+              label: "Email de bienvenue envoyé",
+              date: etudiant.notificationBienvenueEnvoyeeLe,
+              erreur: erreurEnvoi(
+                etudiant.notificationBienvenueErreurLe,
+                etudiant.notificationBienvenueErreurMessage,
+              ),
+            },
           ]}
         />
       </Card>
@@ -1478,17 +1501,31 @@ export default async function EtudiantDetailPage({
           <TracabiliteEvenements
             evenements={[
               { label: "Dossier généré", date: d.creeLe },
-              { label: "Email de vérification envoyé à la famille", date: d.notificationVerificationEnvoyeeLe },
+              {
+                label: "Email de vérification envoyé à la famille",
+                date: d.notificationVerificationEnvoyeeLe,
+                erreur: erreurEnvoi(d.notificationVerificationErreurLe, d.notificationVerificationErreurMessage),
+              },
               { label: "Dernier accès de la famille au lien", date: d.accesDossier?.dernierAccesLe ?? null },
               { label: "Dossier confirmé par la famille", date: d.versionConfirmeeLe },
               { label: "Envoyé en signature", date: d.envoyeSignatureLe },
               {
                 label: "Email de confirmation de signature envoyé",
                 date: d.notificationSignatureEnvoyeeLe,
+                erreur: erreurEnvoi(d.notificationSignatureErreurLe, d.notificationSignatureErreurMessage),
               },
               { label: "Signé", date: d.signeLe },
-              ...(d.nombreRelancesEnvoyees > 0
-                ? [{ label: `Relance envoyée (${d.nombreRelancesEnvoyees})`, date: d.derniereRelanceEnvoyeeLe }]
+              ...(d.nombreRelancesEnvoyees > 0 || d.derniereRelanceErreurLe
+                ? [
+                    {
+                      label:
+                        d.nombreRelancesEnvoyees > 0
+                          ? `Relance envoyée (${d.nombreRelancesEnvoyees})`
+                          : "Relance",
+                      date: d.derniereRelanceEnvoyeeLe,
+                      erreur: erreurEnvoi(d.derniereRelanceErreurLe, d.derniereRelanceErreurMessage),
+                    },
+                  ]
                 : []),
             ]}
           />

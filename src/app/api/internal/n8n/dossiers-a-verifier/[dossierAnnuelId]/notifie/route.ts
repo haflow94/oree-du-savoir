@@ -5,7 +5,9 @@ import { verifierAuthN8n } from "@/lib/auth-n8n";
 // À appeler par n8n juste après l'envoi réussi de l'email "dossier prêt à
 // vérifier" (voir GET .../dossiers-a-verifier). Idempotent par construction
 // (même patron que .../notifications-preinscription/.../email-envoye) : le
-// updateMany ne pose la date que si elle est encore null.
+// updateMany ne pose la date que si elle est encore null. Efface aussi un
+// échec précédent (voir .../notifie-echec) : ce succès rend cet échec caduc
+// pour la Traçabilité.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ dossierAnnuelId: string }> },
@@ -17,7 +19,11 @@ export async function POST(
 
   const resultat = await prisma.dossierAnnuel.updateMany({
     where: { id: dossierAnnuelId, notificationVerificationEnvoyeeLe: null },
-    data: { notificationVerificationEnvoyeeLe: new Date() },
+    data: {
+      notificationVerificationEnvoyeeLe: new Date(),
+      notificationVerificationErreurLe: null,
+      notificationVerificationErreurMessage: null,
+    },
   });
 
   if (resultat.count === 1) {
