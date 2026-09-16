@@ -267,6 +267,12 @@ export function EtudiantForm() {
             title="Numéro français, ex. 06 12 34 56 78"
             placeholder="06 12 34 56 78"
           />
+          <ChampTextarea
+            label="Remarque médicale (allergie, traitement, Ventoline…)"
+            name="contactUrgenceRemarque"
+            rows={3}
+            className="sm:col-span-2"
+          />
         </div>
       </fieldset>
 

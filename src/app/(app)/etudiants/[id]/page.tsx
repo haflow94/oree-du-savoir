@@ -861,6 +861,13 @@ export default async function EtudiantDetailPage({
                 title="Numéro français, ex. 06 12 34 56 78"
                 placeholder="06 12 34 56 78"
               />
+              <ChampTextarea
+                label="Remarque médicale (allergie, traitement, Ventoline…)"
+                name="contactUrgenceRemarque"
+                rows={3}
+                defaultValue={etudiant.contactUrgenceRemarque ?? ""}
+                className="sm:col-span-2"
+              />
             </div>
           </fieldset>
 
@@ -952,6 +959,14 @@ export default async function EtudiantDetailPage({
                     : "—"}
                 </dd>
               </div>
+              {etudiant.contactUrgenceRemarque && (
+                <div className="sm:col-span-2">
+                  <dt className={DT_CLASSES}>Remarque médicale</dt>
+                  <dd className={`${DD_CLASSES} whitespace-pre-line text-rust`}>
+                    {etudiant.contactUrgenceRemarque}
+                  </dd>
+                </div>
+              )}
             </dl>
           </Card>
           {!estFormationJeunesConfirmee && (

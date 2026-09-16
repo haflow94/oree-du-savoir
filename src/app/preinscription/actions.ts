@@ -214,6 +214,7 @@ export async function preinscrireAction(
   const contactUrgenceNom = champTexte(formData, "contactUrgenceNom");
   const contactUrgencePrenom = champTexte(formData, "contactUrgencePrenom");
   const contactUrgenceTelephone = champTexte(formData, "contactUrgenceTelephone");
+  const contactUrgenceRemarque = champTexte(formData, "contactUrgenceRemarque");
   if (!contactUrgenceNom || !contactUrgencePrenom || !contactUrgenceTelephone) {
     return {
       erreur: "Le nom, le prénom et le téléphone du contact d'urgence sont obligatoires.",
@@ -407,6 +408,7 @@ export async function preinscrireAction(
       contactUrgenceNom,
       contactUrgencePrenom,
       contactUrgenceTelephone,
+      contactUrgenceRemarque,
       adresse: champTexte(formData, "adresse"),
       complementAdresse: champTexte(formData, "complementAdresse"),
       codePostal: champTexte(formData, "codePostal"),

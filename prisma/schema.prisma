@@ -344,6 +344,11 @@ model Etudiant {
   contactUrgenceNom              String?
   contactUrgencePrenom           String?
   contactUrgenceTelephone        String?
+  // Distinct du `remarque` général plus bas (note libre du staff) : dédié aux
+  // informations médicales à connaître en cas d'urgence (allergie,
+  // traitement en cours, besoin de Ventoline…) — saisi dès la préinscription
+  // par la famille, jamais déduit/rempli automatiquement.
+  contactUrgenceRemarque         String?
   profession                     String?
   niveauEtudes                   String?
   dernierDiplome                 String?

@@ -64,6 +64,7 @@ export async function anonymiserEtudiantAction(formData: FormData): Promise<void
         contactUrgenceNom: null,
         contactUrgencePrenom: null,
         contactUrgenceTelephone: null,
+        contactUrgenceRemarque: null,
         profession: null,
         niveauEtudes: null,
         dernierDiplome: null,

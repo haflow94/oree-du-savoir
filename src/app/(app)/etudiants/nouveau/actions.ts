@@ -229,6 +229,7 @@ export async function creerEtudiantAction(
         contactUrgenceNom,
         contactUrgencePrenom,
         contactUrgenceTelephone,
+        contactUrgenceRemarque: champTexte(formData, "contactUrgenceRemarque"),
         profession: champTexte(formData, "profession"),
         niveauEtudes,
         dernierDiplome: champTexte(formData, "dernierDiplome"),
