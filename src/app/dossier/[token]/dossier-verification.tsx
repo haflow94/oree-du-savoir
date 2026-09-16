@@ -82,20 +82,10 @@ export function DossierVerification({
       )}
 
       <Card>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-ink">Dossier PDF{numeroVersionActuelle ? ` — version ${numeroVersionActuelle}` : ""}</p>
-            <p className="text-xs text-ink-faint">Vérifiez que toutes les informations sont correctes.</p>
-          </div>
-          <a
-            href={`/dossier/${token}/pdf`}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 rounded-md border border-border-strong px-3 py-1.5 text-xs font-medium text-pine hover:bg-pine-soft"
-          >
-            Consulter mon dossier
-          </a>
-        </div>
+        <p className="text-sm font-medium text-ink">Dossier PDF{numeroVersionActuelle ? ` — version ${numeroVersionActuelle}` : ""}</p>
+        <p className="text-xs text-ink-faint">
+          Vous pourrez le consulter avant de le signer électroniquement (2 signatures requises).
+        </p>
       </Card>
 
       <Card className="space-y-1 text-sm text-ink">
@@ -135,7 +125,7 @@ export function DossierVerification({
             <Button type="submit" variant="primary" className="w-full" disabled={pending}>
               {statutSignature === "ENVOYEE_SIGNATURE"
                 ? "Continuer vers la signature"
-                : "Tout est correct → Signer"}
+                : "Consulter et signer mon dossier"}
             </Button>
           </form>
           {statutSignature !== "ENVOYEE_SIGNATURE" && (

@@ -150,7 +150,7 @@ export async function demanderCorrectionAction(
   return { ok: true };
 }
 
-// "Tout est correct → Signer" : verrouille la version courante comme
+// "Consulter et signer mon dossier" : verrouille la version courante comme
 // confirmée puis transmet immédiatement à Documenso — un seul geste côté
 // famille (voir bilan de session, page de vérification minimale). Un
 // re-clic (retour arrière navigateur, etc.) est sans danger : si le dossier
