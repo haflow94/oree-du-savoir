@@ -115,6 +115,28 @@ describe("GET /api/internal/n8n/dossiers-a-verifier", () => {
     });
   });
 
+  it("privilégie l'email du responsable même si l'étudiant a aussi un email propre (ex. résidu d'une fusion de doublon)", async () => {
+    findMany.mockResolvedValue([
+      dossier({
+        etudiant: {
+          id: "et4",
+          nom: "Ben Ali",
+          prenom: "Yanis",
+          email: "ancien-residu@example.com",
+          responsables: [{ prenom: "Karim", email: "karim@example.com" }],
+        },
+      }),
+    ]);
+
+    const reponse = await GET(requete(SECRET));
+    const corps = await reponse.json();
+
+    expect(corps.candidats[0]).toMatchObject({
+      destinataireEmail: "karim@example.com",
+      destinatairePrenom: "Karim",
+    });
+  });
+
   it("saute un dossier sans email exploitable (ni étudiant ni responsable) — reste candidat pour un appel ultérieur", async () => {
     findMany.mockResolvedValue([
       dossier({ etudiant: { id: "et3", nom: "Sans", prenom: "Email", email: null, responsables: [] } }),

@@ -65,7 +65,13 @@ export async function GET(request: NextRequest) {
   const candidats: CandidatDossierAVerifier[] = [];
   for (const dossier of dossiers) {
     const responsable = dossier.etudiant.responsables[0];
-    const destinataireEmail = dossier.etudiant.email ?? responsable?.email;
+    // Responsable légal en priorité (cas Jeunes), sinon l'étudiant lui-même
+    // (cas Adultes, sans responsable saisi) — même règle et même ordre que
+    // .../inscriptions-a-notifier/route.ts. Un `Etudiant.email` résiduel
+    // (ex. issu d'une fusion de doublon ayant conservé une ancienne valeur,
+    // voir fusionnerDoublonAction) ne doit jamais l'emporter sur le contact
+    // réellement à jour du responsable.
+    const destinataireEmail = responsable?.email ?? dossier.etudiant.email;
     if (!destinataireEmail) continue; // rien à envoyer : reste candidat au prochain appel, à traiter à la main entre-temps
 
     const { token } = await creerAccesDossier(dossier.id);
