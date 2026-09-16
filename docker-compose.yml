@@ -154,20 +154,29 @@ services:
   n8n:
     image: n8nio/n8n:latest
     restart: unless-stopped
-    # Lié à 127.0.0.1 uniquement, même raison que db.ports ci-dessus : n8n
-    # n'a besoin d'être joignable que par l'app (réseau interne Docker) et,
-    # pour son interface d'administration, par le staff sur la machine hôte
-    # elle-même (ou via un tunnel/VPN dédié, hors du scope réseau public de
-    # la préinscription). Aucun besoin d'exposition sur toutes les
-    # interfaces (voir audit de sécurité de la préinscription publique).
+    # Lié à l'IP LAN du serveur (192.168.1.10, même réseau que le staff, voir
+    # demande du 2026-09-16 d'accès direct sans VPN/Tailscale) plutôt qu'à
+    # 127.0.0.1 : l'admin n8n (identifiants email, workflows) devient donc
+    # joignable par tout appareil du réseau local, pas seulement l'hôte —
+    # l'authentification n8n elle-même reste la seule barrière. Toujours PAS
+    # 0.0.0.0 : jamais exposé au-delà de ce réseau local (voir audit de
+    # sécurité de la préinscription publique, même raison que db.ports
+    # ci-dessus pour ne jamais publier sur toutes les interfaces).
     ports:
-      - "127.0.0.1:5678:5678"
+      - "192.168.1.10:5678:5678"
     environment:
       - TZ=${TZ:-Europe/Paris}
       # Même valeur que côté app : les workflows appellent l'app via
       # /api/internal/n8n/* avec ce Bearer token (header Authorization),
       # jamais un accès direct à Postgres ni au volume app_data.
       - N8N_INTERNAL_API_SECRET=${N8N_INTERNAL_API_SECRET:-}
+      # n8n refuse de poser son cookie de session en HTTP simple (voir
+      # ports ci-dessus, accès LAN sans TLS) sans ce réglage — recommandé
+      # par n8n lui-même pour ce cas ("if running locally... set
+      # N8N_SECURE_COOKIE to false"). Cohérent avec l'exposition déjà
+      # limitée au seul réseau local : le cookie circule en clair sur ce
+      # réseau, jamais au-delà.
+      - N8N_SECURE_COOKIE=false
     volumes:
       - n8n_data:/home/node/.n8n
 
