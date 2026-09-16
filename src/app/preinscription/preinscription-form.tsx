@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { preinscrireAction } from "./actions";
 import { Card } from "@/components/ui/card";
-import { Champ, ChampSelect, ChampRadioGroup } from "@/components/ui/champ";
+import { Champ, ChampSelect, ChampRadioGroup, ChampTextarea } from "@/components/ui/champ";
 import { Button } from "@/components/ui/button";
 import { Alert } from "@/components/ui/alert";
-import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL, estMineur } from "@/lib/champs-formulaire";
+import { PATTERN_TELEPHONE, PATTERN_CODE_POSTAL } from "@/lib/champs-formulaire";
 import { NIVEAUX_PAR_CATALOGUE } from "@/lib/niveaux-section";
 import type { CatalogueNiveaux } from "@/generated/prisma/enums";
 
@@ -24,9 +24,11 @@ const STEP_NAV_LINK_CLASSES =
 // (etudiants/[id]/page.tsx) — nécessaire pour que le dossier généré
 // (src/lib/dossier/context.ts, modèle Jeunes) affiche déjà l'adresse, le
 // téléphone professionnel etc. du responsable sans ressaisie sur place.
-// Responsable 1 obligatoire (un mineur a toujours un responsable légal),
-// responsable 2 facultatif (ex. père et mère tous deux au dossier — voir
-// rl_pere/rl_mere sur la dernière page du gabarit Jeunes).
+// Responsable 1 obligatoire pour la section "Jeunes" (voir estJeunes
+// plus bas) — c'est lui qui porte les coordonnées de l'inscription, la
+// section "Coordonnées" de l'enfant ayant été retirée du formulaire.
+// Responsable 2 reste toujours facultatif (ex. père et mère tous deux au
+// dossier — voir rl_pere/rl_mere sur la dernière page du gabarit Jeunes).
 function BlocResponsable({ index, requis }: { index: 1 | 2; requis: boolean }) {
   // Seul le responsable 1 peut devenir obligatoire, et seulement pour la
   // section "Jeunes" (voir estJeunes plus bas) : le responsable 2 (ex. père
@@ -132,20 +134,29 @@ export function PreinscriptionForm({
     (l) => sections.find((s) => s.id === l.sectionId)?.nom === "Jeunes",
   );
 
-  // Rubrique "Identité" (voir plus bas) : suivie en state (au lieu d'un
-  // simple <input> non contrôlé) uniquement pour recalculer ci-dessous si le
-  // responsable légal est requis — la section Jeunes ne couvre pas tout un
-  // mineur peut très bien s'inscrire à un cours pensé pour des adultes (ex.
-  // Langue Arabe à 17 ans), et lui aussi a besoin d'un responsable légal au
-  // dossier. Vide tant que le champ n'est pas rempli : pas encore mineur
-  // avéré, donc pas encore affiché — la rubrique apparaît dès la saisie.
-  const [dateNaissance, setDateNaissance] = useState("");
-  const mineur = dateNaissance ? estMineur(new Date(dateNaissance)) : false;
-  const responsableRequis = estJeunes || mineur;
+  // Le responsable légal n'est demandé que pour la section "Jeunes" (voir
+  // estJeunes ci-dessus) : un étudiant Adultes s'inscrit toujours comme un
+  // adulte, quel que soit son âge — aucune section "représentant légal" ne
+  // lui est jamais proposée (décision association du 2026-09-16).
+  const responsableRequis = estJeunes;
 
   const [error, setError] = useState<string | null>(null);
   const [succes, setSucces] = useState(false);
   const [pending, startTransition] = useTransition();
+  const erreurRef = useRef<HTMLDivElement>(null);
+
+  // Les erreurs renvoyées par preinscrireAction (validations serveur, ex.
+  // format de téléphone, code invalide…) ne sont jamais rattachées à un
+  // champ précis — contrairement aux champs `required`/`pattern`, positionnés
+  // nativement par le navigateur via reportValidity() (voir onSubmit
+  // ci-dessous). Le bouton d'envoi étant tout en bas d'un long formulaire, on
+  // ramène explicitement l'utilisateur vers ce message plutôt que de le
+  // laisser invisible en haut de page.
+  useEffect(() => {
+    if (!error) return;
+    erreurRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    erreurRef.current?.focus();
+  }, [error]);
 
   if (succes) {
     return (
@@ -165,6 +176,12 @@ export function PreinscriptionForm({
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        // Garde-fou explicite en plus de la validation native au submit
+        // (déjà déclenchée par le navigateur avant que ce handler ne
+        // s'exécute, via `required`/`pattern` — elle amène et focus déjà le
+        // premier champ invalide) : reportValidity() couvre aussi le cas où
+        // ce handler serait un jour invoqué autrement (submit programmatique).
+        if (!e.currentTarget.reportValidity()) return;
         setError(null);
         const formData = new FormData(e.currentTarget);
         startTransition(async () => {
@@ -178,7 +195,11 @@ export function PreinscriptionForm({
       }}
       className="space-y-6"
     >
-      {error && <Alert variant="danger">{error}</Alert>}
+      {error && (
+        <div ref={erreurRef} tabIndex={-1} className="scroll-mt-20 outline-none">
+          <Alert variant="danger">{error}</Alert>
+        </div>
+      )}
       {code && <input type="hidden" name="code" value={code} />}
 
       <nav
@@ -308,14 +329,7 @@ export function PreinscriptionForm({
           <div />
           <Champ label="Nom" name="nom" required />
           <Champ label="Prénom" name="prenom" required />
-          <Champ
-            label="Date de naissance"
-            name="dateNaissance"
-            type="date"
-            required
-            defaultValue={dateNaissance}
-            onChange={(e) => setDateNaissance(e.target.value)}
-          />
+          <Champ label="Date de naissance" name="dateNaissance" type="date" required />
           <Champ label="Ville de naissance" name="villeNaissance" required />
           {estJeunes && (
             <>
@@ -383,6 +397,13 @@ export function PreinscriptionForm({
             title="Numéro français, ex. 06 12 34 56 78"
             placeholder="06 12 34 56 78"
           />
+          <ChampTextarea
+            label="Remarque médicale (allergie, traitement, Ventoline…)"
+            name="contactUrgenceRemarque"
+            rows={3}
+            className="sm:col-span-2"
+            hint="Facultatif — à remplir uniquement si une information médicale doit être connue en cas d'urgence."
+          />
         </div>
       </fieldset>
 
@@ -427,7 +448,7 @@ export function PreinscriptionForm({
             type="file"
             name="photo"
             accept="image/jpeg,image/png,application/pdf"
-            className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
+            className="w-full scroll-mt-20 rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
           />
         </div>
       </fieldset>
@@ -446,7 +467,7 @@ export function PreinscriptionForm({
               name="autorisationPhotoVideo"
               value="oui"
               required
-              className="h-4 w-4 border-border"
+              className="h-4 w-4 scroll-mt-20 border-border"
             />
             Oui, j&apos;accepte
           </label>
@@ -456,7 +477,7 @@ export function PreinscriptionForm({
               name="autorisationPhotoVideo"
               value="non"
               required
-              className="h-4 w-4 border-border"
+              className="h-4 w-4 scroll-mt-20 border-border"
             />
             Non, je refuse
           </label>
@@ -488,7 +509,7 @@ export function PreinscriptionForm({
             type="checkbox"
             name="rgpd"
             required
-            className="mt-0.5 h-4 w-4 rounded border-border"
+            className="mt-0.5 h-4 w-4 scroll-mt-20 rounded border-border"
           />
           J&apos;ai pris connaissance de cette information.
         </label>

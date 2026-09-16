@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Civilite, Sexe } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant, LIBELLE_CRITERE_DOUBLON } from "@/lib/doublons-etudiant";
-import { estEmailValide, estTelephoneValide, estCodePostalValide, estMineur } from "@/lib/champs-formulaire";
+import { estEmailValide, estTelephoneValide, estCodePostalValide } from "@/lib/champs-formulaire";
 import { enregistrerDocumentEtudiant, nomFichierDocument } from "@/lib/documents";
 import { detecterTypeMimeReel, TAILLE_MAX_FICHIER_MO, TAILLE_MAX_FICHIER_OCTETS } from "@/lib/fichiers-uploades";
 import {
@@ -252,13 +252,14 @@ export async function preinscrireAction(
     }
   }
 
-  // Un mineur a toujours un responsable légal au dossier (voir
+  // Le responsable légal n'est requis que pour la section "Jeunes" (voir
   // preinscription-form.tsx#BlocResponsable, index 1 obligatoire) — le
-  // second est facultatif (ex. père et mère tous deux au dossier). Déclenché
-  // par la section "Jeunes" OU par l'âge réel : un mineur de 17 ans peut
-  // très bien s'inscrire à un cours pensé pour des adultes (ex. Langue
-  // Arabe), il lui faut quand même un responsable légal au dossier.
-  const responsableRequis = estJeunes || estMineur(dateNaissance);
+  // second reste facultatif (ex. père et mère tous deux au dossier). Un
+  // étudiant Adultes s'inscrit toujours comme un adulte, quel que soit son
+  // âge réel : aucun responsable légal n'est jamais exigé pour cette section
+  // (décision association du 2026-09-16, remplace l'ancien déclenchement par
+  // minorité).
+  const responsableRequis = estJeunes;
   const responsable1 = responsableDepuisFormulaire(formData, 1);
   const responsable2 = responsableDepuisFormulaire(formData, 2);
   if (responsableRequis && (!responsable1 || !responsable1.telephone || !responsable1.email)) {

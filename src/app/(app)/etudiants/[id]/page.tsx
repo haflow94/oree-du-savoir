@@ -406,6 +406,17 @@ export default async function EtudiantDetailPage({
   const afficherFormationJeunes =
     !etudiant.sectionSouhaiteeId || etudiant.sectionSouhaitee?.modeleDossier === "JEUNES";
 
+  // Coordonnées/Situation propres à l'étudiant n'existent que pour le
+  // modèle Adultes (voir Section.modeleDossier) : un étudiant Jeunes n'a que
+  // les coordonnées de son responsable légal principal, désormais
+  // obligatoires côté préinscription (voir preinscription-form.tsx). À la
+  // différence d'afficherFormationJeunes ci-dessus (qui montre par défaut
+  // faute de signal), on masque ici seulement quand le modèle Jeunes est
+  // confirmé : une fiche créée à la main par le staff, sans section connue,
+  // continue d'exiger ces champs plutôt que de risquer de les cacher à tort
+  // pour un adulte.
+  const estFormationJeunesConfirmee = etudiant.sectionSouhaitee?.modeleDossier === "JEUNES";
+
   // Même règle que le garde-fou serveur (voir supprimerEtudiantAction) :
   // un dossier annuel pas encore engagé (ni signature envoyée/faite, ni
   // paiement) ne doit pas désactiver le bouton — sinon le formulaire ne
@@ -767,61 +778,63 @@ export default async function EtudiantDetailPage({
             </div>
           </fieldset>
 
-          <fieldset className={FIELDSET_CLASSES}>
-            <legend className={LEGEND_CLASSES}>Coordonnées</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Champ
-                label="Téléphone mobile"
-                name="telephoneMobile"
-                defaultValue={etudiant.telephoneMobile ?? ""}
-                required
-                inputMode="tel"
-                pattern={PATTERN_TELEPHONE}
-                title="Numéro français, ex. 06 12 34 56 78"
-                placeholder="06 12 34 56 78"
-              />
-              <Champ
-                label="Téléphone fixe"
-                name="telephoneFixe"
-                defaultValue={etudiant.telephoneFixe ?? ""}
-                inputMode="tel"
-                pattern={PATTERN_TELEPHONE}
-                title="Numéro français, ex. 04 91 23 45 67"
-                placeholder="04 91 23 45 67"
-              />
-              <Champ
-                label="Email"
-                name="email"
-                type="email"
-                defaultValue={etudiant.email ?? ""}
-                required
-              />
-              <Champ
-                label="Adresse"
-                name="adresse"
-                defaultValue={etudiant.adresse ?? ""}
-                className="sm:col-span-2"
-                required
-              />
-              <Champ
-                label="Complément d'adresse"
-                name="complementAdresse"
-                defaultValue={etudiant.complementAdresse ?? ""}
-              />
-              <Champ
-                label="Code postal"
-                name="codePostal"
-                defaultValue={etudiant.codePostal ?? ""}
-                required
-                inputMode="numeric"
-                pattern={PATTERN_CODE_POSTAL}
-                maxLength={5}
-                title="5 chiffres"
-                placeholder="69000"
-              />
-              <Champ label="Ville" name="ville" defaultValue={etudiant.ville ?? ""} required />
-            </div>
-          </fieldset>
+          {!estFormationJeunesConfirmee && (
+            <fieldset className={FIELDSET_CLASSES}>
+              <legend className={LEGEND_CLASSES}>Coordonnées</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Champ
+                  label="Téléphone mobile"
+                  name="telephoneMobile"
+                  defaultValue={etudiant.telephoneMobile ?? ""}
+                  required
+                  inputMode="tel"
+                  pattern={PATTERN_TELEPHONE}
+                  title="Numéro français, ex. 06 12 34 56 78"
+                  placeholder="06 12 34 56 78"
+                />
+                <Champ
+                  label="Téléphone fixe"
+                  name="telephoneFixe"
+                  defaultValue={etudiant.telephoneFixe ?? ""}
+                  inputMode="tel"
+                  pattern={PATTERN_TELEPHONE}
+                  title="Numéro français, ex. 04 91 23 45 67"
+                  placeholder="04 91 23 45 67"
+                />
+                <Champ
+                  label="Email"
+                  name="email"
+                  type="email"
+                  defaultValue={etudiant.email ?? ""}
+                  required
+                />
+                <Champ
+                  label="Adresse"
+                  name="adresse"
+                  defaultValue={etudiant.adresse ?? ""}
+                  className="sm:col-span-2"
+                  required
+                />
+                <Champ
+                  label="Complément d'adresse"
+                  name="complementAdresse"
+                  defaultValue={etudiant.complementAdresse ?? ""}
+                />
+                <Champ
+                  label="Code postal"
+                  name="codePostal"
+                  defaultValue={etudiant.codePostal ?? ""}
+                  required
+                  inputMode="numeric"
+                  pattern={PATTERN_CODE_POSTAL}
+                  maxLength={5}
+                  title="5 chiffres"
+                  placeholder="69000"
+                />
+                <Champ label="Ville" name="ville" defaultValue={etudiant.ville ?? ""} required />
+              </div>
+            </fieldset>
+          )}
 
           <fieldset className={FIELDSET_CLASSES}>
             <legend className={LEGEND_CLASSES}>Contact d&apos;urgence</legend>
@@ -851,31 +864,33 @@ export default async function EtudiantDetailPage({
             </div>
           </fieldset>
 
-          <fieldset className={FIELDSET_CLASSES}>
-            <legend className={LEGEND_CLASSES}>Situation</legend>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Champ label="Profession" name="profession" defaultValue={etudiant.profession ?? ""} />
-              <Champ
-                label="Niveau d'études"
-                name="niveauEtudes"
-                defaultValue={etudiant.niveauEtudes ?? ""}
-                required
-              />
-              <Champ
-                label="Dernier diplôme obtenu"
-                name="dernierDiplome"
-                defaultValue={etudiant.dernierDiplome ?? ""}
-              />
-              <div />
-              <ChampTextarea
-                label="Remarque"
-                name="remarque"
-                rows={3}
-                defaultValue={etudiant.remarque ?? ""}
-                className="sm:col-span-2"
-              />
-            </div>
-          </fieldset>
+          {!estFormationJeunesConfirmee && (
+            <fieldset className={FIELDSET_CLASSES}>
+              <legend className={LEGEND_CLASSES}>Situation</legend>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Champ label="Profession" name="profession" defaultValue={etudiant.profession ?? ""} />
+                <Champ
+                  label="Niveau d'études"
+                  name="niveauEtudes"
+                  defaultValue={etudiant.niveauEtudes ?? ""}
+                  required
+                />
+                <Champ
+                  label="Dernier diplôme obtenu"
+                  name="dernierDiplome"
+                  defaultValue={etudiant.dernierDiplome ?? ""}
+                />
+                <div />
+                <ChampTextarea
+                  label="Remarque"
+                  name="remarque"
+                  rows={3}
+                  defaultValue={etudiant.remarque ?? ""}
+                  className="sm:col-span-2"
+                />
+              </div>
+            </fieldset>
+          )}
 
           {afficherFormationJeunes && (
             <fieldset className={FIELDSET_CLASSES}>
@@ -926,19 +941,6 @@ export default async function EtudiantDetailPage({
                   {new Date(etudiant.dateInscription).toLocaleString("fr-FR")}
                 </dd>
               </div>
-            </dl>
-          </Card>
-          <Card>
-            <CardTitle>Coordonnées</CardTitle>
-            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div>
-                <dt className={DT_CLASSES}>Téléphone</dt>
-                <dd className={DD_CLASSES}>{etudiant.telephoneMobile || etudiant.telephoneFixe || "—"}</dd>
-              </div>
-              <div>
-                <dt className={DT_CLASSES}>Email</dt>
-                <dd className={DD_CLASSES}>{etudiant.email || "—"}</dd>
-              </div>
               <div>
                 <dt className={DT_CLASSES}>Contact d&apos;urgence</dt>
                 <dd className={DD_CLASSES}>
@@ -950,6 +952,20 @@ export default async function EtudiantDetailPage({
                     : "—"}
                 </dd>
               </div>
+            </dl>
+          </Card>
+          {!estFormationJeunesConfirmee && (
+          <Card>
+            <CardTitle>Coordonnées</CardTitle>
+            <dl className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <dt className={DT_CLASSES}>Téléphone</dt>
+                <dd className={DD_CLASSES}>{etudiant.telephoneMobile || etudiant.telephoneFixe || "—"}</dd>
+              </div>
+              <div>
+                <dt className={DT_CLASSES}>Email</dt>
+                <dd className={DD_CLASSES}>{etudiant.email || "—"}</dd>
+              </div>
               <div className="sm:col-span-2">
                 <dt className={DT_CLASSES}>Adresse</dt>
                 <dd className={DD_CLASSES}>
@@ -960,6 +976,7 @@ export default async function EtudiantDetailPage({
               </div>
             </dl>
           </Card>
+          )}
         </div>
       )}
 

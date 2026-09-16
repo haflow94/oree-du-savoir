@@ -91,6 +91,25 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
   const contactUrgencePrenom = champTexte(formData, "contactUrgencePrenom");
   const contactUrgenceTelephone = champTexte(formData, "contactUrgenceTelephone");
 
+  // Nécessaire au renommage best-effort du stockage physique plus bas
+  // (voir lib/documents-nommage.ts) : matricule (jamais modifié, sert
+  // d'ancre) + nom/prénom AVANT mise à jour, pour savoir si un renommage est
+  // seulement nécessaire et calculer l'ancien préfixe de chaque fichier.
+  // La section souhaitée sert ici à déterminer le modèle de dossier : les
+  // fieldsets "Coordonnées"/"Situation" n'existent plus dans le formulaire
+  // pour un étudiant Jeunes confirmé (voir page.tsx#estFormationJeunesConfirmee) —
+  // leurs champs ne peuvent donc plus être exigés ici pour ce cas.
+  const etudiantAvant = await prisma.etudiant.findUniqueOrThrow({
+    where: { id: etudiantId },
+    select: {
+      matricule: true,
+      nom: true,
+      prenom: true,
+      sectionSouhaitee: { select: { modeleDossier: true } },
+    },
+  });
+  const estFormationJeunes = etudiantAvant.sectionSouhaitee?.modeleDossier === "JEUNES";
+
   if (
     !civilite ||
     !nom ||
@@ -98,34 +117,20 @@ export async function modifierEtudiantAction(formData: FormData): Promise<void> 
     !dateNaissanceBrute ||
     !dateInscriptionBrute ||
     !villeNaissance ||
-    !telephoneMobile ||
-    !email ||
-    !adresse ||
-    !codePostal ||
-    !ville ||
-    !niveauEtudes ||
     !contactUrgenceNom ||
     !contactUrgencePrenom ||
-    !contactUrgenceTelephone
+    !contactUrgenceTelephone ||
+    (!estFormationJeunes && (!telephoneMobile || !email || !adresse || !codePostal || !ville || !niveauEtudes))
   ) {
     retour(etudiantId, "PROFIL_CHAMPS_MANQUANTS");
   }
-  if (!estTelephoneValide(telephoneMobile)) retour(etudiantId, "TELEPHONE_INVALIDE");
-  if (!estEmailValide(email)) retour(etudiantId, "EMAIL_INVALIDE");
-  if (!estCodePostalValide(codePostal)) retour(etudiantId, "CODE_POSTAL_INVALIDE");
+  if (telephoneMobile && !estTelephoneValide(telephoneMobile)) retour(etudiantId, "TELEPHONE_INVALIDE");
+  if (email && !estEmailValide(email)) retour(etudiantId, "EMAIL_INVALIDE");
+  if (codePostal && !estCodePostalValide(codePostal)) retour(etudiantId, "CODE_POSTAL_INVALIDE");
   if (!estTelephoneValide(contactUrgenceTelephone)) retour(etudiantId, "TELEPHONE_INVALIDE");
 
   const telephoneFixe = champTexte(formData, "telephoneFixe");
   if (telephoneFixe && !estTelephoneValide(telephoneFixe)) retour(etudiantId, "TELEPHONE_INVALIDE");
-
-  // Nécessaire au renommage best-effort du stockage physique ci-dessous
-  // (voir lib/documents-nommage.ts) : matricule (jamais modifié, sert
-  // d'ancre) + nom/prénom AVANT mise à jour, pour savoir si un renommage est
-  // seulement nécessaire et calculer l'ancien préfixe de chaque fichier.
-  const etudiantAvant = await prisma.etudiant.findUniqueOrThrow({
-    where: { id: etudiantId },
-    select: { matricule: true, nom: true, prenom: true },
-  });
 
   await prisma.$transaction([
     prisma.etudiant.update({
