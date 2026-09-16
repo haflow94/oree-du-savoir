@@ -62,7 +62,7 @@ const MESSAGES: Record<string, string> = {
   PIECE_IDENTITE_INCOMPLETE: "Le type de pièce et sa date d'expiration sont obligatoires pour une pièce d'identité.",
   INTROUVABLE: "Ce document n'existe plus.",
   ETUDIANT_UTILISE:
-    "Impossible de supprimer : un dossier annuel, une inscription ou des présences existent déjà pour cet étudiant.",
+    "Impossible de supprimer : cet étudiant a un dossier engagé (signature envoyée ou faite, ou un paiement déjà enregistré), une inscription ou des présences.",
   INSCRIPTION_INVALIDE: "Sélectionnez une classe à inscrire.",
   AFFECTATION_INVALIDE: "Sélectionnez une cohorte à affecter.",
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",

@@ -4,7 +4,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Civilite, Sexe, TypeDocument, TypePieceIdentite } from "@/generated/prisma/enums";
+import { Civilite, Sexe, StatutSignature, TypeDocument, TypePieceIdentite } from "@/generated/prisma/enums";
 import {
   enregistrerDocumentEtudiant,
   supprimerFichierDocument,
@@ -973,20 +973,35 @@ export async function supprimerEtudiantAction(formData: FormData): Promise<void>
       where: { id: etudiantId },
       include: {
         documents: true,
+        // Un dossier annuel pas encore validé par la famille (ni signature
+        // envoyée/faite, ni aucun paiement déjà enregistré dessus) ne doit
+        // pas bloquer la suppression : c'est typiquement une préinscription
+        // de test ou abandonnée, sans rien de réel à protéger. Seul un
+        // dossier réellement engagé (signature en cours/faite, ou un
+        // paiement déjà apporté) doit empêcher la suppression.
+        dossiersAnnuels: {
+          select: {
+            statutSignature: true,
+            echeances: { select: { _count: { select: { paiements: true } } } },
+          },
+        },
         // Une inscription peut être retirée (retirerEtudiantAction) sans
         // effacer les présences déjà enregistrées : il faut les compter à
         // part, sinon un étudiant retiré d'une classe après y avoir eu des
         // présences validées redeviendrait « supprimable ».
-        _count: { select: { dossiersAnnuels: true, inscriptions: true, presences: true } },
+        _count: { select: { inscriptions: true, presences: true } },
       },
     });
     if (!cible) redirect("/etudiants");
 
-    if (
-      cible._count.dossiersAnnuels > 0 ||
-      cible._count.inscriptions > 0 ||
-      cible._count.presences > 0
-    ) {
+    const dossierEngage = cible.dossiersAnnuels.some(
+      (dossier) =>
+        dossier.statutSignature === StatutSignature.ENVOYEE_SIGNATURE ||
+        dossier.statutSignature === StatutSignature.SIGNEE ||
+        dossier.echeances.some((echeance) => echeance._count.paiements > 0),
+    );
+
+    if (dossierEngage || cible._count.inscriptions > 0 || cible._count.presences > 0) {
       retour(etudiantId, "ETUDIANT_UTILISE");
     }
 

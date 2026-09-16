@@ -14,7 +14,19 @@ const documentUpdateMany = vi.fn();
 const documentDeleteMany = vi.fn();
 const notificationPreinscriptionUpdateMany = vi.fn();
 const journalAuditCreate = vi.fn();
-const transaction = vi.fn((operations: unknown[]) => Promise.all(operations));
+// Supporte les deux formes utilisées par les actions testées :
+// prisma.$transaction([...]) (fusionnerDoublonAction) et
+// prisma.$transaction(async (tx) => {...}) (supprimerEtudiantAction) — dans
+// ce second cas, `tx` réutilise directement les mêmes mocks que `prisma.*`
+// ci-dessus, aucune différence de comportement pour les actions testées.
+const transaction = vi.fn((operationsOuCallback: unknown) =>
+  typeof operationsOuCallback === "function"
+    ? (operationsOuCallback as (tx: unknown) => unknown)({
+        etudiant: { findUnique: etudiantFindUnique, delete: etudiantDelete },
+        journalAudit: { create: journalAuditCreate },
+      })
+    : Promise.all(operationsOuCallback as unknown[]),
+);
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -81,7 +93,8 @@ vi.mock("@/lib/cohortes", () => ({
   synchroniserInscriptionsClasse: (...args: unknown[]) => synchroniserInscriptionsClasse(...args),
 }));
 
-const { fusionnerDoublonAction, validerInscriptionAction } = await import("./actions");
+const { fusionnerDoublonAction, validerInscriptionAction, supprimerEtudiantAction } =
+  await import("./actions");
 
 function formulaire(etudiantId: string): FormData {
   const fd = new FormData();
@@ -145,7 +158,7 @@ describe("fusionnerDoublonAction — conservation de l'historique des notificati
 
     // Les deux opérations font partie du même tableau passé à
     // $transaction : la fusion reste atomique (tout ou rien).
-    const operationsTransmises = transaction.mock.calls[0][0];
+    const operationsTransmises = transaction.mock.calls[0][0] as unknown[];
     expect(operationsTransmises.length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -346,5 +359,87 @@ describe("validerInscriptionAction — forçage réservé au Bureau", () => {
         data: expect.objectContaining({ action: "validation_inscription" }),
       }),
     );
+  });
+});
+
+// Un DossierAnnuel existe dès la préinscription (voir
+// app/preinscription/actions.ts), avant toute signature ou tout paiement :
+// le bloquer inconditionnellement empêchait de supprimer une préinscription
+// de test ou abandonnée. Seul un dossier réellement engagé (signature
+// envoyée/faite, ou un paiement déjà apporté sur une de ses échéances) doit
+// rester protégé.
+describe("supprimerEtudiantAction — dossier annuel engagé ou non", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  function etudiant(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "et1",
+      nom: "Martin",
+      prenom: "Karima",
+      documents: [{ id: "doc1", cheminRelatif: "etudiants/2026-2027/Martin Karima/photo.jpeg" }],
+      dossiersAnnuels: [],
+      _count: { inscriptions: 0, presences: 0 },
+      ...overrides,
+    };
+  }
+
+  it("supprime un étudiant dont le dossier annuel n'a ni signature envoyée ni paiement", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(
+      etudiant({
+        dossiersAnnuels: [
+          { statutSignature: "A_VERIFIER", echeances: [{ _count: { paiements: 0 } }] },
+        ],
+      }),
+    );
+    etudiantDelete.mockResolvedValue({});
+    journalAuditCreate.mockResolvedValue({});
+    supprimerFichierDocument.mockResolvedValue(undefined);
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(supprimerEtudiantAction(formulaire("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants?supprime=1",
+    );
+
+    expect(etudiantDelete).toHaveBeenCalledWith({ where: { id: "et1" } });
+    expect(supprimerFichierDocument).toHaveBeenCalledWith(
+      "etudiants/2026-2027/Martin Karima/photo.jpeg",
+    );
+  });
+
+  it("refuse de supprimer un étudiant dont la signature a déjà été envoyée", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(
+      etudiant({ dossiersAnnuels: [{ statutSignature: "ENVOYEE_SIGNATURE", echeances: [] }] }),
+    );
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(supprimerEtudiantAction(formulaire("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants/et1?error=ETUDIANT_UTILISE",
+    );
+    expect(etudiantDelete).not.toHaveBeenCalled();
+  });
+
+  it("refuse de supprimer un étudiant dont une échéance a déjà un paiement, même sans signature", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    etudiantFindUnique.mockResolvedValue(
+      etudiant({
+        dossiersAnnuels: [
+          { statutSignature: "A_VERIFIER", echeances: [{ _count: { paiements: 1 } }] },
+        ],
+      }),
+    );
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(supprimerEtudiantAction(formulaire("et1"))).rejects.toThrow(
+      "REDIRECT:/etudiants/et1?error=ETUDIANT_UTILISE",
+    );
+    expect(etudiantDelete).not.toHaveBeenCalled();
   });
 });
