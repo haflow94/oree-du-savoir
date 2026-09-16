@@ -224,10 +224,12 @@ export async function construireContexteDossierEtudiant({
     sexeM: etudiant.sexe === "M",
     niveau_scolaire: v(etudiant.niveauScolaire),
     // Déclaré librement par la famille à la préinscription (voir
-    // Etudiant.niveauDeclare) — jamais confondu avec le niveau réellement
-    // retenu (Cohorte.niveau via AffectationCohorte, voir `classe`
-    // ci-dessus, dans `...inscription`) ni avec niveau_admission
-    // (réservé à l'administration, dossier Jeunes).
+    // Etudiant.niveauDeclare) — distinct du niveau réellement retenu
+    // (Cohorte.niveau via AffectationCohorte/InscriptionClasse, voir
+    // `classe` ci-dessous) et de niveau_admission (réservé à
+    // l'administration, dossier Jeunes) : reste exposé pour qui veut
+    // l'afficher séparément, mais sert surtout de repli ci-dessous tant
+    // qu'aucune classe/cohorte réelle n'est encore assignée.
     niveau_declare: v(etudiant.niveauDeclare),
 
     niveau_admission: v(dossierAnnuel?.niveauAdmission),
@@ -243,6 +245,17 @@ export async function construireContexteDossierEtudiant({
 
     ...inscription,
   };
+
+  // Le champ "Niveau" du dossier (`classe`) reste vide tant que le staff n'a
+  // pas affecté l'étudiant à une Cohorte/Classe réelle (signature possible
+  // avant cette affectation, voir contexteInscription ci-dessus) : en
+  // attendant, on affiche le niveau déclaré par la famille à la
+  // préinscription plutôt qu'un champ vide, à condition qu'il concerne bien
+  // la section de CE dossier (même garde que creneauSouhaiteId ci-dessus —
+  // une préinscription peut porter sur plusieurs sections).
+  if (!contexte.classe && etudiant.sectionSouhaiteeId === sectionId) {
+    contexte.classe = v(etudiant.niveauDeclare);
+  }
 
   if (section.modeleDossier === "JEUNES") {
     contexte.creneau = section.creneaux[0]
