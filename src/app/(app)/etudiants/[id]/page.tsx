@@ -16,7 +16,7 @@ import {
   dossierDocumentaireComplet,
   type StatutDocumentRequis,
 } from "@/lib/documents";
-import { TypeDocument } from "@/generated/prisma/enums";
+import { StatutSignature, TypeDocument } from "@/generated/prisma/enums";
 import { champsComparaisonDoublon } from "@/lib/doublons-etudiant";
 import { PopupDoublon } from "../doublon-popup";
 import { ChampsTeleversementDocument } from "./champs-televersement-document";
@@ -360,10 +360,19 @@ export default async function EtudiantDetailPage({
   const afficherFormationJeunes =
     !etudiant.sectionSouhaiteeId || etudiant.sectionSouhaitee?.modeleDossier === "JEUNES";
 
+  // Même règle que le garde-fou serveur (voir supprimerEtudiantAction) :
+  // un dossier annuel pas encore engagé (ni signature envoyée/faite, ni
+  // paiement) ne doit pas désactiver le bouton — sinon le formulaire ne
+  // soumet jamais rien et la suppression semble « ne pas marcher » sans
+  // aucune trace côté serveur.
+  const dossierEngage = etudiant.dossiersAnnuels.some(
+    (dossier) =>
+      dossier.statutSignature === StatutSignature.ENVOYEE_SIGNATURE ||
+      dossier.statutSignature === StatutSignature.SIGNEE ||
+      dossier.echeances.some((echeance) => echeance.paiements.length > 0),
+  );
   const etudiantSupprimable =
-    etudiant.dossiersAnnuels.length === 0 &&
-    etudiant.inscriptions.length === 0 &&
-    etudiant._count.presences === 0;
+    !dossierEngage && etudiant.inscriptions.length === 0 && etudiant._count.presences === 0;
 
   const typesGeneres: readonly string[] = TYPES_DOCUMENTS_GENERES;
   const documentsGeneres = etudiant.documents.filter((d) => typesGeneres.includes(d.type));
@@ -499,10 +508,10 @@ export default async function EtudiantDetailPage({
                 formId="supprimer-etudiant"
                 triggerLabel="Supprimer la fiche"
                 title="Supprimer cette fiche ?"
-                description={`Cette action supprime définitivement la fiche de ${etudiant.prenom} ${etudiant.nom} et ne peut pas être annulée.`}
+                description={`Cette action supprime définitivement la fiche de ${etudiant.prenom} ${etudiant.nom}, ses documents (photo, pièce d'identité, dossier généré...) et ne peut pas être annulée.`}
                 confirmLabel="Supprimer définitivement"
                 disabled={!etudiantSupprimable}
-                disabledTitle="Un dossier annuel, une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
+                disabledTitle="Un dossier engagé (signature envoyée/faite ou paiement), une inscription ou des présences existent déjà : impossible de supprimer cette fiche."
               />
             </>
           )}
