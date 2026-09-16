@@ -37,6 +37,7 @@ import {
   supprimerEtudiantAction,
   fusionnerDoublonAction,
   confirmerHomonymeAction,
+  renvoyerEmailVerificationAction,
 } from "./actions";
 import { Card, CardTitle } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampTextarea } from "@/components/ui/champ";
@@ -68,6 +69,8 @@ const MESSAGES: Record<string, string> = {
   DOUBLON_INTROUVABLE: "Ce signalement de doublon n'existe plus.",
   DOUBLON_NON_FUSIONNABLE:
     "Fusion impossible : cette fiche porte déjà un dossier annuel ou des présences réelles (elles ont dû être ajoutées entre-temps). Aucune donnée n'a été modifiée.",
+  DOSSIER_STATUT_INVALIDE:
+    "Impossible de renvoyer cet email : ce dossier n'est plus en attente de vérification (signature déjà envoyée, confirmée ou signée).",
   DOSSIER_INCOMPLET:
     "Impossible de valider l'inscription : le dossier documentaire n'est pas complet ou aucun dossier de paiement n'a été ouvert pour cet étudiant.",
   FORCAGE_RESERVE_BUREAU: "Forcer la validation malgré un dossier incomplet est réservé au Bureau.",
@@ -1489,6 +1492,20 @@ export default async function EtudiantDetailPage({
                 : []),
             ]}
           />
+          {d.statutSignature === StatutSignature.A_VERIFIER && (
+            <form action={renvoyerEmailVerificationAction} className="mt-3 border-t border-border pt-3">
+              <input type="hidden" name="etudiantId" value={etudiant.id} />
+              <input type="hidden" name="dossierAnnuelId" value={d.id} />
+              <SubmitButton variant="secondary" size="sm" pendingLabel="Renvoi…">
+                Renvoyer l&apos;email de vérification
+              </SubmitButton>
+              <p className="mt-1 text-xs text-ink-faint">
+                Envoyé par n8n au prochain passage, à l&apos;adresse
+                actuellement enregistrée sur la fiche (responsable légal ou
+                étudiant).
+              </p>
+            </form>
+          )}
         </Card>
       ))}
       </section>

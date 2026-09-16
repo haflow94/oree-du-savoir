@@ -931,6 +931,49 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
   retour(etudiantId);
 }
 
+// Redéclenche l'email "dossier à vérifier" envoyé à la famille (voir
+// GET /api/internal/n8n/dossiers-a-verifier) sans passer par une
+// intervention en base : remet simplement les compteurs d'idempotence à
+// zéro, n8n renvoie l'email au prochain polling avec l'adresse
+// actuellement enregistrée sur la fiche (responsable légal ou étudiant).
+export async function renvoyerEmailVerificationAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
+
+  const etudiantId = champTexte(formData, "etudiantId");
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  if (!etudiantId) redirect("/etudiants");
+  if (!dossierAnnuelId) retour(etudiantId, "CHAMPS_MANQUANTS");
+
+  const dossier = await prisma.dossierAnnuel.findUnique({ where: { id: dossierAnnuelId } });
+  if (!dossier || dossier.etudiantId !== etudiantId) retour(etudiantId, "INTROUVABLE");
+  if (dossier.statutSignature !== StatutSignature.A_VERIFIER) {
+    retour(etudiantId, "DOSSIER_STATUT_INVALIDE");
+  }
+
+  await prisma.$transaction([
+    prisma.dossierAnnuel.update({
+      where: { id: dossierAnnuelId },
+      data: {
+        notificationVerificationEnvoyeeLe: null,
+        notificationVerificationErreurLe: null,
+        notificationVerificationErreurMessage: null,
+      },
+    }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "renvoi_email_verification",
+        entite: "DossierAnnuel",
+        entiteId: dossierAnnuelId,
+        details: { etudiantId },
+      },
+    }),
+  ]);
+
+  revalidatePath(`/etudiants/${etudiantId}`);
+  retour(etudiantId);
+}
+
 export async function supprimerDocumentAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
 

@@ -13,6 +13,8 @@ const responsableLegalUpdate = vi.fn();
 const documentUpdateMany = vi.fn();
 const documentDeleteMany = vi.fn();
 const notificationPreinscriptionUpdateMany = vi.fn();
+const dossierAnnuelFindUnique = vi.fn();
+const dossierAnnuelUpdate = vi.fn();
 const journalAuditCreate = vi.fn();
 // Supporte les deux formes utilisées par les actions testées :
 // prisma.$transaction([...]) (fusionnerDoublonAction) et
@@ -44,6 +46,10 @@ vi.mock("@/lib/prisma", () => ({
     notificationPreinscription: {
       updateMany: (...args: unknown[]) => notificationPreinscriptionUpdateMany(...args),
     },
+    dossierAnnuel: {
+      findUnique: (...args: unknown[]) => dossierAnnuelFindUnique(...args),
+      update: (...args: unknown[]) => dossierAnnuelUpdate(...args),
+    },
     journalAudit: { create: (...args: unknown[]) => journalAuditCreate(...args) },
     $transaction: (operations: unknown[]) => transaction(operations),
   },
@@ -52,7 +58,7 @@ vi.mock("@/lib/prisma", () => ({
 const requireModule = vi.fn();
 vi.mock("@/lib/permissions", () => ({
   requireModule: (...args: unknown[]) => requireModule(...args),
-  Module: { ETUDIANTS: "ETUDIANTS" },
+  Module: { ETUDIANTS: "ETUDIANTS", DOCUMENTS: "DOCUMENTS" },
 }));
 
 const redirect = vi.fn();
@@ -95,8 +101,12 @@ vi.mock("@/lib/cohortes", () => ({
   synchroniserInscriptionsClasse: (...args: unknown[]) => synchroniserInscriptionsClasse(...args),
 }));
 
-const { fusionnerDoublonAction, validerInscriptionAction, supprimerEtudiantAction } =
-  await import("./actions");
+const {
+  fusionnerDoublonAction,
+  validerInscriptionAction,
+  supprimerEtudiantAction,
+  renvoyerEmailVerificationAction,
+} = await import("./actions");
 
 function formulaire(etudiantId: string): FormData {
   const fd = new FormData();
@@ -450,5 +460,75 @@ describe("supprimerEtudiantAction — dossier annuel engagé ou non", () => {
       "REDIRECT:/etudiants/et1?error=ETUDIANT_UTILISE",
     );
     expect(etudiantDelete).not.toHaveBeenCalled();
+  });
+});
+
+// Pas de bouton "Renvoyer" avant cet ajout : la seule remise à zéro possible
+// de notificationVerificationEnvoyeeLe passait par une intervention directe
+// en base. Réservé aux dossiers encore A_VERIFIER — au-delà (signature
+// envoyée/faite), n8n ne les reprendrait de toute façon jamais (voir
+// GET /api/internal/n8n/dossiers-a-verifier).
+describe("renvoyerEmailVerificationAction", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  function formulaireDossier(etudiantId: string, dossierAnnuelId: string): FormData {
+    const fd = new FormData();
+    fd.set("etudiantId", etudiantId);
+    fd.set("dossierAnnuelId", dossierAnnuelId);
+    return fd;
+  }
+
+  it("remet les compteurs d'envoi à zéro pour un dossier A_VERIFIER", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    dossierAnnuelFindUnique.mockResolvedValue({
+      id: "dossier1",
+      etudiantId: "et1",
+      statutSignature: "A_VERIFIER",
+    });
+    dossierAnnuelUpdate.mockResolvedValue({});
+    journalAuditCreate.mockResolvedValue({});
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(
+      renvoyerEmailVerificationAction(formulaireDossier("et1", "dossier1")),
+    ).rejects.toThrow("REDIRECT:/etudiants/et1?ok=1");
+
+    expect(dossierAnnuelUpdate).toHaveBeenCalledWith({
+      where: { id: "dossier1" },
+      data: {
+        notificationVerificationEnvoyeeLe: null,
+        notificationVerificationErreurLe: null,
+        notificationVerificationErreurMessage: null,
+      },
+    });
+    expect(journalAuditCreate).toHaveBeenCalledWith({
+      data: {
+        utilisateurId: "staff1",
+        action: "renvoi_email_verification",
+        entite: "DossierAnnuel",
+        entiteId: "dossier1",
+        details: { etudiantId: "et1" },
+      },
+    });
+  });
+
+  it("refuse un dossier qui n'est plus en attente de vérification", async () => {
+    requireModule.mockResolvedValue({ id: "staff1", role: "BUREAU" });
+    dossierAnnuelFindUnique.mockResolvedValue({
+      id: "dossier1",
+      etudiantId: "et1",
+      statutSignature: "SIGNEE",
+    });
+    redirect.mockImplementation((url: string) => {
+      throw new Error(`REDIRECT:${url}`);
+    });
+
+    await expect(
+      renvoyerEmailVerificationAction(formulaireDossier("et1", "dossier1")),
+    ).rejects.toThrow("REDIRECT:/etudiants/et1?error=DOSSIER_STATUT_INVALIDE");
+
+    expect(dossierAnnuelUpdate).not.toHaveBeenCalled();
   });
 });
