@@ -440,6 +440,7 @@ Les mots de passe et tokens restent dans Bitwarden.
 - [x] n8n non exposé directement
 - [x] Contrôles de fichiers côté application
 - [x] Soumission fictive de bout en bout validée
+- [x] Anti-abus : règle de sécurité Cloudflare "Anti-abus préinscription" (Managed Challenge) sur `preinscription.loreedusavoir.fr`, déployée et vérifiée le 2026-09-16
 
 ### À faire
 
