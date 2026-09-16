@@ -39,7 +39,7 @@ verifier_montage() {
   if timeout 10 touch "$fichier_test" 2>/dev/null; then
     rm -f "$fichier_test" 2>/dev/null
     if [ "$etait_deja_en_panne" = 0 ]; then
-      alerter "NAS $libelle : coupure brève auto-corrigée" "$unite a échoué une fois puis a été remonté automatiquement avec succès." "default" "warning"
+      alerter "NAS $libelle : coupure brève auto-corrigée" "$unite a échoué une fois puis a été remonté automatiquement avec succès." "high" "warning"
     fi
     rapporter_etat "nas-$unite" "NAS $libelle" 0
     return

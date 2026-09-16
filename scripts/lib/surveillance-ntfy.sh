@@ -45,7 +45,7 @@ rapporter_etat() {
     if [ -f "$fichier_etat" ]; then
       local depuis
       depuis="$(cat "$fichier_etat" 2>/dev/null || echo inconnu)"
-      alerter "$libelle rétabli" "OK de nouveau (en panne depuis $depuis)." "default" "white_check_mark"
+      alerter "$libelle rétabli" "OK de nouveau (en panne depuis $depuis)." "high" "white_check_mark"
       rm -f "$fichier_etat" "$fichier_derniere_alerte"
     fi
     return 0
