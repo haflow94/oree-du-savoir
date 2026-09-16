@@ -62,6 +62,7 @@ const revalidatePath = vi.fn();
 vi.mock("next/cache", () => ({ revalidatePath: (...args: unknown[]) => revalidatePath(...args) }));
 
 const supprimerFichierDocument = vi.fn();
+const nettoyerDossierEtudiantSiVide = vi.fn();
 const dossierDocumentaireComplet = vi.fn();
 const statutDocumentsRequis = vi.fn().mockReturnValue({});
 const renommerDossierEtudiant = vi.fn().mockResolvedValue(true);
@@ -76,6 +77,7 @@ vi.mock("@/lib/documents", async () => {
     ...nommage,
     enregistrerDocumentEtudiant: vi.fn(),
     supprimerFichierDocument: (...args: unknown[]) => supprimerFichierDocument(...args),
+    nettoyerDossierEtudiantSiVide: (...args: unknown[]) => nettoyerDossierEtudiantSiVide(...args),
     dossierDocumentaireComplet: (...args: unknown[]) => dossierDocumentaireComplet(...args),
     statutDocumentsRequis: (...args: unknown[]) => statutDocumentsRequis(...args),
     renommerDossierEtudiant: (...args: unknown[]) => renommerDossierEtudiant(...args),
@@ -395,6 +397,7 @@ describe("supprimerEtudiantAction — dossier annuel engagé ou non", () => {
     etudiantDelete.mockResolvedValue({});
     journalAuditCreate.mockResolvedValue({});
     supprimerFichierDocument.mockResolvedValue(undefined);
+    nettoyerDossierEtudiantSiVide.mockResolvedValue(undefined);
     redirect.mockImplementation((url: string) => {
       throw new Error(`REDIRECT:${url}`);
     });
@@ -405,6 +408,12 @@ describe("supprimerEtudiantAction — dossier annuel engagé ou non", () => {
 
     expect(etudiantDelete).toHaveBeenCalledWith({ where: { id: "et1" } });
     expect(supprimerFichierDocument).toHaveBeenCalledWith(
+      "etudiants/2026-2027/Martin Karima/photo.jpeg",
+    );
+    // Nettoyage du dossier physique devenu vide (voir lib/documents.ts) :
+    // dérivé du chemin d'un des documents supprimés, jamais reconstruit à
+    // la main depuis nom/prénom/matricule.
+    expect(nettoyerDossierEtudiantSiVide).toHaveBeenCalledWith(
       "etudiants/2026-2027/Martin Karima/photo.jpeg",
     );
   });

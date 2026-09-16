@@ -8,6 +8,7 @@ import { Civilite, Sexe, StatutSignature, TypeDocument, TypePieceIdentite } from
 import {
   enregistrerDocumentEtudiant,
   supprimerFichierDocument,
+  nettoyerDossierEtudiantSiVide,
   dossierDocumentaireComplet,
   statutDocumentsRequis,
   deplacerDocumentVersEtudiant,
@@ -954,6 +955,7 @@ export async function supprimerDocumentAction(formData: FormData): Promise<void>
     }),
   ]);
   await supprimerFichierDocument(cible.cheminRelatif);
+  await nettoyerDossierEtudiantSiVide(cible.cheminRelatif);
 
   revalidatePath(`/etudiants/${etudiantId}`);
   retour(etudiantId);
@@ -1019,6 +1021,9 @@ export async function supprimerEtudiantAction(formData: FormData): Promise<void>
     return cible.documents;
   });
   await Promise.all(documentsASupprimer.map((d) => supprimerFichierDocument(d.cheminRelatif)));
+  if (documentsASupprimer.length > 0) {
+    await nettoyerDossierEtudiantSiVide(documentsASupprimer[0].cheminRelatif);
+  }
 
   revalidatePath("/etudiants");
   redirect("/etudiants?supprime=1");

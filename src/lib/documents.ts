@@ -1,5 +1,5 @@
 import "server-only";
-import { mkdir, writeFile, readFile, unlink, rename, stat } from "node:fs/promises";
+import { mkdir, writeFile, readFile, unlink, rename, rmdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -187,6 +187,24 @@ export async function lireDocument(cheminRelatif: string): Promise<Buffer> {
 
 export async function supprimerFichierDocument(cheminRelatif: string): Promise<void> {
   await unlink(cheminAbsolu(cheminRelatif)).catch(() => {});
+}
+
+// Supprime le dossier "NOM Prénom — matricule" d'un étudiant s'il ne
+// contient plus aucun fichier (typiquement après suppression de l'étudiant
+// ou de son dernier document) — sinon un dossier vide s'accumule sur le NAS
+// à chaque suppression (constaté le 2026-09-16). Prend le cheminRelatif
+// D'UN document qui y vivait plutôt que de reconstruire le chemin depuis
+// nom/prénom/matricule : c'est la seule source fiable de "où" vivait
+// physiquement le document, y compris après un éventuel renommage (voir
+// renommerDossierEtudiant). Volontairement PAS dans supprimerFichierDocument
+// ci-dessus : ce dossier étudiant n'a aucun équivalent pour les documents
+// Organisation/Association (dossiers racine du montage NAS, jamais à
+// supprimer même vides) — à appeler explicitement, seulement côté étudiant.
+// rmdir échoue silencieusement (catch) si le dossier n'existe déjà plus ou
+// contient encore d'autres fichiers (ENOTEMPTY) : comportement voulu, pas
+// une erreur.
+export async function nettoyerDossierEtudiantSiVide(cheminRelatifDocument: string): Promise<void> {
+  await rmdir(path.dirname(cheminAbsolu(cheminRelatifDocument))).catch(() => {});
 }
 
 // Type MIME d'un dossier généré (.docx) — un navigateur ne le prévisualise
