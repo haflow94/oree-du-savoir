@@ -140,6 +140,25 @@ function ListeDocuments({
   );
 }
 
+function TracabiliteEvenements({
+  evenements,
+}: {
+  evenements: { label: string; date: Date | null }[];
+}) {
+  return (
+    <ul className="divide-y divide-border">
+      {evenements.map((e) => (
+        <li key={e.label} className="flex items-center justify-between py-2.5 text-sm">
+          <span className="text-ink">{e.label}</span>
+          <span className={e.date ? "text-ink-muted" : "text-ink-faint"}>
+            {e.date ? new Date(e.date).toLocaleString("fr-FR") : "Non renseigné"}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 const FIELDSET_CLASSES = "rounded-xl border border-border bg-bg-elevated p-5 shadow-card";
 const LEGEND_CLASSES = "px-1 text-sm font-semibold text-ink";
 const DT_CLASSES = "text-xs font-medium uppercase text-ink-faint";
@@ -215,6 +234,7 @@ export default async function EtudiantDetailPage({
           include: {
             anneeScolaire: true,
             echeances: { include: { paiements: { include: { cheque: true, prelevement: true } } } },
+            accesDossier: true,
           },
           orderBy: { anneeScolaire: { libelle: "desc" } },
         },
@@ -634,6 +654,11 @@ export default async function EtudiantDetailPage({
         {peutGererDocuments && (
           <a href="#zone-documents" className={NAV_LINK_CLASSES}>
             Documents
+          </a>
+        )}
+        {peutGererDocuments && etudiant.dossiersAnnuels.length > 0 && (
+          <a href="#zone-tracabilite" className={NAV_LINK_CLASSES}>
+            Traçabilité
           </a>
         )}
       </nav>
@@ -1423,6 +1448,49 @@ export default async function EtudiantDetailPage({
             </SubmitButton>
           </form>
         </Card>
+      </section>
+      )}
+
+      {peutGererDocuments && etudiant.dossiersAnnuels.length > 0 && (
+      <section id="zone-tracabilite" className={ZONE_CLASSES}>
+      <p className={ZONE_TITLE_CLASSES}>Traçabilité</p>
+      <p className="mb-3 text-xs text-ink-faint">
+        Horodatages enregistrés automatiquement (envois d&apos;email, accès de la
+        famille au lien, confirmation, signature). Une date absente signifie
+        que l&apos;étape n&apos;a pas encore eu lieu — ou que l&apos;email envoyé par
+        n8n n&apos;est pas arrivé à destination, ce que l&apos;application ne peut
+        pas distinguer pour l&apos;instant.
+      </p>
+      <Card>
+        <CardTitle>Étudiant</CardTitle>
+        <TracabiliteEvenements
+          evenements={[
+            { label: "Email de bienvenue envoyé", date: etudiant.notificationBienvenueEnvoyeeLe },
+          ]}
+        />
+      </Card>
+      {etudiant.dossiersAnnuels.map((d) => (
+        <Card key={d.id}>
+          <CardTitle>Dossier {d.anneeScolaire.libelle}</CardTitle>
+          <TracabiliteEvenements
+            evenements={[
+              { label: "Dossier généré", date: d.creeLe },
+              { label: "Email de vérification envoyé à la famille", date: d.notificationVerificationEnvoyeeLe },
+              { label: "Dernier accès de la famille au lien", date: d.accesDossier?.dernierAccesLe ?? null },
+              { label: "Dossier confirmé par la famille", date: d.versionConfirmeeLe },
+              { label: "Envoyé en signature", date: d.envoyeSignatureLe },
+              {
+                label: "Email de confirmation de signature envoyé",
+                date: d.notificationSignatureEnvoyeeLe,
+              },
+              { label: "Signé", date: d.signeLe },
+              ...(d.nombreRelancesEnvoyees > 0
+                ? [{ label: `Relance envoyée (${d.nombreRelancesEnvoyees})`, date: d.derniereRelanceEnvoyeeLe }]
+                : []),
+            ]}
+          />
+        </Card>
+      ))}
       </section>
       )}
     </div>
