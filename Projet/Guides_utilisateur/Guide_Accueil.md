@@ -46,7 +46,7 @@ Vous n'avez pas besoin de connaissances techniques pour suivre ce guide : chaque
 
    ![fiche étudiant avec les liens de navigation rapide en haut de page](images/accueil-04-fiche-nav-rapide.png)
 
-3. La section **Profil** affiche l'identité (date de naissance, ville de naissance), les coordonnées (téléphone, email, adresse, contact d'urgence) et les responsables légaux (nom, lien de parenté, téléphone, email).
+3. La section **Profil** affiche l'identité (date de naissance, ville de naissance), les coordonnées (téléphone, email, adresse, contact d'urgence) et les responsables légaux (nom, lien de parenté, téléphone, email). Si une **remarque médicale** a été renseignée pour le contact d'urgence (allergie, traitement, Ventoline…), elle apparaît en évidence, en rouge, sous le contact d'urgence.
 
    ![section Profil de la fiche étudiant](images/accueil-05-section-profil.png)
 

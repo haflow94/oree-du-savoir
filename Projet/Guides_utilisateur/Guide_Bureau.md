@@ -57,7 +57,8 @@ C'est un bon point de départ chaque matin pour repérer ce qui demande votre at
 
 1. Sur la page **Étudiants**, cliquez sur **+ Nouvel étudiant**.
 2. Remplissez la section **Identité** : Civilité, Nom, Prénom (obligatoires), Date de naissance, Ville de naissance.
-3. Remplissez la section **Coordonnées** : téléphones, email, contact d'urgence, adresse.
+3. Remplissez la section **Coordonnées** : téléphones, email, adresse.
+   Dans **Contact d'urgence** : nom, prénom, téléphone, et une **remarque médicale** si besoin (allergie, traitement en cours, Ventoline…) — facultative, à ne remplir que si une information doit être connue en cas d'urgence.
 4. Remplissez la section **Situation** si utile : profession, niveau d'études, dernier diplôme, remarque.
 5. Renseignez un ou deux **Responsables légaux** (père, mère, tuteur…) si l'étudiant est mineur.
 
