@@ -416,11 +416,14 @@ export function PreinscriptionForm({
             <label className="mb-1 block text-sm font-medium text-ink" htmlFor="photo">
               Photo d&apos;identité
             </label>
+            {/* Pas "image/*" seul : sur Android/Chrome ce littéral déclenche
+                le sélecteur de photos système, qui n'offre pas l'appareil
+                photo (contrairement à une liste explicite de types). */}
             <input
               id="photo"
               type="file"
               name="photo"
-              accept="image/*"
+              accept="image/jpeg,image/png"
               required
               className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
             />
