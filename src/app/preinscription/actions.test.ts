@@ -72,11 +72,10 @@ vi.mock("next/cache", () => ({
 
 const { preinscrireAction } = await import("./actions");
 
-// Mêmes signatures magiques que src/lib/fichiers-uploades.test.ts : le
-// contenu réel importe pour detecterTypeMimeReel (aucun mock ici, la vraie
-// validation tourne), pas besoin d'un fichier JPEG/PDF complet et valide.
+// Même signature magique que src/lib/fichiers-uploades.test.ts : le contenu
+// réel importe pour detecterTypeMimeReel (aucun mock ici, la vraie
+// validation tourne), pas besoin d'un fichier JPEG complet et valide.
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
-const PDF = Buffer.from("%PDF-1.7\n%âãÏÓ\n...");
 
 // Formulaire minimal mais complet pour un dossier "Jeunes" (le plus court
 // chemin de validation valide : les coordonnées de l'étudiant lui-même ne
@@ -93,8 +92,6 @@ function formulaireValide(): FormData {
   fd.set("rgpd", "on");
   fd.set("ligneId", "1");
   fd.set("sectionId-1", "sec-jeunes");
-  fd.set("typePieceIdentite", "CARTE_IDENTITE");
-  fd.set("dateExpirationPiece", "2030-01-01");
   fd.set("responsable1Nom", "Dupont");
   fd.set("responsable1Prenom", "Fatima");
   fd.set("responsable1Telephone", "0612345678");
@@ -103,7 +100,6 @@ function formulaireValide(): FormData {
   fd.set("contactUrgencePrenom", "Sophie");
   fd.set("contactUrgenceTelephone", "0698765432");
   fd.set("photo", new File([JPEG], "photo.jpg", { type: "image/jpeg" }));
-  fd.set("pieceIdentite", new File([PDF], "piece.pdf", { type: "application/pdf" }));
   return fd;
 }
 
@@ -133,6 +129,16 @@ describe("preinscrireAction — notification de préinscription", () => {
   it("invalide le cache de /inscriptions juste après la mutation", async () => {
     await preinscrireAction(formulaireValide());
     expect(revalidatePath).toHaveBeenCalledWith("/inscriptions");
+  });
+
+  it("accepte une préinscription sans photo (facultative, décision association du 2026-09-16)", async () => {
+    const fd = formulaireValide();
+    fd.delete("photo");
+
+    const resultat = await preinscrireAction(fd);
+
+    expect(resultat).toEqual({ ok: true });
+    expect(documentCreate).not.toHaveBeenCalled();
   });
 
   it("ne crée ni étudiant ni notification si la validation échoue avant la mutation", async () => {

@@ -19,9 +19,10 @@ function requete(token?: string): NextRequest {
 }
 
 // Étudiant "conforme" par défaut : VALIDE, dossier annuel SIGNEE, dossier
-// documentaire complet (pièce d'identité, photo, dossier signé) et dossier
-// généré présent — chaque test ci-dessous ne fait dévier qu'un seul de ces
-// axes pour vérifier que le verrou (voir route.ts) exclut bien le candidat.
+// documentaire complet (dossier signé — voir TYPES_DOCUMENTS_REQUIS) et
+// dossier généré présent — chaque test ci-dessous ne fait dévier qu'un seul
+// de ces axes pour vérifier que le verrou (voir route.ts) exclut bien le
+// candidat.
 function etudiantConforme(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: "et1",
@@ -170,27 +171,18 @@ describe("GET /api/internal/n8n/inscriptions-a-notifier", () => {
       expect(corps.candidats).toHaveLength(1);
     });
 
-    it("exclut un candidat dont la pièce d'identité manque", async () => {
+    it("n'exclut pas un candidat sans pièce d'identité ni photo (plus des conditions de validation)", async () => {
       findMany.mockResolvedValue([
         etudiantConforme({
-          documents: etudiantConforme().documents.filter((d) => d.type !== "PIECE_IDENTITE"),
+          documents: etudiantConforme().documents.filter(
+            (d) => d.type !== "PIECE_IDENTITE" && d.type !== "PHOTO",
+          ),
         }),
       ]);
 
       const reponse = await GET(requete(SECRET));
       const corps = await reponse.json();
-      expect(corps.candidats).toEqual([]);
-    });
-
-    it("exclut un candidat dont la pièce d'identité est expirée", async () => {
-      const documents = etudiantConforme().documents.map((d) =>
-        d.type === "PIECE_IDENTITE" ? { ...d, dateExpiration: new Date("2020-01-01") } : d,
-      );
-      findMany.mockResolvedValue([etudiantConforme({ documents })]);
-
-      const reponse = await GET(requete(SECRET));
-      const corps = await reponse.json();
-      expect(corps.candidats).toEqual([]);
+      expect(corps.candidats).toHaveLength(1);
     });
 
     it("exclut un candidat dont le document 'dossier signé' est absent (statutSignature incohérent)", async () => {

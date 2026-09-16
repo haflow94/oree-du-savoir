@@ -407,56 +407,28 @@ export function PreinscriptionForm({
       <fieldset id="section-documents" className={FIELDSET_CLASSES}>
         <legend className={LEGEND_CLASSES}>Documents</legend>
         <p className="mb-3 text-sm text-ink-muted">
-          Merci de joindre une photo d&apos;identité et une pièce
-          d&apos;identité — elles sont nécessaires pour finaliser
-          l&apos;inscription.
+          Vous pouvez joindre une photo d&apos;identité si vous l&apos;avez
+          sous la main — ce n&apos;est pas obligatoire, le staff pourra la
+          récupérer plus tard si besoin.
         </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-ink" htmlFor="photo">
-              Photo d&apos;identité
-            </label>
-            {/* Sur Android/Chrome, un accept qui ne contient QUE des types
-                image/vidéo (même en liste explicite, pas seulement le
-                littéral "image/*") déclenche le sélecteur de photos système,
-                qui n'offre pas l'appareil photo — confirmé en testant sur
-                appareil réel le 2026-09-16 : ajouter application/pdf (déjà
-                accepté par le serveur pour ce champ, voir actions.ts) casse
-                cette condition et restaure Appareil photo, même
-                comportement que le champ Pièce d'identité juste en dessous. */}
-            <input
-              id="photo"
-              type="file"
-              name="photo"
-              accept="image/jpeg,image/png,application/pdf"
-              required
-              className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-ink" htmlFor="pieceIdentite">
-              Pièce d&apos;identité
-            </label>
-            <input
-              id="pieceIdentite"
-              type="file"
-              name="pieceIdentite"
-              accept="image/*,application/pdf"
-              required
-              className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
-            />
-          </div>
-          <ChampSelect label="Type de pièce" name="typePieceIdentite" required defaultValue="">
-            <option value="" disabled>
-              Choisir…
-            </option>
-            <option value="CARTE_IDENTITE">Carte d&apos;identité</option>
-            <option value="PASSEPORT">Passeport</option>
-            <option value="TITRE_SEJOUR">Titre de séjour</option>
-            <option value="PERMIS_CONDUIRE">Permis de conduire</option>
-            <option value="AUTRE">Autre</option>
-          </ChampSelect>
-          <Champ label="Date d'expiration" name="dateExpirationPiece" type="date" required />
+        <div>
+          <label className="mb-1 block text-sm font-medium text-ink" htmlFor="photo">
+            Photo d&apos;identité (facultatif)
+          </label>
+          {/* Sur Android/Chrome, un accept qui ne contient QUE des types
+              image/vidéo (même en liste explicite, pas seulement le
+              littéral "image/*") déclenche le sélecteur de photos système,
+              qui n'offre pas l'appareil photo — confirmé en testant sur
+              appareil réel le 2026-09-16 : ajouter application/pdf (déjà
+              accepté par le serveur pour ce champ, voir actions.ts) casse
+              cette condition et restaure Appareil photo. */}
+          <input
+            id="photo"
+            type="file"
+            name="photo"
+            accept="image/jpeg,image/png,application/pdf"
+            className="w-full rounded-md border border-border-strong bg-bg-elevated px-3 py-1.5 text-sm text-ink file:mr-2 file:rounded file:border-0 file:bg-pine-soft file:px-2 file:py-1 file:text-xs file:text-pine-strong"
+          />
         </div>
       </fieldset>
 

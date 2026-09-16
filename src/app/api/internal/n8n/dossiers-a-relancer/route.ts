@@ -8,7 +8,7 @@ import { verifierAuthN8n } from "@/lib/auth-n8n";
 const LIMITE = 25;
 const MS_PAR_JOUR = 24 * 60 * 60 * 1000;
 
-export type MotifRelance = "PAIEMENT" | "PIECE_IDENTITE";
+export type MotifRelance = "PAIEMENT";
 
 export type CandidatRelance = {
   dossierAnnuelId: string;
@@ -22,11 +22,10 @@ export type CandidatRelance = {
 };
 
 // Dossiers annuels à relancer : aucun paiement du tout apporté (tous moyens
-// confondus, quel que soit son état de traitement) et/ou pièce d'identité
-// manquante sur l'étudiant, au-delà du délai configuré (voir
-// ParametresRelance, Administration → Relances) depuis la création du
-// dossier ou la dernière relance. n8n indique ensuite le numéro de relance
-// envoyé via POST /api/internal/n8n/dossiers-annuels/[id]/relance-envoyee.
+// confondus, quel que soit son état de traitement), au-delà du délai
+// configuré (voir ParametresRelance, Administration → Relances) depuis la
+// création du dossier ou la dernière relance. n8n indique ensuite le numéro
+// de relance envoyé via POST /api/internal/n8n/dossiers-annuels/[id]/relance-envoyee.
 //
 // Volontairement pas basé sur le statut Soldé/Partiel/Impayé (voir
 // lib/paiements.ts#statutCotisation) : ce statut reflète l'encaissement réel
@@ -75,11 +74,6 @@ export async function GET(request: NextRequest) {
           nom: true,
           prenom: true,
           email: true,
-          documents: {
-            where: { type: "PIECE_IDENTITE" },
-            select: { id: true },
-            take: 1,
-          },
           responsables: {
             where: { email: { not: null } },
             orderBy: { creeLe: "asc" },
@@ -96,16 +90,13 @@ export async function GET(request: NextRequest) {
   const candidats: CandidatRelance[] = [];
   for (const dossier of dossiers) {
     const aucunPaiement = dossier.echeances.every((e) => e.paiements.length === 0);
-    const pieceIdentiteManquante = dossier.etudiant.documents.length === 0;
-    if (!aucunPaiement && !pieceIdentiteManquante) continue;
+    if (!aucunPaiement) continue;
 
     const responsable = dossier.etudiant.responsables[0];
     const destinataireEmail = responsable?.email ?? dossier.etudiant.email;
     if (!destinataireEmail) continue;
 
-    const motifs: MotifRelance[] = [];
-    if (aucunPaiement) motifs.push("PAIEMENT");
-    if (pieceIdentiteManquante) motifs.push("PIECE_IDENTITE");
+    const motifs: MotifRelance[] = ["PAIEMENT"];
 
     candidats.push({
       dossierAnnuelId: dossier.id,

@@ -4,7 +4,7 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Civilite, Sexe, StatutSignature, TypeDocument, TypePieceIdentite } from "@/generated/prisma/enums";
+import { Civilite, Sexe, StatutSignature, TypeDocument } from "@/generated/prisma/enums";
 import {
   enregistrerDocumentEtudiant,
   supprimerFichierDocument,
@@ -808,10 +808,6 @@ function estTypeDocument(valeur: string | null): valeur is TypeDocument {
   return !!valeur && valeur in TypeDocument;
 }
 
-function estTypePieceIdentite(valeur: string | null): valeur is TypePieceIdentite {
-  return !!valeur && valeur in TypePieceIdentite;
-}
-
 export async function televerserDocumentAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.DOCUMENTS, "ECRITURE");
 
@@ -829,15 +825,6 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
   // pour tout fichier arbitraire téléversé à la main.
   if (type === "DOSSIER_GENERE") {
     retour(etudiantId, "TYPE_RESERVE");
-  }
-
-  // Type de pièce + date d'expiration ne sont pertinents que pour
-  // PIECE_IDENTITE (voir statutDocumentsRequis), ignorés silencieusement
-  // sinon plutôt que de bloquer le téléversement d'un autre type de document.
-  const typePieceIdentite = champTexte(formData, "typePieceIdentite");
-  const dateExpirationBrute = champTexte(formData, "dateExpiration");
-  if (type === "PIECE_IDENTITE" && (!estTypePieceIdentite(typePieceIdentite) || !dateExpirationBrute)) {
-    retour(etudiantId, "PIECE_IDENTITE_INCOMPLETE");
   }
 
   // Contexte de nommage (voir lib/documents-nommage.ts) : l'année retenue
@@ -904,9 +891,6 @@ export async function televerserDocumentAction(formData: FormData): Promise<void
     data: {
       etudiantId,
       type,
-      typePieceIdentite: type === "PIECE_IDENTITE" ? (typePieceIdentite as TypePieceIdentite) : null,
-      dateExpiration:
-        type === "PIECE_IDENTITE" && dateExpirationBrute ? new Date(dateExpirationBrute) : null,
       numeroVersion: type === "DOSSIER_SIGNE" ? documentsDuMemeType.length + 1 : null,
       nomFichier,
       cheminRelatif,

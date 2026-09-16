@@ -10,7 +10,6 @@ import { randomUUID } from "node:crypto";
 // existants (`@/lib/documents`) dans le reste de l'appli.
 export {
   TYPE_DOCUMENT_LABELS,
-  TYPE_PIECE_IDENTITE_LABELS,
   TYPES_DOCUMENTS_REQUIS,
   TYPES_DOCUMENTS_GENERES,
   statutDocumentsRequis,

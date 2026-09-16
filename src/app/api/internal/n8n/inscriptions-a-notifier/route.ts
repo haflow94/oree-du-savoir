@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
     // est bien VALIDE, qu'au moins un DossierAnnuel est réellement SIGNEE
     // (statut posé uniquement par le webhook Documenso, jamais par l'app —
     // voir api/webhooks/documenso/route.ts) et que le dossier documentaire
-    // (pièce d'identité, photo, dossier signé) est complet. Un candidat qui
+    // (le dossier signé — voir TYPES_DOCUMENTS_REQUIS) est complet. Un candidat qui
     // échoue à ce contrôle est simplement exclu, jamais remonté en erreur :
     // rien à notifier tant que ces conditions ne sont pas réunies.
     const dossierReellementSigne = etudiant.dossiersAnnuels.some(

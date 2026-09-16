@@ -14,20 +14,14 @@ export const TYPE_DOCUMENT_LABELS: Record<string, string> = {
   AUTRE: "Autre",
 };
 
-export const TYPE_PIECE_IDENTITE_LABELS: Record<string, string> = {
-  CARTE_IDENTITE: "Carte d'identité",
-  PASSEPORT: "Passeport",
-  TITRE_SEJOUR: "Titre de séjour",
-  PERMIS_CONDUIRE: "Permis de conduire",
-  AUTRE: "Autre",
-};
-
 // Documents attendus pour considérer le dossier papier d'un étudiant comme
-// complet (pièce d'identité, photo, dossier signé — voir
-// Projet/01_Cahier_fonctionnel_MVP.md §Documents). Le dossier généré et le
-// justificatif de paiement ne comptent pas : ce sont des sorties de
-// l'application, pas des pièces à fournir par la famille.
-export const TYPES_DOCUMENTS_REQUIS = ["PIECE_IDENTITE", "PHOTO", "DOSSIER_SIGNE"] as const;
+// complet. Ni la pièce d'identité ni la photo ne sont plus une condition de
+// validation (décision association du 2026-09-16 : la pièce d'identité n'est
+// plus collectée du tout, la photo reste collectée mais ne bloque plus). Le
+// dossier généré et le justificatif de paiement ne comptent pas non plus :
+// ce sont des sorties de l'application, pas des pièces à fournir par la
+// famille.
+export const TYPES_DOCUMENTS_REQUIS = ["DOSSIER_SIGNE"] as const;
 
 // Types produits par l'appli elle-même (dossier rempli, reçu, attestation) —
 // à distinguer des documents fournis par la famille : ils ne comptent pas
@@ -47,9 +41,7 @@ type DocumentPourStatut = { type: string; dateExpiration?: Date | string | null 
 // Statut détaillé, type de document requis par type de document requis
 // (voir TYPES_DOCUMENTS_REQUIS) : MANQUANT si aucun document de ce type,
 // EXPIRE si le(s) document(s) présents ont tous une date d'expiration
-// dépassée (uniquement pertinent pour PIECE_IDENTITE — les autres types
-// n'ont pas de date d'expiration, donc toujours OK dès qu'un document
-// existe), OK sinon. Sert au détail affiché sur la fiche étudiant (bloc
+// dépassée, OK sinon. Sert au détail affiché sur la fiche étudiant (bloc
 // DOSSIER) et à dossierDocumentaireComplet ci-dessous.
 export function statutDocumentsRequis(
   documents: DocumentPourStatut[],

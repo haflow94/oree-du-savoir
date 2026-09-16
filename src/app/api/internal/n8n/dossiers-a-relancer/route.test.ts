@@ -33,7 +33,6 @@ function dossier(overrides: Record<string, unknown> = {}) {
       nom: "Dupont",
       prenom: "Léo",
       email: "leo@example.com",
-      documents: [{ id: "doc1" }],
       responsables: [],
     },
     ...overrides,
@@ -100,7 +99,6 @@ describe("GET /api/internal/n8n/dossiers-a-relancer", () => {
           nom: "Dupont",
           prenom: "Léo",
           email: "leo@example.com",
-          documents: [],
           responsables: [{ email: "parent@example.com", prenom: "Karim" }],
         },
       }),
@@ -111,37 +109,10 @@ describe("GET /api/internal/n8n/dossiers-a-relancer", () => {
     expect(corps.candidats[0].destinatairePrenom).toBe("Karim");
   });
 
-  it("n'exclut pas un dossier qui a un paiement mais dont la pièce d'identité manque", async () => {
+  it("exclut un dossier qui a au moins un paiement", async () => {
     findMany.mockResolvedValue([
       dossier({
         echeances: [{ paiements: [{ id: "p1" }] }],
-        etudiant: {
-          id: "et1",
-          nom: "Dupont",
-          prenom: "Léo",
-          email: "leo@example.com",
-          documents: [],
-          responsables: [],
-        },
-      }),
-    ]);
-    const reponse = await GET(requete(SECRET));
-    const corps = await reponse.json();
-    expect(corps.candidats[0].motifs).toEqual(["PIECE_IDENTITE"]);
-  });
-
-  it("exclut un dossier qui a au moins un paiement et sa pièce d'identité", async () => {
-    findMany.mockResolvedValue([
-      dossier({
-        echeances: [{ paiements: [{ id: "p1" }] }],
-        etudiant: {
-          id: "et1",
-          nom: "Dupont",
-          prenom: "Léo",
-          email: "leo@example.com",
-          documents: [{ id: "doc1" }],
-          responsables: [],
-        },
       }),
     ]);
     const reponse = await GET(requete(SECRET));
@@ -172,7 +143,6 @@ describe("GET /api/internal/n8n/dossiers-a-relancer", () => {
           nom: "Dupont",
           prenom: "Léo",
           email: null,
-          documents: [],
           responsables: [],
         },
       }),

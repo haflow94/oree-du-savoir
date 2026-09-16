@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { Civilite, Sexe, TypePieceIdentite } from "@/generated/prisma/enums";
+import { Civilite, Sexe } from "@/generated/prisma/enums";
 import { trouverDoublonEtudiant, LIBELLE_CRITERE_DOUBLON } from "@/lib/doublons-etudiant";
 import { estEmailValide, estTelephoneValide, estCodePostalValide, estMineur } from "@/lib/champs-formulaire";
 import { enregistrerDocumentEtudiant, nomFichierDocument } from "@/lib/documents";
@@ -34,10 +34,6 @@ function champCivilite(formData: FormData, nom: string): Civilite | null {
 function champSexe(formData: FormData, nom: string): Sexe | null {
   const valeur = champTexte(formData, nom);
   return valeur === "F" || valeur === "M" ? valeur : null;
-}
-
-function estTypePieceIdentite(valeur: string | null): valeur is TypePieceIdentite {
-  return !!valeur && valeur in TypePieceIdentite;
 }
 
 // Question obligatoire (voir Etudiant.autorisationPhotoVideo) : toujours
@@ -165,25 +161,13 @@ export async function preinscrireAction(
     };
   }
 
-  // Photo et pièce d'identité sont obligatoires sur ce formulaire public.
+  // Photo facultative sur ce formulaire public (décision association du
+  // 2026-09-16, même assouplissement que la pièce d'identité déjà retirée
+  // ci-dessus) : une famille sans photo sous la main ne doit pas être
+  // bloquée, le staff peut la récupérer plus tard sur la fiche étudiant.
   const photo = formData.get("photo");
-  const pieceIdentite = formData.get("pieceIdentite");
-  const typePieceIdentite = champTexte(formData, "typePieceIdentite");
-  const dateExpirationPieceBrute = champTexte(formData, "dateExpirationPiece");
-  const photoFournie = photo instanceof File && photo.size > 0;
-  const pieceIdentiteFournie = pieceIdentite instanceof File && pieceIdentite.size > 0;
-  if (!photoFournie || !pieceIdentiteFournie) {
-    return {
-      erreur: "La photo d'identité et la pièce d'identité sont obligatoires.",
-    };
-  }
-  if (!estTypePieceIdentite(typePieceIdentite) || !dateExpirationPieceBrute) {
-    return {
-      erreur: "Le type de pièce et sa date d'expiration sont obligatoires.",
-    };
-  }
 
-  // Validation du contenu réel des fichiers (magic bytes), jamais de
+  // Validation du contenu réel du fichier (magic bytes), jamais de
   // l'extension ou du `type` déclaré par le navigateur — whitelist stricte
   // PDF/JPEG/PNG (voir lib/fichiers-uploades.ts). Faite avant toute écriture
   // en base : un fichier invalide ne doit jamais laisser un étudiant
@@ -197,19 +181,6 @@ export async function preinscrireAction(
     contenuPhoto = Buffer.from(await photo.arrayBuffer());
     if (!detecterTypeMimeReel(contenuPhoto)) {
       return { erreur: "Le fichier de la photo doit être une image (JPEG, PNG) ou un PDF valide." };
-    }
-  }
-
-  let contenuPieceIdentite: Buffer | null = null;
-  if (pieceIdentiteFournie && pieceIdentite instanceof File) {
-    if (pieceIdentite.size > TAILLE_MAX_FICHIER_OCTETS) {
-      return {
-        erreur: `Le fichier de la pièce d'identité dépasse la taille maximale autorisée (${TAILLE_MAX_FICHIER_MO} Mo).`,
-      };
-    }
-    contenuPieceIdentite = Buffer.from(await pieceIdentite.arrayBuffer());
-    if (!detecterTypeMimeReel(contenuPieceIdentite)) {
-      return { erreur: "Le fichier de la pièce d'identité doit être une image (JPEG, PNG) ou un PDF valide." };
     }
   }
 
@@ -480,9 +451,9 @@ export async function preinscrireAction(
 
   // Ouverture best-effort du DossierAnnuel AVANT l'écriture des fichiers
   // ci-dessous (réordonnancement délibéré, voir lib/documents-nommage.ts —
-  // BUCKET_SANS_ANNEE) : range directement la photo/pièce d'identité sous la
-  // bonne année physique dans le cas nominal, plutôt que de les faire
-  // transiter par _A_CLASSER puis dépendre d'une réconciliation ultérieure.
+  // BUCKET_SANS_ANNEE) : range directement la photo sous la bonne année
+  // physique dans le cas nominal, plutôt que de la faire transiter par
+  // _A_CLASSER puis dépendre d'une réconciliation ultérieure.
   // Seul le critère NOM_DATE (même nom, prénom ET date de naissance, voir
   // doublons-etudiant.ts) désigne un probable VRAI doublon (double soumission
   // de la même personne) : dans ce seul cas, on attend que le staff tranche
@@ -527,7 +498,7 @@ export async function preinscrireAction(
   }
   const contexteEtudiant = { matricule: etudiant.matricule, nom, prenom, anneeLibelle };
 
-  // Écriture des fichiers hors transaction (même pattern que
+  // Écriture du fichier hors transaction (même pattern que
   // televerserDocumentAction, etudiants/[id]/actions.ts) : le fichier vit
   // sur DOCUMENTS_DIR, jamais en base, la ligne Document ne référence que le
   // chemin une fois le fichier réellement écrit. mimeType est toujours le
@@ -553,29 +524,6 @@ export async function preinscrireAction(
         cheminRelatif,
         mimeType: typeMimeReel,
         tailleOctets: contenuPhoto.length,
-      },
-    });
-  }
-  if (contenuPieceIdentite && pieceIdentite instanceof File) {
-    const typeMimeReel = detecterTypeMimeReel(contenuPieceIdentite)!;
-    const nomFichier = nomFichierDocument({
-      type: "PIECE_IDENTITE",
-      nom,
-      prenom,
-      extension: pieceIdentite.name.split(".").pop() || "bin",
-      suffixe: "",
-    });
-    const cheminRelatif = await enregistrerDocumentEtudiant(contexteEtudiant, nomFichier, contenuPieceIdentite);
-    await prisma.document.create({
-      data: {
-        etudiantId: etudiant.id,
-        type: "PIECE_IDENTITE",
-        typePieceIdentite: typePieceIdentite as TypePieceIdentite,
-        dateExpiration: new Date(dateExpirationPieceBrute!),
-        nomFichier,
-        cheminRelatif,
-        mimeType: typeMimeReel,
-        tailleOctets: contenuPieceIdentite.length,
       },
     });
   }

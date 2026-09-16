@@ -6,80 +6,49 @@ const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 describe("statutDocumentsRequis", () => {
   it("marque MANQUANT un type de document absent", () => {
     const statut = statutDocumentsRequis([]);
-    expect(statut.PIECE_IDENTITE).toBe("MANQUANT");
-    expect(statut.PHOTO).toBe("MANQUANT");
     expect(statut.DOSSIER_SIGNE).toBe("MANQUANT");
   });
 
-  it("marque OK un document présent sans date d'expiration (photo, dossier signé)", () => {
-    const statut = statutDocumentsRequis([{ type: "PHOTO" }]);
-    expect(statut.PHOTO).toBe("OK");
+  it("marque OK un document présent sans date d'expiration", () => {
+    const statut = statutDocumentsRequis([{ type: "DOSSIER_SIGNE" }]);
+    expect(statut.DOSSIER_SIGNE).toBe("OK");
   });
 
-  it("marque OK une pièce d'identité sans date d'expiration renseignée", () => {
-    const statut = statutDocumentsRequis([{ type: "PIECE_IDENTITE", dateExpiration: null }]);
-    expect(statut.PIECE_IDENTITE).toBe("OK");
-  });
-
-  it("marque OK une pièce d'identité dont la date d'expiration est future", () => {
+  it("marque EXPIRE un document requis dont la date d'expiration est passée (mécanisme générique)", () => {
     const statut = statutDocumentsRequis([
-      { type: "PIECE_IDENTITE", dateExpiration: d("2099-01-01") },
+      { type: "DOSSIER_SIGNE", dateExpiration: d("2000-01-01") },
     ]);
-    expect(statut.PIECE_IDENTITE).toBe("OK");
+    expect(statut.DOSSIER_SIGNE).toBe("EXPIRE");
   });
 
-  it("marque EXPIRE une pièce d'identité dont la date d'expiration est passée", () => {
+  it("marque OK dès qu'un des documents présents du type requis est valide", () => {
     const statut = statutDocumentsRequis([
-      { type: "PIECE_IDENTITE", dateExpiration: d("2000-01-01") },
+      { type: "DOSSIER_SIGNE", dateExpiration: d("2000-01-01") },
+      { type: "DOSSIER_SIGNE", dateExpiration: d("2099-01-01") },
     ]);
-    expect(statut.PIECE_IDENTITE).toBe("EXPIRE");
+    expect(statut.DOSSIER_SIGNE).toBe("OK");
   });
 
-  it("marque OK dès qu'une des pièces d'identité présentes est valide", () => {
+  it("ignore les documents PIECE_IDENTITE/PHOTO : ils ne sont plus une condition de validation", () => {
     const statut = statutDocumentsRequis([
       { type: "PIECE_IDENTITE", dateExpiration: d("2000-01-01") },
-      { type: "PIECE_IDENTITE", dateExpiration: d("2099-01-01") },
     ]);
-    expect(statut.PIECE_IDENTITE).toBe("OK");
+    expect(statut.DOSSIER_SIGNE).toBe("MANQUANT");
+    expect(Object.keys(statut)).toEqual(["DOSSIER_SIGNE"]);
   });
 });
 
 describe("dossierDocumentaireComplet", () => {
-  it("est incomplet si un type requis manque", () => {
-    expect(
-      dossierDocumentaireComplet([
-        { type: "PIECE_IDENTITE", dateExpiration: null },
-        { type: "PHOTO" },
-      ]),
-    ).toBe(false);
+  it("est incomplet si le dossier signé manque", () => {
+    expect(dossierDocumentaireComplet([{ type: "PIECE_IDENTITE" }, { type: "PHOTO" }])).toBe(false);
   });
 
-  it("est incomplet si la pièce d'identité présente est expirée", () => {
-    expect(
-      dossierDocumentaireComplet([
-        { type: "PIECE_IDENTITE", dateExpiration: d("2000-01-01") },
-        { type: "PHOTO" },
-        { type: "DOSSIER_SIGNE" },
-      ]),
-    ).toBe(false);
-  });
-
-  it("est complet quand tous les types requis sont présents et valides", () => {
-    expect(
-      dossierDocumentaireComplet([
-        { type: "PIECE_IDENTITE", dateExpiration: d("2099-01-01") },
-        { type: "PHOTO" },
-        { type: "DOSSIER_SIGNE" },
-      ]),
-    ).toBe(true);
+  it("est complet dès que le dossier signé est présent, même sans pièce d'identité ni photo", () => {
+    expect(dossierDocumentaireComplet([{ type: "DOSSIER_SIGNE" }])).toBe(true);
   });
 });
 
-const dossierComplet = [
-  { type: "PIECE_IDENTITE", dateExpiration: d("2099-01-01") },
-  { type: "PHOTO" },
-  { type: "DOSSIER_SIGNE" },
-];
+const dossierComplet = [{ type: "DOSSIER_SIGNE" }];
 
 describe("statutDossierAffiche", () => {
   it("VALIDE l'emporte toujours, même sans DossierAnnuel", () => {
@@ -158,17 +127,13 @@ describe("statutDossierAffiche", () => {
     ).toBe("A_COMPLETER");
   });
 
-  it("SIGNEE avec une pièce d'identité expirée reste 'À compléter'", () => {
+  it("SIGNEE avec une pièce d'identité ou une photo absentes reste 'Dossier signé' (plus des conditions)", () => {
     expect(
       statutDossierAffiche({
         statutInscription: "PREINSCRIT",
         statutSignature: "SIGNEE",
-        documents: [
-          { type: "PIECE_IDENTITE", dateExpiration: d("2000-01-01") },
-          { type: "PHOTO" },
-          { type: "DOSSIER_SIGNE" },
-        ],
+        documents: [{ type: "DOSSIER_SIGNE" }],
       }),
-    ).toBe("A_COMPLETER");
+    ).toBe("DOSSIER_SIGNE");
   });
 });
