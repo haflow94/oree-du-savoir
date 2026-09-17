@@ -400,13 +400,13 @@ export default async function DossierPaiementPage({
                         </p>
                       )}
                       {p.cheque && peutGererCheque && (
-                        <div className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
-                          <h4 className="mb-1.5 text-xs font-semibold uppercase text-ink-faint">
-                            Chèque — informations et statut
-                          </h4>
+                        <details className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
+                          <summary className="cursor-pointer text-xs font-semibold uppercase text-ink-faint hover:underline">
+                            Chèque — modifier les informations et le statut
+                          </summary>
                           <form
                             action={mettreAJourChequeAction}
-                            className="flex flex-wrap items-end gap-2"
+                            className="mt-2 flex flex-wrap items-end gap-2"
                           >
                             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                             <input type="hidden" name="chequeId" value={p.cheque.id} />
@@ -473,16 +473,16 @@ export default async function DossierPaiementPage({
                               Mettre à jour
                             </SubmitButton>
                           </form>
-                        </div>
+                        </details>
                       )}
                       {p.prelevement && peutGererCheque && (
-                        <div className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
-                          <h4 className="mb-1.5 text-xs font-semibold uppercase text-ink-faint">
-                            Prélèvement — informations et statut
-                          </h4>
+                        <details className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
+                          <summary className="cursor-pointer text-xs font-semibold uppercase text-ink-faint hover:underline">
+                            Prélèvement — modifier les informations et le statut
+                          </summary>
                           <form
                             action={mettreAJourPrelevementAction}
-                            className="flex flex-wrap items-end gap-2"
+                            className="mt-2 flex flex-wrap items-end gap-2"
                           >
                             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                             <input type="hidden" name="prelevementId" value={p.prelevement.id} />
@@ -549,7 +549,7 @@ export default async function DossierPaiementPage({
                               Mettre à jour
                             </SubmitButton>
                           </form>
-                        </div>
+                        </details>
                       )}
                     </li>
                     );
