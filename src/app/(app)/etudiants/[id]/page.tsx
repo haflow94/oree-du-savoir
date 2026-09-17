@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Trash2, Upload, Users } from "lucide-react";
+import { Mail, Plus, Trash2, Upload, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { Role } from "@/lib/roles";
@@ -979,7 +979,18 @@ export default async function EtudiantDetailPage({
               </div>
               <div>
                 <dt className={DT_CLASSES}>Email</dt>
-                <dd className={DD_CLASSES}>{etudiant.email || "—"}</dd>
+                <dd className={`${DD_CLASSES} flex flex-wrap items-center gap-x-3 gap-y-1`}>
+                  {etudiant.email || "—"}
+                  {etudiant.email && (
+                    <a
+                      href={`mailto:${etudiant.email}`}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-pine hover:underline"
+                    >
+                      <Mail size={14} aria-hidden />
+                      Envoyer un email
+                    </a>
+                  )}
+                </dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className={DT_CLASSES}>Adresse</dt>
@@ -1061,8 +1072,19 @@ export default async function EtudiantDetailPage({
                     <p className="text-sm font-medium text-ink">
                       {r.prenom} {r.nom} <span className="font-normal text-ink-muted">({r.lien})</span>
                     </p>
-                    <p className="mt-1 text-sm text-ink-muted">
-                      {r.telephone || "—"} · {r.email || "—"}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-muted">
+                      <span>
+                        {r.telephone || "—"} · {r.email || "—"}
+                      </span>
+                      {r.email && (
+                        <a
+                          href={`mailto:${r.email}`}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-pine hover:underline"
+                        >
+                          <Mail size={14} aria-hidden />
+                          Envoyer un email
+                        </a>
+                      )}
                     </p>
                   </div>
                 )}
