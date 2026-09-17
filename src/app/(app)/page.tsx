@@ -22,7 +22,6 @@ import { ROLE_LABELS, Role } from "@/lib/roles";
 import { peutAccederModule, Module } from "@/lib/permissions";
 import { formaterMontant, statutCotisation, MOYEN_LABELS } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
-import { dossierDocumentaireComplet } from "@/lib/documents";
 import { activitesARappeler } from "@/lib/activites";
 import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-preinscription";
 import { nombreNotificationsListeAttenteNonLues } from "@/lib/notifications-liste-attente";
@@ -123,7 +122,6 @@ export default async function DashboardPage() {
     nbPreinscrits,
     nbDoublonsPotentiels,
     nbNonReinscrits,
-    etudiantsValides,
     nbChequesEnAttente,
     nbSeancesNonValidees,
     affectationsEnAttente,
@@ -141,6 +139,17 @@ export default async function DashboardPage() {
           select: {
             montantDu: true,
             rembourse: true,
+            // Cycle du dossier généré jusqu'à la signature Documenso (voir
+            // enum StatutSignature) — un dossier signé une année passée ne
+            // dit rien sur celui de l'année active (contrairement à la
+            // pièce d'identité/photo, un dossier signé est spécifique à
+            // l'année qu'il représente), d'où ce calcul par
+            // DossierAnnuel plutôt que par présence d'un Document
+            // "DOSSIER_SIGNE" au niveau de l'étudiant (voir
+            // lib/documents-statut.ts, qui reste inchangé pour la fiche
+            // étudiant/page Documents/notification n8n — usages où le
+            // "toutes années confondues" reste voulu).
+            statutSignature: true,
             echeances: {
               select: {
                 paiements: {
@@ -170,16 +179,6 @@ export default async function DashboardPage() {
           },
         })
       : Promise.resolve(0),
-    // Documents non liés à une année scolaire (pièce du dossier papier de
-    // l'étudiant, pas un paiement) : on regarde tous les étudiants au
-    // dossier confirmé, indépendamment de l'année active.
-    prisma.etudiant.findMany({
-      where: { statutInscription: "VALIDE" },
-      // chequeId: null exclut la pièce d'identité d'un titulaire de chèque
-      // tiers, qui n'appartient pas au dossier documentaire de l'étudiant
-      // lui-même (voir Document.chequeId).
-      select: { documents: { where: { chequeId: null }, select: { type: true, dateExpiration: true } } },
-    }),
     // En attente de dépôt ou d'encaissement : un chèque qui traîne dans ces
     // deux statuts est le seul risque réel du cycle (perte, oubli), REJETE
     // n'en fait pas partie une fois traité.
@@ -273,9 +272,7 @@ export default async function DashboardPage() {
     return total + Math.max(0, du - encaisse);
   }, 0);
 
-  const nbDossiersIncomplets = etudiantsValides.filter(
-    (e) => !dossierDocumentaireComplet(e.documents),
-  ).length;
+  const nbDossiersNonSignes = dossiersAnnee.filter((d) => d.statutSignature !== "SIGNEE").length;
 
   const nbPaiementsIncomplets = dossiersAnnee.filter((d) => {
     const { statut } = statutCotisation(d);
@@ -469,14 +466,14 @@ export default async function DashboardPage() {
       visible: peutVoirEtudiants,
     },
     {
-      label: "Dossiers incomplets",
+      label: "Dossiers non signés",
       icon: Paperclip,
-      valeur: nbDossiersIncomplets,
+      valeur: nbDossiersNonSignes,
       href: "/etudiants",
       accent: "sky",
       sousTexte:
-        etudiantsValides.length > 0
-          ? `Dossier signé manquant, sur ${etudiantsValides.length} dossier${etudiantsValides.length > 1 ? "s" : ""} validé${etudiantsValides.length > 1 ? "s" : ""}`
+        dossiersAnnee.length > 0
+          ? `Sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} de l'année en cours`
           : undefined,
       visible: peutVoirEtudiants,
     },
