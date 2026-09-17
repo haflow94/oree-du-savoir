@@ -77,7 +77,7 @@ describe("statutDossierAffiche", () => {
     ).toBeNull();
   });
 
-  it("A_GENERER -> 'Reçue / en cours'", () => {
+  it("A_GENERER -> 'Génération à relancer'", () => {
     expect(
       statutDossierAffiche({
         statutInscription: "PREINSCRIT",
@@ -117,7 +117,7 @@ describe("statutDossierAffiche", () => {
     ).toBe("DOSSIER_SIGNE");
   });
 
-  it("SIGNEE mais dossier documentaire incomplet -> 'À compléter'", () => {
+  it("SIGNEE mais dossier documentaire incomplet -> 'PDF signé à retélécharger'", () => {
     expect(
       statutDossierAffiche({
         statutInscription: "PREINSCRIT",

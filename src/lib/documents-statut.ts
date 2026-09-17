@@ -94,12 +94,21 @@ export type StatutDossierAffiche =
 //   Documenso, mais la signature n'est pas encore confirmée reçue (elle
 //   peut être en train de signer ou avoir abandonné en route — les deux
 //   sont indiscernables ici, d'où un libellé qui ne prétend pas "en cours").
+// - RECUE_EN_COURS : la génération automatique du PDF a échoué à la
+//   préinscription (elle est normalement quasi-instantanée dans la même
+//   requête, voir preinscription/actions.ts) — action staff : relancer la
+//   génération depuis la fiche étudiant.
+// - A_COMPLETER : aujourd'hui déclenché par un seul cas (dossier signé sur
+//   Documenso, mais l'appli a échoué à en télécharger le PDF signé, voir
+//   api/webhooks/documenso/route.ts) — rien à voir avec un document
+//   manquant côté famille malgré l'ancien libellé, action staff :
+//   retélécharger le PDF depuis la fiche étudiant.
 export const STATUT_DOSSIER_LABELS: Record<StatutDossierAffiche, string> = {
-  RECUE_EN_COURS: "Reçue / en cours",
+  RECUE_EN_COURS: "Génération à relancer",
   A_VERIFIER: "En attente d'ouverture",
   ENVOYE_SIGNATURE: "En attente de signature",
   DOSSIER_SIGNE: "Dossier signé",
-  A_COMPLETER: "À compléter",
+  A_COMPLETER: "PDF signé à retélécharger",
   VALIDE_DEFINITIVEMENT: "Validé définitivement",
 };
 
@@ -107,7 +116,7 @@ export const STATUT_DOSSIER_VARIANTS: Record<
   StatutDossierAffiche,
   "success" | "warning" | "danger" | "info" | "neutral"
 > = {
-  RECUE_EN_COURS: "neutral",
+  RECUE_EN_COURS: "warning",
   A_VERIFIER: "warning",
   ENVOYE_SIGNATURE: "info",
   DOSSIER_SIGNE: "success",
