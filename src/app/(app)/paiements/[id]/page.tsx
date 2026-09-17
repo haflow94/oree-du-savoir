@@ -15,8 +15,6 @@ import {
   ajouterEcheanceAction,
   basculerRembourseAction,
   enregistrerPaiementAction,
-  mettreAJourChequeAction,
-  mettreAJourPrelevementAction,
   modifierMontantDuAction,
   modifierPaiementAction,
   modifierEcheanceAction,
@@ -48,8 +46,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   ECHEANCE_UTILISEE: "Impossible de supprimer : un paiement existe déjà sur cette échéance.",
   DOSSIER_INTROUVABLE: "Ce dossier n'existe plus.",
   PAIEMENT_INTROUVABLE: "Ce paiement n'existe plus.",
-  CHEQUE_INTROUVABLE: "Ce chèque n'existe plus.",
-  PRELEVEMENT_INTROUVABLE: "Ce prélèvement n'existe plus.",
   MONTANT_INVALIDE: "Le montant doit être un nombre strictement positif.",
   TRANSITION_INVALIDE: "Ce changement de statut n'est pas autorisé depuis le statut actuel.",
 };
@@ -333,32 +329,6 @@ export default async function DossierPaiementPage({
                         )}
                         {incident && <Badge variant="danger">{INCIDENT_LABELS[incident.type]}</Badge>}
                         {peutGererCheque && (
-                          <details>
-                            <summary className="cursor-pointer text-xs text-ink-faint hover:underline">
-                              Corriger le montant
-                            </summary>
-                            <form
-                              action={modifierPaiementAction}
-                              className="mt-1 flex items-center gap-2"
-                            >
-                              <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-                              <input type="hidden" name="paiementId" value={p.id} />
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                name="montant"
-                                required
-                                defaultValue={p.montant.toString()}
-                                className={`w-24 ${CONTROL_XS_CLASSES}`}
-                              />
-                              <SubmitButton variant="secondary" size="sm">
-                                OK
-                              </SubmitButton>
-                            </form>
-                          </details>
-                        )}
-                        {peutGererCheque && (
                           <>
                             <form id={`supprimer-paiement-${p.id}`} action={supprimerPaiementAction}>
                               <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
@@ -399,154 +369,170 @@ export default async function DossierPaiementPage({
                           )}
                         </p>
                       )}
-                      {p.cheque && peutGererCheque && (
-                        <details className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
-                          <summary className="cursor-pointer text-xs font-semibold uppercase text-ink-faint hover:underline">
-                            Chèque — modifier les informations et le statut
-                          </summary>
-                          <form
-                            action={mettreAJourChequeAction}
-                            className="mt-2 flex flex-wrap items-end gap-2"
-                          >
-                            <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-                            <input type="hidden" name="chequeId" value={p.cheque.id} />
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Banque</label>
-                              <input
-                                type="text"
-                                name="banque"
-                                defaultValue={p.cheque.banque ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>N° chèque</label>
-                              <input
-                                type="text"
-                                name="numero"
-                                defaultValue={p.cheque.numero ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Nom du titulaire</label>
-                              <input
-                                type="text"
-                                name="titulaireNom"
-                                defaultValue={p.cheque.titulaireNom ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Prénom du titulaire</label>
-                              <input
-                                type="text"
-                                name="titulairePrenom"
-                                defaultValue={p.cheque.titulairePrenom ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Statut</label>
-                              <select
-                                name="statut"
-                                defaultValue={p.cheque.statut}
-                                className={CONTROL_XS_CLASSES}
-                              >
-                                {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
-                                  <option key={valeur} value={valeur}>
-                                    {label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Motif si rejeté</label>
-                              <input
-                                type="text"
-                                name="motifRejet"
-                                defaultValue={p.cheque.motifRejet ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <SubmitButton variant="secondary" size="sm">
-                              Mettre à jour
-                            </SubmitButton>
-                          </form>
-                        </details>
+                      {p.prelevement && (
+                        <p className="mt-1 text-xs text-ink-faint">
+                          {p.prelevement.iban && `IBAN ${p.prelevement.iban}`}
+                          {p.prelevement.iban && p.prelevement.bic && " · "}
+                          {p.prelevement.bic && `BIC ${p.prelevement.bic}`}
+                          {(p.prelevement.iban || p.prelevement.bic) && p.prelevement.titulaire && " · "}
+                          {p.prelevement.titulaire && `Titulaire : ${p.prelevement.titulaire}`}
+                          {(p.prelevement.iban || p.prelevement.bic || p.prelevement.titulaire) &&
+                            p.prelevement.referenceMandat &&
+                            " · "}
+                          {p.prelevement.referenceMandat && `Mandat ${p.prelevement.referenceMandat}`}
+                        </p>
                       )}
-                      {p.prelevement && peutGererCheque && (
-                        <details className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
-                          <summary className="cursor-pointer text-xs font-semibold uppercase text-ink-faint hover:underline">
-                            Prélèvement — modifier les informations et le statut
+                      {peutGererCheque && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-xs text-ink-faint hover:underline">
+                            Modifier ce paiement
                           </summary>
                           <form
-                            action={mettreAJourPrelevementAction}
-                            className="mt-2 flex flex-wrap items-end gap-2"
+                            action={modifierPaiementAction}
+                            className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-border bg-bg-sunken/60 p-2"
                           >
                             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
-                            <input type="hidden" name="prelevementId" value={p.prelevement.id} />
+                            <input type="hidden" name="paiementId" value={p.id} />
                             <div>
-                              <label className={LABEL_XS_CLASSES}>IBAN</label>
+                              <label className={LABEL_XS_CLASSES}>Montant</label>
                               <input
-                                type="text"
-                                name="iban"
-                                defaultValue={p.prelevement.iban ?? ""}
-                                className={CONTROL_XS_CLASSES}
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                name="montant"
+                                required
+                                defaultValue={p.montant.toString()}
+                                className={`w-24 ${CONTROL_XS_CLASSES}`}
                               />
                             </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>BIC</label>
-                              <input
-                                type="text"
-                                name="bic"
-                                defaultValue={p.prelevement.bic ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Titulaire</label>
-                              <input
-                                type="text"
-                                name="titulaire"
-                                defaultValue={p.prelevement.titulaire ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Réf. mandat</label>
-                              <input
-                                type="text"
-                                name="referenceMandat"
-                                defaultValue={p.prelevement.referenceMandat ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Statut</label>
-                              <select
-                                name="statut"
-                                defaultValue={p.prelevement.statut}
-                                className={CONTROL_XS_CLASSES}
-                              >
-                                {Object.entries(STATUT_PRELEVEMENT_LABELS).map(([valeur, label]) => (
-                                  <option key={valeur} value={valeur}>
-                                    {label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className={LABEL_XS_CLASSES}>Motif si rejeté</label>
-                              <input
-                                type="text"
-                                name="motifRejet"
-                                defaultValue={p.prelevement.motifRejet ?? ""}
-                                className={CONTROL_XS_CLASSES}
-                              />
-                            </div>
+                            {p.cheque && (
+                              <>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Banque</label>
+                                  <input
+                                    type="text"
+                                    name="banque"
+                                    defaultValue={p.cheque.banque ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>N° chèque</label>
+                                  <input
+                                    type="text"
+                                    name="numero"
+                                    defaultValue={p.cheque.numero ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Nom du titulaire</label>
+                                  <input
+                                    type="text"
+                                    name="titulaireNom"
+                                    defaultValue={p.cheque.titulaireNom ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Prénom du titulaire</label>
+                                  <input
+                                    type="text"
+                                    name="titulairePrenom"
+                                    defaultValue={p.cheque.titulairePrenom ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Statut</label>
+                                  <select
+                                    name="statut"
+                                    defaultValue={p.cheque.statut}
+                                    className={CONTROL_XS_CLASSES}
+                                  >
+                                    {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
+                                      <option key={valeur} value={valeur}>
+                                        {label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Motif si rejeté</label>
+                                  <input
+                                    type="text"
+                                    name="motifRejet"
+                                    defaultValue={p.cheque.motifRejet ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                              </>
+                            )}
+                            {p.prelevement && (
+                              <>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>IBAN</label>
+                                  <input
+                                    type="text"
+                                    name="iban"
+                                    defaultValue={p.prelevement.iban ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>BIC</label>
+                                  <input
+                                    type="text"
+                                    name="bic"
+                                    defaultValue={p.prelevement.bic ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Titulaire</label>
+                                  <input
+                                    type="text"
+                                    name="titulaire"
+                                    defaultValue={p.prelevement.titulaire ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Réf. mandat</label>
+                                  <input
+                                    type="text"
+                                    name="referenceMandat"
+                                    defaultValue={p.prelevement.referenceMandat ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Statut</label>
+                                  <select
+                                    name="statut"
+                                    defaultValue={p.prelevement.statut}
+                                    className={CONTROL_XS_CLASSES}
+                                  >
+                                    {Object.entries(STATUT_PRELEVEMENT_LABELS).map(([valeur, label]) => (
+                                      <option key={valeur} value={valeur}>
+                                        {label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className={LABEL_XS_CLASSES}>Motif si rejeté</label>
+                                  <input
+                                    type="text"
+                                    name="motifRejet"
+                                    defaultValue={p.prelevement.motifRejet ?? ""}
+                                    className={CONTROL_XS_CLASSES}
+                                  />
+                                </div>
+                              </>
+                            )}
                             <SubmitButton variant="secondary" size="sm">
-                              Mettre à jour
+                              Enregistrer les modifications
                             </SubmitButton>
                           </form>
                         </details>

@@ -3,14 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const echeanceCreate = vi.fn();
 const echeanceFindUnique = vi.fn();
 const paiementFindUnique = vi.fn();
+const paiementUpdate = vi.fn();
 const paiementDelete = vi.fn();
 const dossierAnnuelFindUnique = vi.fn();
 const dossierAnnuelUpdate = vi.fn();
-const chequeFindUnique = vi.fn();
 const chequeUpdate = vi.fn();
-const prelevementFindUnique = vi.fn();
 const prelevementUpdate = vi.fn();
 const journalAuditCreate = vi.fn();
+const mouvementTresorerieUpdateMany = vi.fn();
 const mouvementTresorerieDeleteMany = vi.fn();
 const transaction = vi.fn((operations: unknown[]) => Promise.all(operations));
 
@@ -22,23 +22,18 @@ vi.mock("@/lib/prisma", () => ({
     },
     paiement: {
       findUnique: (...args: unknown[]) => paiementFindUnique(...args),
+      update: (...args: unknown[]) => paiementUpdate(...args),
       delete: (...args: unknown[]) => paiementDelete(...args),
     },
     dossierAnnuel: {
       findUnique: (...args: unknown[]) => dossierAnnuelFindUnique(...args),
       update: (...args: unknown[]) => dossierAnnuelUpdate(...args),
     },
-    cheque: {
-      findUnique: (...args: unknown[]) => chequeFindUnique(...args),
-      update: (...args: unknown[]) => chequeUpdate(...args),
-    },
-    prelevement: {
-      findUnique: (...args: unknown[]) => prelevementFindUnique(...args),
-      update: (...args: unknown[]) => prelevementUpdate(...args),
-    },
+    cheque: { update: (...args: unknown[]) => chequeUpdate(...args) },
+    prelevement: { update: (...args: unknown[]) => prelevementUpdate(...args) },
     journalAudit: { create: (...args: unknown[]) => journalAuditCreate(...args) },
     mouvementTresorerie: {
-      updateMany: vi.fn(),
+      updateMany: (...args: unknown[]) => mouvementTresorerieUpdateMany(...args),
       deleteMany: (...args: unknown[]) => mouvementTresorerieDeleteMany(...args),
     },
     $transaction: (operations: unknown[]) => transaction(operations),
@@ -77,8 +72,7 @@ vi.mock("next/navigation", () => ({
 const {
   ajouterEcheanceAction,
   modifierMontantDuAction,
-  mettreAJourChequeAction,
-  mettreAJourPrelevementAction,
+  modifierPaiementAction,
   supprimerPaiementAction,
 } = await import("./actions");
 
@@ -134,163 +128,115 @@ describe("validation des montants financiers", () => {
   });
 });
 
-describe("transitions de statut de chèque", () => {
+describe("modifierPaiementAction — point de correction unique (montant + chèque/prélèvement)", () => {
   afterEach(() => vi.clearAllMocks());
 
-  function cheque(statut: string) {
-    return {
-      id: "cheq1",
-      statut,
-      paiement: { echeance: { dossierAnnuelId: "dos1" } },
-    };
-  }
-
-  it("refuse un saut d'étape RECU -> ENCAISSE", async () => {
-    chequeFindUnique.mockResolvedValue(cheque("RECU"));
+  it("corrige uniquement le montant d'un paiement en espèces (pas de cheque/prelevement)", async () => {
+    paiementFindUnique.mockResolvedValue({
+      id: "pai1",
+      montant: { toString: () => "100" },
+      echeance: { dossierAnnuelId: "dos1" },
+      cheque: null,
+      prelevement: null,
+    });
     await expect(
-      mettreAJourChequeAction(form({ dossierAnnuelId: "dos1", chequeId: "cheq1", statut: "ENCAISSE" })),
-    ).rejects.toMatchObject({ url: "/paiements/dos1?error=TRANSITION_INVALIDE" });
-    expect(chequeUpdate).not.toHaveBeenCalled();
-    expect(journalAuditCreate).not.toHaveBeenCalled();
-  });
-
-  it("refuse de faire repartir en arrière un chèque déjà encaissé (statut définitif)", async () => {
-    chequeFindUnique.mockResolvedValue(cheque("ENCAISSE"));
-    await expect(
-      mettreAJourChequeAction(form({ dossierAnnuelId: "dos1", chequeId: "cheq1", statut: "RECU" })),
-    ).rejects.toMatchObject({ url: "/paiements/dos1?error=TRANSITION_INVALIDE" });
-    expect(chequeUpdate).not.toHaveBeenCalled();
-  });
-
-  it("autorise RECU -> DEPOSE et journalise le changement", async () => {
-    chequeFindUnique.mockResolvedValue(cheque("RECU"));
-    await expect(
-      mettreAJourChequeAction(form({ dossierAnnuelId: "dos1", chequeId: "cheq1", statut: "DEPOSE" })),
+      modifierPaiementAction(form({ dossierAnnuelId: "dos1", paiementId: "pai1", montant: "120" })),
     ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
-    expect(chequeUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ statut: "DEPOSE" }) }),
-    );
-    expect(journalAuditCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          action: "changement_statut_cheque",
-          details: { avant: "RECU", apres: "DEPOSE" },
-        }),
-      }),
-    );
-  });
-
-  it("resoumettre le même statut est un no-op silencieux, sans écriture ni audit", async () => {
-    chequeFindUnique.mockResolvedValue(cheque("DEPOSE"));
-    await expect(
-      mettreAJourChequeAction(form({ dossierAnnuelId: "dos1", chequeId: "cheq1", statut: "DEPOSE" })),
-    ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
+    expect(paiementUpdate).toHaveBeenCalledWith({ where: { id: "pai1" }, data: { montant: "120" } });
+    expect(mouvementTresorerieUpdateMany).toHaveBeenCalledWith({
+      where: { paiementId: "pai1" },
+      data: { montant: "120" },
+    });
     expect(chequeUpdate).not.toHaveBeenCalled();
-    expect(journalAuditCreate).not.toHaveBeenCalled();
-  });
-});
-
-describe("transitions de statut de prélèvement", () => {
-  afterEach(() => vi.clearAllMocks());
-
-  function prelevement(statut: string) {
-    return {
-      id: "prel1",
-      statut,
-      paiement: { echeance: { dossierAnnuelId: "dos1" } },
-    };
-  }
-
-  it("refuse de faire repartir en arrière un prélèvement déjà rejeté (statut définitif)", async () => {
-    prelevementFindUnique.mockResolvedValue(prelevement("REJETE"));
-    await expect(
-      mettreAJourPrelevementAction(
-        form({ dossierAnnuelId: "dos1", prelevementId: "prel1", statut: "EMIS" }),
-      ),
-    ).rejects.toMatchObject({ url: "/paiements/dos1?error=TRANSITION_INVALIDE" });
     expect(prelevementUpdate).not.toHaveBeenCalled();
   });
 
-  it("autorise EMIS -> ENCAISSE et journalise le changement", async () => {
-    prelevementFindUnique.mockResolvedValue(prelevement("EMIS"));
-    await expect(
-      mettreAJourPrelevementAction(
-        form({ dossierAnnuelId: "dos1", prelevementId: "prel1", statut: "ENCAISSE" }),
-      ),
-    ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
-    expect(prelevementUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ statut: "ENCAISSE" }) }),
-    );
-    expect(journalAuditCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          action: "changement_statut_prelevement",
-          details: { avant: "EMIS", apres: "ENCAISSE" },
-        }),
-      }),
-    );
-  });
-});
-
-describe("correction des informations d'un chèque/prélèvement sans changement de statut", () => {
-  afterEach(() => vi.clearAllMocks());
-
-  it("met à jour la banque/le numéro sans exiger de transition de statut", async () => {
-    chequeFindUnique.mockResolvedValue({
-      id: "cheq1",
-      statut: "RECU",
-      banque: "Ancienne banque",
-      numero: "111",
-      titulaireNom: null,
-      titulairePrenom: null,
-      paiement: { echeance: { dossierAnnuelId: "dos1" } },
+  it("corrige montant + infos bancaires + statut d'un chèque en une seule soumission", async () => {
+    paiementFindUnique.mockResolvedValue({
+      id: "pai1",
+      montant: { toString: () => "100" },
+      echeance: { dossierAnnuelId: "dos1" },
+      cheque: { id: "cheq1", statut: "RECU" },
+      prelevement: null,
     });
     await expect(
-      mettreAJourChequeAction(
+      modifierPaiementAction(
         form({
           dossierAnnuelId: "dos1",
-          chequeId: "cheq1",
-          statut: "RECU",
+          paiementId: "pai1",
+          montant: "100",
           banque: "Nouvelle banque",
           numero: "222",
+          statut: "DEPOSE",
         }),
       ),
     ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
     expect(chequeUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ banque: "Nouvelle banque", numero: "222", statut: "RECU" }),
+        data: expect.objectContaining({ banque: "Nouvelle banque", numero: "222", statut: "DEPOSE" }),
       }),
     );
     expect(journalAuditCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ action: "modification_infos_cheque" }),
+        data: expect.objectContaining({
+          details: { statutChequeAvant: "RECU", statutChequeApres: "DEPOSE" },
+        }),
       }),
     );
   });
 
-  it("met à jour l'IBAN d'un prélèvement sans changement de statut", async () => {
-    prelevementFindUnique.mockResolvedValue({
-      id: "prel1",
-      statut: "EMIS",
-      iban: "FR001",
-      bic: null,
-      titulaire: null,
-      referenceMandat: null,
-      paiement: { echeance: { dossierAnnuelId: "dos1" } },
+  it("refuse un saut d'étape de statut de chèque (RECU -> ENCAISSE) sans rien écrire", async () => {
+    paiementFindUnique.mockResolvedValue({
+      id: "pai1",
+      montant: { toString: () => "100" },
+      echeance: { dossierAnnuelId: "dos1" },
+      cheque: { id: "cheq1", statut: "RECU" },
+      prelevement: null,
     });
     await expect(
-      mettreAJourPrelevementAction(
-        form({ dossierAnnuelId: "dos1", prelevementId: "prel1", statut: "EMIS", iban: "FR002" }),
+      modifierPaiementAction(
+        form({ dossierAnnuelId: "dos1", paiementId: "pai1", montant: "100", statut: "ENCAISSE" }),
+      ),
+    ).rejects.toMatchObject({ url: "/paiements/dos1?error=TRANSITION_INVALIDE" });
+    expect(chequeUpdate).not.toHaveBeenCalled();
+    expect(paiementUpdate).not.toHaveBeenCalled();
+  });
+
+  it("corrige l'IBAN d'un prélèvement sans changement de statut", async () => {
+    paiementFindUnique.mockResolvedValue({
+      id: "pai1",
+      montant: { toString: () => "100" },
+      echeance: { dossierAnnuelId: "dos1" },
+      cheque: null,
+      prelevement: { id: "prel1", statut: "EMIS" },
+    });
+    await expect(
+      modifierPaiementAction(
+        form({ dossierAnnuelId: "dos1", paiementId: "pai1", montant: "100", iban: "FR002", statut: "EMIS" }),
       ),
     ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
     expect(prelevementUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ iban: "FR002" }) }),
+      expect.objectContaining({ data: expect.objectContaining({ iban: "FR002", statut: "EMIS" }) }),
     );
     expect(journalAuditCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ action: "modification_infos_prelevement" }),
-      }),
+      expect.objectContaining({ data: expect.objectContaining({ details: {} }) }),
     );
+  });
+
+  it("refuse de faire repartir en arrière un prélèvement déjà rejeté (statut définitif)", async () => {
+    paiementFindUnique.mockResolvedValue({
+      id: "pai1",
+      montant: { toString: () => "100" },
+      echeance: { dossierAnnuelId: "dos1" },
+      cheque: null,
+      prelevement: { id: "prel1", statut: "REJETE" },
+    });
+    await expect(
+      modifierPaiementAction(
+        form({ dossierAnnuelId: "dos1", paiementId: "pai1", montant: "100", statut: "EMIS" }),
+      ),
+    ).rejects.toMatchObject({ url: "/paiements/dos1?error=TRANSITION_INVALIDE" });
+    expect(prelevementUpdate).not.toHaveBeenCalled();
   });
 });
 
