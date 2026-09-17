@@ -345,7 +345,7 @@ export default async function DossierPaiementPage({
                         )}
                       </div>
                       {p.cheque && (
-                        <p className="mt-1 text-xs text-ink-faint">
+                        <p className="mt-1 text-sm font-medium text-ink">
                           {p.cheque.banque}
                           {p.cheque.banque && p.cheque.numero && " · "}
                           {p.cheque.numero && `N° ${p.cheque.numero}`}
@@ -370,7 +370,7 @@ export default async function DossierPaiementPage({
                         </p>
                       )}
                       {p.prelevement && (
-                        <p className="mt-1 text-xs text-ink-faint">
+                        <p className="mt-1 text-sm font-medium text-ink">
                           {p.prelevement.iban && `IBAN ${p.prelevement.iban}`}
                           {p.prelevement.iban && p.prelevement.bic && " · "}
                           {p.prelevement.bic && `BIC ${p.prelevement.bic}`}
