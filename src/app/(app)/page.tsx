@@ -5,7 +5,6 @@ import {
   Users,
   GraduationCap,
   CreditCard,
-  CircleAlert,
   Receipt,
   FolderOpen,
   UserSearch,
@@ -21,7 +20,7 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, Role } from "@/lib/roles";
 import { peutAccederModule, Module } from "@/lib/permissions";
-import { formaterMontant, statutCotisation, MOYEN_LABELS } from "@/lib/paiements";
+import { formaterMontant, MOYEN_LABELS } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { activitesARappeler } from "@/lib/activites";
 import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-preinscription";
@@ -275,14 +274,6 @@ export default async function DashboardPage() {
 
   const nbDossiersNonSignes = dossiersAnnee.filter((d) => d.statutSignature !== "SIGNEE").length;
 
-  // Séparés plutôt qu'agrégés (voir Metric ci-dessous) : "Impayé" (aucun
-  // paiement reçu, une famille qui n'a encore rien réglé) et "Partiel" (un
-  // règlement déjà commencé mais pas soldé) appellent des suites très
-  // différentes pour le trésorier — un seul chiffre agrégé masquait lequel
-  // des deux dominait.
-  const nbJamaisPayes = dossiersAnnee.filter((d) => statutCotisation(d).statut === "Impayé").length;
-  const nbPaiementsPartiels = dossiersAnnee.filter((d) => statutCotisation(d).statut === "Partiel").length;
-
   // --- Sparklines de tendance (14 derniers jours), une par carte à laquelle
   // une lecture de rythme récent ajoute du sens (voir components/ui/sparkline.tsx).
   const sparklineEncaissements = sommeQuotidienne(
@@ -436,30 +427,6 @@ export default async function DashboardPage() {
       sousTexte:
         dossiersAnnee.length > 0 ? `Sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} cette année` : undefined,
       sparkline: sparklineEncaissements,
-      visible: peutVoirPaiements,
-    },
-    {
-      label: "Jamais payé",
-      icon: CircleAlert,
-      valeur: nbJamaisPayes,
-      href: "/paiements",
-      accent: "rust",
-      sousTexte:
-        dossiersAnnee.length > 0
-          ? `Aucun règlement reçu, sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} de l'année`
-          : undefined,
-      visible: peutVoirPaiements,
-    },
-    {
-      label: "Paiement partiel",
-      icon: Receipt,
-      valeur: nbPaiementsPartiels,
-      href: "/paiements",
-      accent: "ochre",
-      sousTexte:
-        dossiersAnnee.length > 0
-          ? `Règlement commencé mais pas soldé, sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""}`
-          : undefined,
       visible: peutVoirPaiements,
     },
     {
