@@ -125,6 +125,7 @@ export default async function InscriptionsPage({
       // borderline où un second aurait été ouvert à la main.
       dossiersAnnuels: { orderBy: { creeLe: "desc" }, take: 1, select: { statutSignature: true } },
       documents: { where: { chequeId: null }, select: { type: true, dateExpiration: true } },
+      sectionSouhaitee: { select: { nom: true } },
     },
   });
 
@@ -284,6 +285,7 @@ export default async function InscriptionsPage({
         <TableHead>
           <th className="px-4 py-3">Nom</th>
           <th className="px-4 py-3">Reçu le</th>
+          <th className="px-4 py-3">Section</th>
           <th className="px-4 py-3">Statut dossier</th>
           <th className="px-4 py-3">Remarque</th>
         </TableHead>
@@ -304,8 +306,10 @@ export default async function InscriptionsPage({
                 )}
               </td>
               <td className="px-4 py-3 text-ink-muted">
-                {new Date(e.creeLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                {new Date(e.creeLe).toLocaleDateString("fr-FR")} à{" "}
+                {new Date(e.creeLe).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
               </td>
+              <td className="px-4 py-3 text-ink-muted">{e.sectionSouhaitee?.nom ?? "—"}</td>
               <td className="px-4 py-3">
                 {e.statutDossier ? (
                   <Badge variant={STATUT_DOSSIER_VARIANTS[e.statutDossier]}>
@@ -320,7 +324,7 @@ export default async function InscriptionsPage({
           ))}
           {preinscritsAffiches.length === 0 && (
             <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-ink-faint">
+              <td colSpan={5} className="px-4 py-8 text-center text-ink-faint">
                 {recherche || statutDossierFiltre
                   ? "Aucune préinscription ne correspond à cette recherche/ce filtre."
                   : "Aucune préinscription en attente."}
