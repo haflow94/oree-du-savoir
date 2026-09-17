@@ -87,7 +87,7 @@ describe("statutDossierAffiche", () => {
     ).toBe("RECUE_EN_COURS");
   });
 
-  it("A_VERIFIER -> 'À vérifier'", () => {
+  it("A_VERIFIER -> 'En attente d'ouverture'", () => {
     expect(
       statutDossierAffiche({
         statutInscription: "PREINSCRIT",
@@ -97,7 +97,7 @@ describe("statutDossierAffiche", () => {
     ).toBe("A_VERIFIER");
   });
 
-  it("ENVOYEE_SIGNATURE -> 'Envoyé en signature'", () => {
+  it("ENVOYEE_SIGNATURE -> 'En attente de signature'", () => {
     expect(
       statutDossierAffiche({
         statutInscription: "PREINSCRIT",

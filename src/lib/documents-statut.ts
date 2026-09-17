@@ -83,10 +83,21 @@ export type StatutDossierAffiche =
   | "A_COMPLETER"
   | "VALIDE_DEFINITIVEMENT";
 
+// Libellés volontairement explicites sur QUI attend QUOI (retour d'un
+// échange avec le staff : "À vérifier"/"Envoyé en signature" laissaient
+// deviner un geste du staff ou de Documenso, sans dire clairement que
+// c'est la famille qui n'a encore rien fait à ce stade) :
+// - A_VERIFIER : le dossier a été généré et le mail envoyé, mais la
+//   famille n'a pas encore ouvert le lien / cliqué "Consulter et signer"
+//   (voir dossier/[token]/actions.ts#confirmerEtSignerAction).
+// - ENVOYE_SIGNATURE : la famille a cliqué et a été redirigée vers
+//   Documenso, mais la signature n'est pas encore confirmée reçue (elle
+//   peut être en train de signer ou avoir abandonné en route — les deux
+//   sont indiscernables ici, d'où un libellé qui ne prétend pas "en cours").
 export const STATUT_DOSSIER_LABELS: Record<StatutDossierAffiche, string> = {
   RECUE_EN_COURS: "Reçue / en cours",
-  A_VERIFIER: "À vérifier",
-  ENVOYE_SIGNATURE: "Envoyé en signature",
+  A_VERIFIER: "En attente d'ouverture",
+  ENVOYE_SIGNATURE: "En attente de signature",
   DOSSIER_SIGNE: "Dossier signé",
   A_COMPLETER: "À compléter",
   VALIDE_DEFINITIVEMENT: "Validé définitivement",
