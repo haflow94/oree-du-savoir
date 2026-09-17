@@ -20,7 +20,7 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, Role } from "@/lib/roles";
 import { peutAccederModule, Module } from "@/lib/permissions";
-import { formaterMontant, MOYEN_LABELS } from "@/lib/paiements";
+import { formaterMontant, totalEncaisse, MOYEN_LABELS } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { activitesARappeler } from "@/lib/activites";
 import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-preinscription";
@@ -264,11 +264,13 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
   ]);
 
+  // totalEncaisse() (pas une simple somme des montants) : exclut les chèques
+  // et prélèvements REJETE, sans quoi un chèque qui rebondit continuerait à
+  // réduire ce total comme si l'argent avait été reçu (voir la fiche
+  // dossier/statutCotisation, qui utilise la même fonction).
   const resteAEncaisser = dossiersAnnee.reduce((total, d) => {
     const du = Number.parseFloat(d.montantDu.toString());
-    const encaisse = d.echeances
-      .flatMap((e) => e.paiements)
-      .reduce((t, p) => t + Number.parseFloat(p.montant.toString()), 0);
+    const encaisse = totalEncaisse(d.echeances.flatMap((e) => e.paiements));
     return total + Math.max(0, du - encaisse);
   }, 0);
 
@@ -416,7 +418,15 @@ export default async function DashboardPage() {
   // le typage contextuel des littéraux `accent` en `string` générique) :
   // voir metrics = toutesLesMetrics.filter(...) juste après.
   const toutesLesMetrics: Metric[] = [
-    { label: "Étudiants", icon: Users, valeur: nbEtudiants, href: "/etudiants", accent: "sage", visible: peutVoirEtudiants },
+    {
+      label: "Étudiants",
+      icon: Users,
+      valeur: nbEtudiants,
+      href: "/etudiants",
+      accent: "sage",
+      sousTexte: "Total toutes années confondues",
+      visible: peutVoirEtudiants,
+    },
     { label: "Classes", icon: GraduationCap, valeur: nbClasses, href: "/classes", accent: "sage", visible: peutVoirListesAttente },
     {
       label: "Reste à encaisser",
