@@ -92,10 +92,7 @@ export default async function NouveauDossierPage({
   return (
     <div className="max-w-lg space-y-6">
       <div>
-        <BackLink
-          href={retourHref}
-          label={peutVoirEtudiant ? "Retour à la fiche" : "Paiements"}
-        />
+        <BackLink href="/paiements" label="Paiements" />
         <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">
           Nouveau dossier de paiement
         </h1>

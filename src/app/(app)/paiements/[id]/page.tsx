@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import {
   INCIDENT_LABELS,
@@ -105,12 +106,18 @@ export default async function DossierPaiementPage({
     <div className="max-w-5xl space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <BackLink
-            href={peutVoirEtudiant ? `/etudiants/${dossier.etudiantId}` : "/paiements"}
-            label={peutVoirEtudiant ? `${dossier.etudiant.prenom} ${dossier.etudiant.nom}` : "Paiements"}
-          />
+          <BackLink href="/paiements" label="Paiements" />
           <h1 className="mt-2 flex items-center gap-2 font-display text-3xl font-semibold text-pine-strong">
-            {dossier.etudiant.prenom} {dossier.etudiant.nom} — {dossier.anneeScolaire.libelle}
+            {peutVoirEtudiant ? (
+              <Link href={`/etudiants/${dossier.etudiantId}`} className="hover:underline">
+                {dossier.etudiant.prenom} {dossier.etudiant.nom}
+              </Link>
+            ) : (
+              <>
+                {dossier.etudiant.prenom} {dossier.etudiant.nom}
+              </>
+            )}
+            {" "}— {dossier.anneeScolaire.libelle}
             <Badge variant={STATUT_COTISATION_VARIANTS[statut]}>{statut}</Badge>
           </h1>
         </div>
