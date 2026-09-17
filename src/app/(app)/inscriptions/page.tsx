@@ -304,7 +304,7 @@ export default async function InscriptionsPage({
                 )}
               </td>
               <td className="px-4 py-3 text-ink-muted">
-                {new Date(e.creeLe).toLocaleDateString("fr-FR")}
+                {new Date(e.creeLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
               </td>
               <td className="px-4 py-3">
                 {e.statutDossier ? (
