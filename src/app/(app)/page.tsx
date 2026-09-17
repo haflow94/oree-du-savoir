@@ -456,6 +456,7 @@ export default async function DashboardPage() {
       href: "/inscriptions",
       accent: "sky",
       badge: nbNotificationsPreinscriptionNonLues,
+      sousTexte: "Préinscriptions en attente de confirmation par le staff",
       sparkline: sparklinePreinscriptions,
       visible: peutVoirNotificationsPreinscription,
     },
@@ -475,7 +476,7 @@ export default async function DashboardPage() {
       accent: "sky",
       sousTexte:
         etudiantsValides.length > 0
-          ? `Sur ${etudiantsValides.length} dossier${etudiantsValides.length > 1 ? "s" : ""} validé${etudiantsValides.length > 1 ? "s" : ""}`
+          ? `Dossier signé manquant, sur ${etudiantsValides.length} dossier${etudiantsValides.length > 1 ? "s" : ""} validé${etudiantsValides.length > 1 ? "s" : ""}`
           : undefined,
       visible: peutVoirEtudiants,
     },
