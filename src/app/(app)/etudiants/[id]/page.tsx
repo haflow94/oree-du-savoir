@@ -801,13 +801,24 @@ export default async function EtudiantDetailPage({
                   title="Numéro français, ex. 04 91 23 45 67"
                   placeholder="04 91 23 45 67"
                 />
-                <Champ
-                  label="Email"
-                  name="email"
-                  type="email"
-                  defaultValue={etudiant.email ?? ""}
-                  required
-                />
+                <div>
+                  <Champ
+                    label="Email"
+                    name="email"
+                    type="email"
+                    defaultValue={etudiant.email ?? ""}
+                    required
+                  />
+                  {etudiant.email && (
+                    <a
+                      href={`mailto:${etudiant.email}`}
+                      className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-pine hover:underline"
+                    >
+                      <Mail size={14} aria-hidden />
+                      Envoyer un email
+                    </a>
+                  )}
+                </div>
                 <Champ
                   label="Adresse"
                   name="adresse"
@@ -1043,7 +1054,18 @@ export default async function EtudiantDetailPage({
                         defaultValue={r.telephoneProfessionnel ?? ""}
                         inputMode="tel"
                       />
-                      <Champ label="Email" name="email" type="email" defaultValue={r.email ?? ""} />
+                      <div>
+                        <Champ label="Email" name="email" type="email" defaultValue={r.email ?? ""} />
+                        {r.email && (
+                          <a
+                            href={`mailto:${r.email}`}
+                            className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-pine hover:underline"
+                          >
+                            <Mail size={14} aria-hidden />
+                            Envoyer un email
+                          </a>
+                        )}
+                      </div>
                       <Champ label="Profession" name="profession" defaultValue={r.profession ?? ""} />
                       <Champ
                         label="Adresse"
