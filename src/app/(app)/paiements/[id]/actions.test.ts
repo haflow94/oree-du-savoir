@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const echeanceCreate = vi.fn();
 const echeanceFindUnique = vi.fn();
 const paiementFindUnique = vi.fn();
+const paiementDelete = vi.fn();
 const dossierAnnuelFindUnique = vi.fn();
 const dossierAnnuelUpdate = vi.fn();
 const chequeFindUnique = vi.fn();
@@ -10,6 +11,7 @@ const chequeUpdate = vi.fn();
 const prelevementFindUnique = vi.fn();
 const prelevementUpdate = vi.fn();
 const journalAuditCreate = vi.fn();
+const mouvementTresorerieDeleteMany = vi.fn();
 const transaction = vi.fn((operations: unknown[]) => Promise.all(operations));
 
 vi.mock("@/lib/prisma", () => ({
@@ -18,7 +20,10 @@ vi.mock("@/lib/prisma", () => ({
       create: (...args: unknown[]) => echeanceCreate(...args),
       findUnique: (...args: unknown[]) => echeanceFindUnique(...args),
     },
-    paiement: { findUnique: (...args: unknown[]) => paiementFindUnique(...args) },
+    paiement: {
+      findUnique: (...args: unknown[]) => paiementFindUnique(...args),
+      delete: (...args: unknown[]) => paiementDelete(...args),
+    },
     dossierAnnuel: {
       findUnique: (...args: unknown[]) => dossierAnnuelFindUnique(...args),
       update: (...args: unknown[]) => dossierAnnuelUpdate(...args),
@@ -32,7 +37,10 @@ vi.mock("@/lib/prisma", () => ({
       update: (...args: unknown[]) => prelevementUpdate(...args),
     },
     journalAudit: { create: (...args: unknown[]) => journalAuditCreate(...args) },
-    mouvementTresorerie: { updateMany: vi.fn() },
+    mouvementTresorerie: {
+      updateMany: vi.fn(),
+      deleteMany: (...args: unknown[]) => mouvementTresorerieDeleteMany(...args),
+    },
     $transaction: (operations: unknown[]) => transaction(operations),
   },
 }));
@@ -47,7 +55,12 @@ vi.mock("@/lib/permissions", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-vi.mock("@/lib/documents", () => ({ enregistrerDocumentEtudiant: vi.fn() }));
+vi.mock("@/lib/documents", () => ({
+  enregistrerDocumentEtudiant: vi.fn(),
+  nomFichierDocument: vi.fn(),
+  supprimerFichierDocument: vi.fn(),
+  nettoyerDossierEtudiantSiVide: vi.fn(),
+}));
 vi.mock("@/lib/tresorerie", () => ({ getOuCreerCategorieCotisations: vi.fn() }));
 
 class RedirectSignal extends Error {
@@ -66,6 +79,7 @@ const {
   modifierMontantDuAction,
   mettreAJourChequeAction,
   mettreAJourPrelevementAction,
+  supprimerPaiementAction,
 } = await import("./actions");
 
 function form(data: Record<string, string>): FormData {
@@ -215,5 +229,100 @@ describe("transitions de statut de prélèvement", () => {
         }),
       }),
     );
+  });
+});
+
+describe("correction des informations d'un chèque/prélèvement sans changement de statut", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("met à jour la banque/le numéro sans exiger de transition de statut", async () => {
+    chequeFindUnique.mockResolvedValue({
+      id: "cheq1",
+      statut: "RECU",
+      banque: "Ancienne banque",
+      numero: "111",
+      titulaireNom: null,
+      titulairePrenom: null,
+      paiement: { echeance: { dossierAnnuelId: "dos1" } },
+    });
+    await expect(
+      mettreAJourChequeAction(
+        form({
+          dossierAnnuelId: "dos1",
+          chequeId: "cheq1",
+          statut: "RECU",
+          banque: "Nouvelle banque",
+          numero: "222",
+        }),
+      ),
+    ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
+    expect(chequeUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ banque: "Nouvelle banque", numero: "222", statut: "RECU" }),
+      }),
+    );
+    expect(journalAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "modification_infos_cheque" }),
+      }),
+    );
+  });
+
+  it("met à jour l'IBAN d'un prélèvement sans changement de statut", async () => {
+    prelevementFindUnique.mockResolvedValue({
+      id: "prel1",
+      statut: "EMIS",
+      iban: "FR001",
+      bic: null,
+      titulaire: null,
+      referenceMandat: null,
+      paiement: { echeance: { dossierAnnuelId: "dos1" } },
+    });
+    await expect(
+      mettreAJourPrelevementAction(
+        form({ dossierAnnuelId: "dos1", prelevementId: "prel1", statut: "EMIS", iban: "FR002" }),
+      ),
+    ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
+    expect(prelevementUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ iban: "FR002" }) }),
+    );
+    expect(journalAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "modification_infos_prelevement" }),
+      }),
+    );
+  });
+});
+
+describe("annulation d'un paiement", () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it("supprime le paiement et le mouvement de trésorerie associé", async () => {
+    paiementFindUnique.mockResolvedValue({
+      id: "pai1",
+      montant: { toString: () => "100" },
+      moyen: "ESPECES",
+      echeanceId: "ech1",
+      echeance: { dossierAnnuelId: "dos1" },
+      cheque: null,
+    });
+    await expect(
+      supprimerPaiementAction(form({ dossierAnnuelId: "dos1", paiementId: "pai1" })),
+    ).rejects.toMatchObject({ url: "/paiements/dos1?ok=1" });
+    expect(mouvementTresorerieDeleteMany).toHaveBeenCalledWith({ where: { paiementId: "pai1" } });
+    expect(paiementDelete).toHaveBeenCalledWith({ where: { id: "pai1" } });
+    expect(journalAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "annulation_paiement", entiteId: "pai1" }),
+      }),
+    );
+  });
+
+  it("refuse d'annuler un paiement introuvable", async () => {
+    paiementFindUnique.mockResolvedValue(null);
+    await expect(
+      supprimerPaiementAction(form({ dossierAnnuelId: "dos1", paiementId: "inconnu" })),
+    ).rejects.toMatchObject({ url: "/paiements/dos1?error=PAIEMENT_INTROUVABLE" });
+    expect(paiementDelete).not.toHaveBeenCalled();
   });
 });

@@ -21,12 +21,15 @@ import {
   modifierPaiementAction,
   modifierEcheanceAction,
   supprimerEcheanceAction,
+  supprimerPaiementAction,
 } from "./actions";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { ChampsMoyenPaiement } from "./champs-moyen-paiement";
+import { ConfirmerPaiementButton } from "./confirmer-paiement-button";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -355,6 +358,21 @@ export default async function DossierPaiementPage({
                             </form>
                           </details>
                         )}
+                        {peutGererCheque && (
+                          <>
+                            <form id={`supprimer-paiement-${p.id}`} action={supprimerPaiementAction}>
+                              <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
+                              <input type="hidden" name="paiementId" value={p.id} />
+                            </form>
+                            <ConfirmDialog
+                              formId={`supprimer-paiement-${p.id}`}
+                              triggerLabel="Annuler ce paiement"
+                              title="Annuler ce paiement ?"
+                              description={`${formaterMontant(p.montant.toString())} (${MOYEN_LABELS[p.moyen]}, ${new Date(p.datePaiement).toLocaleDateString("fr-FR")}) sera définitivement supprimé, ainsi que le mouvement de trésorerie associé. Cette action est irréversible.`}
+                              confirmLabel="Annuler le paiement"
+                            />
+                          </>
+                        )}
                       </div>
                       {p.cheque && (
                         <p className="mt-1 text-xs text-ink-faint">
@@ -384,32 +402,73 @@ export default async function DossierPaiementPage({
                       {p.cheque && peutGererCheque && (
                         <div className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
                           <h4 className="mb-1.5 text-xs font-semibold uppercase text-ink-faint">
-                            Statut du chèque — signaler ici un chèque impayé
+                            Chèque — informations et statut
                           </h4>
                           <form
                             action={mettreAJourChequeAction}
-                            className="flex flex-wrap items-center gap-2"
+                            className="flex flex-wrap items-end gap-2"
                           >
                             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                             <input type="hidden" name="chequeId" value={p.cheque.id} />
-                            <select
-                              name="statut"
-                              defaultValue={p.cheque.statut}
-                              className={CONTROL_XS_CLASSES}
-                            >
-                              {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
-                                <option key={valeur} value={valeur}>
-                                  {label}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="text"
-                              name="motifRejet"
-                              placeholder="Motif si rejeté"
-                              defaultValue={p.cheque.motifRejet ?? ""}
-                              className={CONTROL_XS_CLASSES}
-                            />
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Banque</label>
+                              <input
+                                type="text"
+                                name="banque"
+                                defaultValue={p.cheque.banque ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>N° chèque</label>
+                              <input
+                                type="text"
+                                name="numero"
+                                defaultValue={p.cheque.numero ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Nom du titulaire</label>
+                              <input
+                                type="text"
+                                name="titulaireNom"
+                                defaultValue={p.cheque.titulaireNom ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Prénom du titulaire</label>
+                              <input
+                                type="text"
+                                name="titulairePrenom"
+                                defaultValue={p.cheque.titulairePrenom ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Statut</label>
+                              <select
+                                name="statut"
+                                defaultValue={p.cheque.statut}
+                                className={CONTROL_XS_CLASSES}
+                              >
+                                {Object.entries(STATUT_CHEQUE_LABELS).map(([valeur, label]) => (
+                                  <option key={valeur} value={valeur}>
+                                    {label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Motif si rejeté</label>
+                              <input
+                                type="text"
+                                name="motifRejet"
+                                defaultValue={p.cheque.motifRejet ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
                             <SubmitButton variant="secondary" size="sm">
                               Mettre à jour
                             </SubmitButton>
@@ -419,32 +478,73 @@ export default async function DossierPaiementPage({
                       {p.prelevement && peutGererCheque && (
                         <div className="mt-2 rounded-md border border-border bg-bg-sunken/60 p-2">
                           <h4 className="mb-1.5 text-xs font-semibold uppercase text-ink-faint">
-                            Statut du prélèvement — signaler ici un rejet
+                            Prélèvement — informations et statut
                           </h4>
                           <form
                             action={mettreAJourPrelevementAction}
-                            className="flex flex-wrap items-center gap-2"
+                            className="flex flex-wrap items-end gap-2"
                           >
                             <input type="hidden" name="dossierAnnuelId" value={dossier.id} />
                             <input type="hidden" name="prelevementId" value={p.prelevement.id} />
-                            <select
-                              name="statut"
-                              defaultValue={p.prelevement.statut}
-                              className={CONTROL_XS_CLASSES}
-                            >
-                              {Object.entries(STATUT_PRELEVEMENT_LABELS).map(([valeur, label]) => (
-                                <option key={valeur} value={valeur}>
-                                  {label}
-                                </option>
-                              ))}
-                            </select>
-                            <input
-                              type="text"
-                              name="motifRejet"
-                              placeholder="Motif si rejeté"
-                              defaultValue={p.prelevement.motifRejet ?? ""}
-                              className={CONTROL_XS_CLASSES}
-                            />
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>IBAN</label>
+                              <input
+                                type="text"
+                                name="iban"
+                                defaultValue={p.prelevement.iban ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>BIC</label>
+                              <input
+                                type="text"
+                                name="bic"
+                                defaultValue={p.prelevement.bic ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Titulaire</label>
+                              <input
+                                type="text"
+                                name="titulaire"
+                                defaultValue={p.prelevement.titulaire ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Réf. mandat</label>
+                              <input
+                                type="text"
+                                name="referenceMandat"
+                                defaultValue={p.prelevement.referenceMandat ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Statut</label>
+                              <select
+                                name="statut"
+                                defaultValue={p.prelevement.statut}
+                                className={CONTROL_XS_CLASSES}
+                              >
+                                {Object.entries(STATUT_PRELEVEMENT_LABELS).map(([valeur, label]) => (
+                                  <option key={valeur} value={valeur}>
+                                    {label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className={LABEL_XS_CLASSES}>Motif si rejeté</label>
+                              <input
+                                type="text"
+                                name="motifRejet"
+                                defaultValue={p.prelevement.motifRejet ?? ""}
+                                className={CONTROL_XS_CLASSES}
+                              />
+                            </div>
                             <SubmitButton variant="secondary" size="sm">
                               Mettre à jour
                             </SubmitButton>
@@ -496,9 +596,7 @@ export default async function DossierPaiementPage({
                           etudiantNom={dossier.etudiant.nom}
                           etudiantPrenom={dossier.etudiant.prenom}
                         />
-                        <SubmitButton variant="primary" size="sm">
-                          Enregistrer le paiement
-                        </SubmitButton>
+                        <ConfirmerPaiementButton />
                       </form>
                     </>
                   )}

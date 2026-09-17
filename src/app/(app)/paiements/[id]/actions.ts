@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MoyenPaiement, StatutCheque, StatutPrelevement } from "@/generated/prisma/enums";
 import { requireModule, Module } from "@/lib/permissions";
-import { enregistrerDocumentEtudiant, nomFichierDocument } from "@/lib/documents";
+import {
+  enregistrerDocumentEtudiant,
+  nomFichierDocument,
+  supprimerFichierDocument,
+  nettoyerDossierEtudiantSiVide,
+} from "@/lib/documents";
 import { getOuCreerCategorieCotisations } from "@/lib/tresorerie";
 
 function champTexte(formData: FormData, nom: string): string | null {
@@ -422,6 +427,58 @@ export async function modifierPaiementAction(formData: FormData): Promise<void> 
   retour(cible.echeance.dossierAnnuelId);
 }
 
+export async function supprimerPaiementAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
+
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  const paiementId = champTexte(formData, "paiementId");
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!paiementId) retour(dossierAnnuelId, "CHAMPS_MANQUANTS");
+
+  const cible = await prisma.paiement.findUnique({
+    where: { id: paiementId },
+    include: { echeance: true, cheque: { include: { documents: true } } },
+  });
+  if (!cible) retour(dossierAnnuelId, "PAIEMENT_INTROUVABLE");
+
+  await prisma.$transaction([
+    // Le mouvement de trésorerie généré à la saisie (voir
+    // enregistrerPaiementAction) n'a plus lieu d'être une fois le paiement
+    // annulé — sans ce nettoyage explicite, MouvementTresorerie.paiementId
+    // repasserait juste à null (onDelete: SetNull) et laisserait une
+    // recette fantôme en trésorerie.
+    prisma.mouvementTresorerie.deleteMany({ where: { paiementId } }),
+    // Cascade en base vers Cheque/Prelevement/Document (voir
+    // prisma/schema.prisma) : seul le fichier physique d'une éventuelle
+    // pièce d'identité du titulaire doit être nettoyé à part, ci-dessous —
+    // même pattern que supprimerDocumentAction (etudiants/[id]/actions.ts).
+    prisma.paiement.delete({ where: { id: paiementId } }),
+    prisma.journalAudit.create({
+      data: {
+        utilisateurId: session.id,
+        action: "annulation_paiement",
+        entite: "Paiement",
+        entiteId: paiementId,
+        details: {
+          montant: cible.montant.toString(),
+          moyen: cible.moyen,
+          echeanceId: cible.echeanceId,
+        },
+      },
+    }),
+  ]);
+
+  for (const document of cible.cheque?.documents ?? []) {
+    await supprimerFichierDocument(document.cheminRelatif);
+    await nettoyerDossierEtudiantSiVide(document.cheminRelatif);
+  }
+
+  revalidatePath(`/paiements/${cible.echeance.dossierAnnuelId}`);
+  revalidatePath("/paiements");
+  revalidatePath("/tresorerie");
+  retour(cible.echeance.dossierAnnuelId);
+}
+
 export async function mettreAJourChequeAction(formData: FormData): Promise<void> {
   const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
 
@@ -443,17 +500,35 @@ export async function mettreAJourChequeAction(formData: FormData): Promise<void>
   // Resoumission du même statut (formulaire renvoyé sans changement) : no-op
   // silencieux, jamais une erreur. Sinon, seule une transition listée dans
   // TRANSITIONS_CHEQUE est autorisée — un encaissement/rejet est définitif,
-  // et on ne saute pas d'étape (ex. RECU -> ENCAISSE directement).
-  if (statut !== cible.statut) {
-    if (!TRANSITIONS_CHEQUE[cible.statut].includes(statut)) {
-      retour(cible.paiement.echeance.dossierAnnuelId, "TRANSITION_INVALIDE");
-    }
+  // et on ne saute pas d'étape (ex. RECU -> ENCAISSE directement). Ce garde-
+  // fou porte uniquement sur le statut : les champs d'identification du
+  // chèque ci-dessous (corriger une faute de frappe sur le numéro, la
+  // banque...) n'ont pas cette notion de "transition".
+  const statutChange = statut !== cible.statut;
+  if (statutChange && !TRANSITIONS_CHEQUE[cible.statut].includes(statut)) {
+    retour(cible.paiement.echeance.dossierAnnuelId, "TRANSITION_INVALIDE");
+  }
 
+  const banque = champTexte(formData, "banque");
+  const numero = champTexte(formData, "numero");
+  const titulaireNom = champTexte(formData, "titulaireNom");
+  const titulairePrenom = champTexte(formData, "titulairePrenom");
+  const infosChange =
+    banque !== (cible.banque ?? null) ||
+    numero !== (cible.numero ?? null) ||
+    titulaireNom !== (cible.titulaireNom ?? null) ||
+    titulairePrenom !== (cible.titulairePrenom ?? null);
+
+  if (statutChange || infosChange) {
     await prisma.$transaction([
       prisma.cheque.update({
         where: { id: chequeId },
         data: {
           statut,
+          banque,
+          numero,
+          titulaireNom,
+          titulairePrenom,
           motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
           dateDepot: statut === "DEPOSE" || statut === "ENCAISSE" ? new Date() : undefined,
           dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
@@ -462,10 +537,12 @@ export async function mettreAJourChequeAction(formData: FormData): Promise<void>
       prisma.journalAudit.create({
         data: {
           utilisateurId: session.id,
-          action: "changement_statut_cheque",
+          action: statutChange ? "changement_statut_cheque" : "modification_infos_cheque",
           entite: "Cheque",
           entiteId: chequeId,
-          details: { avant: cible.statut, apres: statut },
+          details: statutChange
+            ? { avant: cible.statut, apres: statut }
+            : { banque, numero, titulaireNom, titulairePrenom },
         },
       }),
     ]);
@@ -493,16 +570,31 @@ export async function mettreAJourPrelevementAction(formData: FormData): Promise<
   });
   if (!cible) retour(dossierAnnuelId, "PRELEVEMENT_INTROUVABLE");
 
-  if (statut !== cible.statut) {
-    if (!TRANSITIONS_PRELEVEMENT[cible.statut].includes(statut)) {
-      retour(cible.paiement.echeance.dossierAnnuelId, "TRANSITION_INVALIDE");
-    }
+  const statutChange = statut !== cible.statut;
+  if (statutChange && !TRANSITIONS_PRELEVEMENT[cible.statut].includes(statut)) {
+    retour(cible.paiement.echeance.dossierAnnuelId, "TRANSITION_INVALIDE");
+  }
 
+  const iban = champTexte(formData, "iban");
+  const bic = champTexte(formData, "bic");
+  const titulaire = champTexte(formData, "titulaire");
+  const referenceMandat = champTexte(formData, "referenceMandat");
+  const infosChange =
+    iban !== (cible.iban ?? null) ||
+    bic !== (cible.bic ?? null) ||
+    titulaire !== (cible.titulaire ?? null) ||
+    referenceMandat !== (cible.referenceMandat ?? null);
+
+  if (statutChange || infosChange) {
     await prisma.$transaction([
       prisma.prelevement.update({
         where: { id: prelevementId },
         data: {
           statut,
+          iban,
+          bic,
+          titulaire,
+          referenceMandat,
           motifRejet: statut === "REJETE" ? champTexte(formData, "motifRejet") : null,
           dateEncaissement: statut === "ENCAISSE" ? new Date() : undefined,
         },
@@ -510,10 +602,12 @@ export async function mettreAJourPrelevementAction(formData: FormData): Promise<
       prisma.journalAudit.create({
         data: {
           utilisateurId: session.id,
-          action: "changement_statut_prelevement",
+          action: statutChange ? "changement_statut_prelevement" : "modification_infos_prelevement",
           entite: "Prelevement",
           entiteId: prelevementId,
-          details: { avant: cible.statut, apres: statut },
+          details: statutChange
+            ? { avant: cible.statut, apres: statut }
+            : { iban, bic, titulaire, referenceMandat },
         },
       }),
     ]);
