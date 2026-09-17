@@ -346,9 +346,9 @@ export default async function DossierPaiementPage({
                       </div>
                       {p.cheque && (
                         <p className="mt-1 text-xs text-ink-faint">
-                          {p.cheque.numero && `N° ${p.cheque.numero}`}
-                          {p.cheque.numero && p.cheque.banque && " · "}
                           {p.cheque.banque}
+                          {p.cheque.banque && p.cheque.numero && " · "}
+                          {p.cheque.numero && `N° ${p.cheque.numero}`}
                           {(p.cheque.numero || p.cheque.banque) &&
                             (p.cheque.titulaireNom || p.cheque.titulairePrenom) &&
                             " · "}
