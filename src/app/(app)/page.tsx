@@ -5,6 +5,7 @@ import {
   Users,
   GraduationCap,
   CreditCard,
+  CircleAlert,
   Receipt,
   FolderOpen,
   UserSearch,
@@ -274,10 +275,13 @@ export default async function DashboardPage() {
 
   const nbDossiersNonSignes = dossiersAnnee.filter((d) => d.statutSignature !== "SIGNEE").length;
 
-  const nbPaiementsIncomplets = dossiersAnnee.filter((d) => {
-    const { statut } = statutCotisation(d);
-    return statut === "Partiel" || statut === "Impayé";
-  }).length;
+  // Séparés plutôt qu'agrégés (voir Metric ci-dessous) : "Impayé" (aucun
+  // paiement reçu, une famille qui n'a encore rien réglé) et "Partiel" (un
+  // règlement déjà commencé mais pas soldé) appellent des suites très
+  // différentes pour le trésorier — un seul chiffre agrégé masquait lequel
+  // des deux dominait.
+  const nbJamaisPayes = dossiersAnnee.filter((d) => statutCotisation(d).statut === "Impayé").length;
+  const nbPaiementsPartiels = dossiersAnnee.filter((d) => statutCotisation(d).statut === "Partiel").length;
 
   // --- Sparklines de tendance (14 derniers jours), une par carte à laquelle
   // une lecture de rythme récent ajoute du sens (voir components/ui/sparkline.tsx).
@@ -435,14 +439,26 @@ export default async function DashboardPage() {
       visible: peutVoirPaiements,
     },
     {
-      label: "Paiements incomplets",
-      icon: Receipt,
-      valeur: nbPaiementsIncomplets,
+      label: "Jamais payé",
+      icon: CircleAlert,
+      valeur: nbJamaisPayes,
       href: "/paiements",
       accent: "rust",
       sousTexte:
         dossiersAnnee.length > 0
-          ? `${Math.round((nbPaiementsIncomplets / dossiersAnnee.length) * 100)}% des dossiers de l'année`
+          ? `Aucun règlement reçu, sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""} de l'année`
+          : undefined,
+      visible: peutVoirPaiements,
+    },
+    {
+      label: "Paiement partiel",
+      icon: Receipt,
+      valeur: nbPaiementsPartiels,
+      href: "/paiements",
+      accent: "ochre",
+      sousTexte:
+        dossiersAnnee.length > 0
+          ? `Règlement commencé mais pas soldé, sur ${dossiersAnnee.length} dossier${dossiersAnnee.length > 1 ? "s" : ""}`
           : undefined,
       visible: peutVoirPaiements,
     },
