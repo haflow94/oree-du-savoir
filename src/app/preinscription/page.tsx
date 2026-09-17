@@ -51,6 +51,14 @@ export default async function PreinscriptionPage({
 }) {
   const { code, a: jetonBrut } = await searchParams;
 
+  // Vide par défaut (voir .env.example) : widget Turnstile non rendu, aucun
+  // effet sur le formulaire — voir src/lib/turnstile.ts pour la vérification
+  // côté serveur correspondante (elle aussi désactivée tant que
+  // TURNSTILE_SECRET_KEY est vide). Clé publique, sans risque à transmettre
+  // au client via les props (contrairement à TURNSTILE_SECRET_KEY, jamais lu
+  // ici).
+  const turnstileSiteKey = process.env.TURNSTILE_SITE_KEY || undefined;
+
   // Jeton permanent du QR officiel Internet (voir src/proxy.ts, qui réécrit
   // `/` en `/preinscription?a=...` sur le hostname public, et
   // src/lib/preinscription-token.ts) : contrairement à `code`, jamais
@@ -171,6 +179,7 @@ export default async function PreinscriptionPage({
                 sections={sections.map((s) => ({ id: s.id, nom: s.nom, catalogueNiveaux: s.catalogueNiveaux }))}
                 creneaux={creneaux}
                 code={code}
+                turnstileSiteKey={turnstileSiteKey}
               />
             </div>
           </>
@@ -181,6 +190,7 @@ export default async function PreinscriptionPage({
           <PreinscriptionForm
             sections={sections.map((s) => ({ id: s.id, nom: s.nom, catalogueNiveaux: s.catalogueNiveaux }))}
             creneaux={creneaux}
+            turnstileSiteKey={turnstileSiteKey}
           />
         ) : (
           <>
@@ -190,6 +200,7 @@ export default async function PreinscriptionPage({
             <PreinscriptionForm
               sections={sections.map((s) => ({ id: s.id, nom: s.nom, catalogueNiveaux: s.catalogueNiveaux }))}
               creneaux={creneaux}
+              turnstileSiteKey={turnstileSiteKey}
             />
           </>
         )}

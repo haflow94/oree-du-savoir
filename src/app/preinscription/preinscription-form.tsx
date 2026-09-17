@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import Script from "next/script";
 import { preinscrireAction } from "./actions";
 import { Card } from "@/components/ui/card";
 import { Champ, ChampSelect, ChampRadioGroup, ChampTextarea } from "@/components/ui/champ";
@@ -92,10 +93,21 @@ function BlocResponsable({ index, requis }: { index: 1 | 2; requis: boolean }) {
 // renvoyant vers un contact générique plutôt qu'un placeholder brut.
 const EMAIL_CONTACT_RGPD = "";
 
+// Widget rendu par le script Turnstile chargé ci-dessous (voir
+// TURNSTILE_WIDGET), jamais typé par @types/node — minimal, juste ce dont ce
+// fichier se sert (reset() pour regénérer un jeton après une soumission
+// refusée, le jeton précédent étant à usage unique).
+declare global {
+  interface Window {
+    turnstile?: { reset: (container?: string | HTMLElement) => void };
+  }
+}
+
 export function PreinscriptionForm({
   sections,
   creneaux,
   code,
+  turnstileSiteKey,
 }: {
   sections: Section[];
   // Catalogue CS/S/D + restriction de chaque section (voir Administration →
@@ -108,6 +120,11 @@ export function PreinscriptionForm({
   // consommé à la soumission (voir preinscrireAction/tenterConsommerCode).
   // Absent pour un accès direct par URL, sans code.
   code?: string;
+  // Vide/absent tant que TURNSTILE_SITE_KEY n'est pas configuré (voir
+  // .env.example et src/lib/turnstile.ts) : le widget n'est alors pas rendu
+  // du tout, comportement du formulaire inchangé. Clé publique (pas un
+  // secret), transmise depuis page.tsx.
+  turnstileSiteKey?: string;
 }) {
   // Une même personne peut vouloir suivre plusieurs cours/sections en une
   // seule préinscription (ex. Jeunes + Études Coraniques pour le même
@@ -144,6 +161,7 @@ export function PreinscriptionForm({
   const [succes, setSucces] = useState(false);
   const [pending, startTransition] = useTransition();
   const erreurRef = useRef<HTMLDivElement>(null);
+  const turnstileRef = useRef<HTMLDivElement>(null);
 
   // Les erreurs renvoyées par preinscrireAction (validations serveur, ex.
   // format de téléphone, code invalide…) ne sont jamais rattachées à un
@@ -156,6 +174,11 @@ export function PreinscriptionForm({
     if (!error) return;
     erreurRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     erreurRef.current?.focus();
+    // Un jeton Turnstile est à usage unique et expire après quelques
+    // minutes : sans reset explicite, une famille qui corrige un champ après
+    // une erreur (ex. téléphone mal formaté) soumettrait un jeton déjà
+    // consommé et échouerait à nouveau, cette fois sans explication claire.
+    if (turnstileRef.current) window.turnstile?.reset(turnstileRef.current);
   }, [error]);
 
   if (succes) {
@@ -514,6 +537,20 @@ export function PreinscriptionForm({
           J&apos;ai pris connaissance de cette information.
         </label>
       </fieldset>
+
+      {turnstileSiteKey && (
+        <>
+          {/* Chargé une seule fois, y compris si plusieurs lignes/sections
+              sont ajoutées ci-dessus (ce composant ne se démonte pas) — voir
+              https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/.
+              Rendu implicite (attribut data-sitekey) : Turnstile insère
+              lui-même un champ caché `cf-turnstile-response` dans ce div,
+              inclus tel quel dans le FormData construit au submit
+              ci-dessus, sans autre câblage nécessaire. */}
+          <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" strategy="afterInteractive" async defer />
+          <div ref={turnstileRef} className="cf-turnstile flex justify-center" data-sitekey={turnstileSiteKey} />
+        </>
+      )}
 
       <Button type="submit" variant="primary" disabled={pending} className="w-full">
         {pending ? "Envoi…" : "Envoyer ma préinscription"}

@@ -14,6 +14,7 @@ import {
   MESSAGE_CODE_ACCUEIL_EXPIRE,
 } from "@/lib/preinscription-code";
 import { adresseIpClient, limiteDebitDepassee } from "@/lib/rate-limit";
+import { verifierTurnstile } from "@/lib/turnstile";
 import { genererNouvelleVersionDossier } from "@/lib/dossier/generation";
 import { NIVEAUX_PAR_CATALOGUE } from "@/lib/niveaux-section";
 
@@ -116,6 +117,14 @@ export async function preinscrireAction(
   const ip = await adresseIpClient();
   if (limiteDebitDepassee(`preinscription-soumission:${ip}`, 5, 15 * 60 * 1000)) {
     return { erreur: "Trop de tentatives depuis cette connexion. Merci de réessayer dans quelques minutes." };
+  }
+
+  // Désactivée par défaut (TURNSTILE_SECRET_KEY vide, voir .env.example et
+  // src/lib/turnstile.ts) : n'affecte pas la soumission tant que le widget
+  // correspondant n'a pas été configuré côté Cloudflare ET testé dans
+  // plusieurs navigateurs.
+  if (!(await verifierTurnstile(champTexte(formData, "cf-turnstile-response"), ip))) {
+    return { erreur: "Vérification de sécurité invalide ou expirée. Merci de réessayer." };
   }
 
   const nom = champTexte(formData, "nom");
