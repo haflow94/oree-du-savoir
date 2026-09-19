@@ -257,7 +257,7 @@ describe("preinscrireAction — autorisation photo/vidéo (OUI/NON explicite)", 
   });
 });
 
-// Régression : le niveau (Débutant/Intermédiaire, 1ère…5ème année — voir
+// Régression : le niveau (Niveau 1/Niveau 2, 1ère…5ème année — voir
 // Section.catalogueNiveaux, src/lib/niveaux-section.ts) doit être un choix
 // unique obligatoire dès que la section choisie porte un catalogue, pour
 // permettre au staff de choisir la bonne cohorte — jamais fait confiance au
@@ -311,12 +311,12 @@ describe("preinscrireAction — niveau obligatoire selon le catalogue de la sect
 
   it("accepte un niveau du catalogue et l'enregistre sur niveauDeclare", async () => {
     const fd = formulaireCoran();
-    fd.set("niveau-1", "Débutant");
+    fd.set("niveau-1", "Niveau 1");
 
     const resultat = await preinscrireAction(fd);
 
     expect(resultat).toEqual({ ok: true });
-    expect(etudiantCreate.mock.calls[0][0].data.niveauDeclare).toBe("Débutant");
+    expect(etudiantCreate.mock.calls[0][0].data.niveauDeclare).toBe("Niveau 1");
   });
 });
 

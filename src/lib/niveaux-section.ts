@@ -7,7 +7,7 @@ import type { CatalogueNiveaux } from "@/generated/prisma/enums";
 // figée ici plutôt qu'une table éditable.
 export const NIVEAUX_PAR_CATALOGUE: Record<CatalogueNiveaux, string[]> = {
   AUCUN: [],
-  DEBUTANT_INTERMEDIAIRE: ["Débutant", "Intermédiaire"],
+  DEBUTANT_INTERMEDIAIRE: ["Niveau 1", "Niveau 2"],
   ANNEES_1_A_5: ["1ère année", "2ème année", "3ème année", "4ème année", "5ème année"],
 };
 
@@ -15,6 +15,6 @@ export const NIVEAUX_PAR_CATALOGUE: Record<CatalogueNiveaux, string[]> = {
 // → Sections).
 export const LABEL_CATALOGUE_NIVEAUX: Record<CatalogueNiveaux, string> = {
   AUCUN: "Aucun (pas de niveau à préciser)",
-  DEBUTANT_INTERMEDIAIRE: "Débutant / Intermédiaire",
+  DEBUTANT_INTERMEDIAIRE: "Niveau 1 / Niveau 2",
   ANNEES_1_A_5: "1ère à 5ème année",
 };
