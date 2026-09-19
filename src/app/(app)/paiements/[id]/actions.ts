@@ -13,6 +13,7 @@ import {
   nettoyerDossierEtudiantSiVide,
 } from "@/lib/documents";
 import { getOuCreerCategorieCotisations } from "@/lib/tresorerie";
+import { MOYENS_COTISATION_DESACTIVES } from "@/lib/paiements";
 
 function champTexte(formData: FormData, nom: string): string | null {
   const valeur = formData.get(nom);
@@ -105,6 +106,12 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
   const montant = champMontantPositif(formData, "montant");
   if (!montant) retour(dossierAnnuelId, "MONTANT_INVALIDE");
   const moyen = moyenBrut as MoyenPaiement;
+  // Virement/prélèvement bancaires classiques désactivés pour la saisie d'un
+  // paiement de cotisation (voir MOYENS_COTISATION_DESACTIVES) : revalidé
+  // ici, jamais fait confiance au seul formulaire client (option masquée
+  // mais pas retirée de l'enum, un ancien onglet resterait sinon capable de
+  // les soumettre).
+  if (MOYENS_COTISATION_DESACTIVES.includes(moyen)) retour(dossierAnnuelId, "MOYEN_DESACTIVE");
   // Distincte de Echeance.dateEcheance (date prévue) : la date réelle à
   // laquelle le paiement a été effectué/reçu, saisie par l'utilisateur —
   // jamais implicitement "aujourd'hui" (voir Paiement.datePaiement, dont le

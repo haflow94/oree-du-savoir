@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { MoyenPaiement, MOYEN_LABELS } from "@/lib/paiements";
+import { MoyenPaiement, MOYEN_LABELS, MOYENS_COTISATION_DESACTIVES, MOYENS_HELLOASSO } from "@/lib/paiements";
 
 const CHAMP_CLASSES =
   "w-28 rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft";
@@ -40,11 +40,13 @@ export function ChampsMoyenPaiement({
           onChange={(e) => setMoyen(e.target.value as MoyenPaiement)}
           className="rounded-md border border-border-strong bg-bg-elevated px-2 py-1.5 text-sm text-ink transition-colors focus:border-pine focus:outline-none focus:ring-2 focus:ring-pine-soft"
         >
-          {Object.values(MoyenPaiement).map((m) => (
-            <option key={m} value={m}>
-              {MOYEN_LABELS[m]}
-            </option>
-          ))}
+          {Object.values(MoyenPaiement)
+            .filter((m) => !MOYENS_COTISATION_DESACTIVES.includes(m))
+            .map((m) => (
+              <option key={m} value={m}>
+                {MOYEN_LABELS[m]}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -113,7 +115,7 @@ export function ChampsMoyenPaiement({
         </>
       )}
 
-      {(moyen === "VIREMENT_HELLOASSO" || moyen === "PRELEVEMENT_HELLOASSO") && (
+      {MOYENS_HELLOASSO.includes(moyen) && (
         <div>
           <label htmlFor={`${uid}-helloasso`} className={LABEL_CLASSES}>N° de commande HelloAsso</label>
           <input id={`${uid}-helloasso`} type="text" name="referenceHelloAsso" className={CHAMP_CLASSES} />

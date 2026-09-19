@@ -49,6 +49,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   PAIEMENT_INTROUVABLE: "Ce paiement n'existe plus.",
   MONTANT_INVALIDE: "Le montant doit être un nombre strictement positif.",
   TRANSITION_INVALIDE: "Ce changement de statut n'est pas autorisé depuis le statut actuel.",
+  MOYEN_DESACTIVE: "Ce moyen de paiement n'est plus proposé pour une cotisation.",
 };
 
 export default async function DossierPaiementPage({
