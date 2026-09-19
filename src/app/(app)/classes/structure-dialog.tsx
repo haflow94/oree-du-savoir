@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { buttonVariants } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { CoursPanel } from "./cours-panel";
 import { CohortePanel } from "./cohorte-panel";
@@ -45,6 +46,8 @@ export function StructureDialog({
   sections,
   joursActifs,
   peutGerer,
+  message,
+  ok,
   ongletAuChargement,
 }: {
   cours: Cours[];
@@ -52,11 +55,22 @@ export function StructureDialog({
   sections: Section[];
   joursActifs: (typeof JOURS_ORDONNES)[number][];
   peutGerer: boolean;
+  /** Message d'erreur Cours/Cohorte revenu dans l'URL, à afficher dans la popup elle-même
+   * (une <dialog> ouverte en showModal() passe au-dessus de tout le reste de la page, donc
+   * l'alerte du haut de page — voir (app)/classes/page.tsx — reste invisible derrière elle). */
+  message?: string;
+  /** true si l'action qui vient de rediriger ici s'est terminée sans erreur (`?ok=1`). */
+  ok: boolean;
   /** Onglet à ouvrir automatiquement si une erreur Cours/Cohorte revient dans l'URL. */
   ongletAuChargement: Onglet | null;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [onglet, setOnglet] = useState<Onglet>(ongletAuChargement ?? "cours");
+  // Ne montre l'alerte de succès que si CETTE popup est bien celle qui vient
+  // de soumettre le formulaire (sessionStorage posé juste avant l'envoi, voir
+  // memoriserOngletAvantEnvoi) — sinon un ?ok=1 issu d'une tout autre action
+  // de la page (ex. duplication de classes) s'afficherait ici à tort.
+  const [alerte, setAlerte] = useState<{ variant: "danger" | "success"; texte: string } | null>(null);
 
   useEffect(() => {
     let ongletMemorise: string | null = null;
@@ -71,14 +85,27 @@ export function StructureDialog({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- réouverture post-montage volontaire depuis une source uniquement disponible côté client (props serveur déjà appliquées à l'état initial, ceci ne fait que rouvrir la popup sur le bon onglet après une erreur de formulaire).
       setOnglet(ongletAuChargement);
       dialogRef.current?.showModal();
+      if (message) setAlerte({ variant: "danger", texte: message });
     } else if (ongletMemorise === "cours" || ongletMemorise === "cohortes") {
       setOnglet(ongletMemorise);
       dialogRef.current?.showModal();
+      if (ok) setAlerte({ variant: "success", texte: "Modification enregistrée." });
     }
-    // ongletAuChargement ne change pas pendant la vie du composant (nouveau
-    // montage à chaque navigation) : la dépendance ne redéclenche jamais
-    // l'effet en pratique, juste pour satisfaire exhaustive-deps.
-  }, [ongletAuChargement]);
+    // ongletAuChargement/message/ok ne changent pas pendant la vie du composant
+    // (nouveau montage à chaque navigation) : les dépendances ne redéclenchent
+    // jamais l'effet en pratique, juste pour satisfaire exhaustive-deps.
+  }, [ongletAuChargement, message, ok]);
+
+  useEffect(() => {
+    const dialogue = dialogRef.current;
+    if (!dialogue) return;
+    // Efface l'alerte d'une soumission précédente quand la popup se referme
+    // (croix, clic sur le fond, Échap) pour ne pas la faire réapparaître à
+    // tort lors d'une réouverture manuelle ultérieure.
+    const onClose = () => setAlerte(null);
+    dialogue.addEventListener("close", onClose);
+    return () => dialogue.removeEventListener("close", onClose);
+  }, []);
 
   function memoriserOngletAvantEnvoi() {
     try {
@@ -111,6 +138,11 @@ export function StructureDialog({
           </div>
         }
       >
+        {alerte && (
+          <div className="mb-3">
+            <Alert variant={alerte.variant}>{alerte.texte}</Alert>
+          </div>
+        )}
         <div onSubmit={memoriserOngletAvantEnvoi}>
           {onglet === "cours" ? (
             <CoursPanel cours={cours} sections={sections} peutGerer={peutGerer} />

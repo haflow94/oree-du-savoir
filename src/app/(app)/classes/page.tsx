@@ -293,6 +293,8 @@ export default async function ClassesPage({
           sections={sections}
           joursActifs={joursActifs}
           peutGerer={peutGerer}
+          message={error && (ERREURS_COURS.includes(error) || ERREURS_COHORTE.includes(error)) ? message : undefined}
+          ok={ok === "1"}
           ongletAuChargement={
             error && ERREURS_COURS.includes(error)
               ? "cours"
