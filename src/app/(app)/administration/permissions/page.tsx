@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { Role, ROLE_LABELS, ALL_ROLES } from "@/lib/roles";
+import { Role, ALL_ROLES } from "@/lib/roles";
+import { libellesRoles } from "@/lib/libelles-role";
 import { Module, NiveauAcces, MODULE_LABELS } from "@/lib/permissions";
 import { enregistrerPermissionsAction } from "./actions";
 import { BackLink } from "@/components/ui/back-link";
@@ -34,7 +35,7 @@ export default async function PermissionsPage({
   const message = error ? MESSAGES[error] : undefined;
 
   const modules = Object.values(Module);
-  const lignes = await prisma.permissionRole.findMany();
+  const [lignes, roleLabels] = await Promise.all([prisma.permissionRole.findMany(), libellesRoles()]);
   const niveauParCle = new Map(lignes.map((l) => [`${l.role}:${l.module}`, l.niveau]));
 
   return (
@@ -68,8 +69,9 @@ export default async function PermissionsPage({
             réservée au Bureau.
           </li>
           <li>
-            <strong>Journal d&apos;audit</strong> et cette page{" "}
-            <strong>Permissions</strong> elle-même : réservées au Bureau.
+            <strong>Journal d&apos;audit</strong>, <strong>Rôles</strong> (libellés
+            affichés) et cette page <strong>Permissions</strong> elle-même :
+            réservées au Bureau.
           </li>
           <li>
             <strong>RGPD</strong> (anonymisation des dossiers étudiants) :
@@ -108,7 +110,7 @@ export default async function PermissionsPage({
             <tbody>
               <tr className="border-t border-border">
                 <td className="sticky left-0 bg-bg-elevated px-2 py-2 font-medium text-ink-faint">
-                  {ROLE_LABELS[Role.BUREAU]}
+                  {roleLabels[Role.BUREAU]}
                 </td>
                 {modules.map((module) => (
                   <td key={module} className="px-2 py-2">
@@ -116,7 +118,7 @@ export default async function PermissionsPage({
                       disabled
                       value="ECRITURE"
                       className={`${CONTROL_SM_CLASSES} cursor-not-allowed opacity-60`}
-                      aria-label={`${ROLE_LABELS[Role.BUREAU]} — ${MODULE_LABELS[module]}`}
+                      aria-label={`${roleLabels[Role.BUREAU]} — ${MODULE_LABELS[module]}`}
                     >
                       <option value="ECRITURE">{NIVEAU_LABELS.ECRITURE}</option>
                     </select>
@@ -126,7 +128,7 @@ export default async function PermissionsPage({
               {ALL_ROLES.filter((role) => role !== Role.BUREAU).map((role) => (
                 <tr key={role} className="border-t border-border">
                   <td className="sticky left-0 bg-bg-elevated px-2 py-2 font-medium text-ink">
-                    {ROLE_LABELS[role]}
+                    {roleLabels[role]}
                   </td>
                   {modules.map((module) => {
                     const niveau = niveauParCle.get(`${role}:${module}`) ?? NiveauAcces.AUCUN;
@@ -136,7 +138,7 @@ export default async function PermissionsPage({
                           name={`${role}__${module}`}
                           defaultValue={niveau}
                           className={CONTROL_SM_CLASSES}
-                          aria-label={`${ROLE_LABELS[role]} — ${MODULE_LABELS[module]}`}
+                          aria-label={`${roleLabels[role]} — ${MODULE_LABELS[module]}`}
                         >
                           <option value={NiveauAcces.AUCUN}>{NIVEAU_LABELS.AUCUN}</option>
                           <option value={NiveauAcces.LECTURE}>{NIVEAU_LABELS.LECTURE}</option>

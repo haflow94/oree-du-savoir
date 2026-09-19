@@ -83,14 +83,10 @@ async function seedSections() {
 // listées : une combinaison absente vaut AUCUN accès par défaut (voir le
 // fallback `?? "AUCUN"` de niveauAcces()), pas besoin de la seeder.
 const MATRICE_INITIALE: { role: Role; module: Module; niveau: NiveauAcces }[] = [
-  // Bureau et Trésorier : accès complet à tous les modules métier (le
-  // Trésorier fait partie du Bureau, décision actée avec l'association).
-  // BUREAU n'est jamais lu à l'exécution (court-circuité dans
-  // lib/permissions.ts) — seedé uniquement pour l'affichage de la grille.
-  ...Object.values(Module).flatMap((module) => [
-    { role: Role.BUREAU, module, niveau: NiveauAcces.ECRITURE },
-    { role: Role.TRESORIER, module, niveau: NiveauAcces.ECRITURE },
-  ]),
+  // Bureau : accès complet à tous les modules métier. N'est jamais lu à
+  // l'exécution (court-circuité dans lib/permissions.ts) — seedé uniquement
+  // pour l'affichage de la grille.
+  ...Object.values(Module).map((module) => ({ role: Role.BUREAU, module, niveau: NiveauAcces.ECRITURE })),
 
   // Administration : mêmes droits opérationnels que Bureau sur le métier
   // courant, sauf Trésorerie (aucun accès) et lecture seule sur

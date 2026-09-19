@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, ROLES_STAFF } from "@/lib/roles";
+import { libellesRoles } from "@/lib/libelles-role";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
@@ -36,11 +37,14 @@ export default async function ResponsablesActivitesPage({
   const { error, ok, utilisateurId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
-  const responsables = await prisma.utilisateur.findMany({
-    where: { role: Role.ACTIVITE },
-    orderBy: [{ actif: "desc" }, { nom: "asc" }],
-    include: { _count: { select: { sessions: true } } },
-  });
+  const [responsables, roleLabels] = await Promise.all([
+    prisma.utilisateur.findMany({
+      where: { role: Role.ACTIVITE },
+      orderBy: [{ actif: "desc" }, { nom: "asc" }],
+      include: { _count: { select: { sessions: true } } },
+    }),
+    libellesRoles(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -52,8 +56,8 @@ export default async function ResponsablesActivitesPage({
           </h1>
           <p className="text-sm text-ink-muted">
             Comptes limités à la gestion des activités et du calendrier,
-            séparés du staff (Bureau, Administration, Accueil, Trésorier) et
-            des enseignants.
+            séparés du staff (Bureau, Administration, Accueil) et des
+            enseignants.
           </p>
         </div>
         <NouveauCompteDialog
@@ -62,6 +66,7 @@ export default async function ResponsablesActivitesPage({
           roleFixe={Role.ACTIVITE}
           titre="Créer un compte responsable d'activités"
           triggerLabel="+ Nouveau compte"
+          roleLabels={roleLabels}
         />
       </div>
 
@@ -91,6 +96,7 @@ export default async function ResponsablesActivitesPage({
               from={FROM}
               roleOptions={ROLES_STAFF}
               rolePlaceholder="Faire passer vers le staff…"
+              roleLabels={roleLabels}
             />
           ))}
         </div>

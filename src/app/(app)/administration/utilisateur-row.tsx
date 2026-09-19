@@ -48,6 +48,7 @@ export function UtilisateurRow({
   rolePlaceholder,
   sectionsDisponibles,
   specialiteIds,
+  roleLabels = ROLE_LABELS,
 }: {
   utilisateur: UtilisateurLigne;
   soiMeme?: boolean;
@@ -60,6 +61,10 @@ export function UtilisateurRow({
   // formulaire d'édition des spécialités.
   sectionsDisponibles?: { id: string; nom: string }[];
   specialiteIds?: string[];
+  // Libellés résolus (défaut + personnalisation Administration → Rôles, voir
+  // lib/libelles-role.ts) : composant client, ne peut pas lire la base
+  // lui-même. Retombe sur ROLE_LABELS si non fourni.
+  roleLabels?: Record<Role, string>;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -90,7 +95,7 @@ export function UtilisateurRow({
           <div className="truncate text-sm text-ink-muted">{u.email}</div>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="neutral">{ROLE_LABELS[u.role]}</Badge>
+          <Badge variant="neutral">{roleLabels[u.role]}</Badge>
           <Badge variant={u.actif ? "success" : "danger"}>{u.actif ? "Actif" : "Désactivé"}</Badge>
           <span className="hidden text-xs text-ink-faint sm:inline">
             {u.dernierLogin
@@ -176,7 +181,7 @@ export function UtilisateurRow({
                   )}
                   {roleOptions.map((r) => (
                     <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
+                      {roleLabels[r]}
                     </option>
                   ))}
                 </select>

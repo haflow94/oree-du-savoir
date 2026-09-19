@@ -46,8 +46,8 @@ function retourInscription(
  *
  * Carve-out littéral volontaire (pas de requireModule) : le module Présences
  * accorde ECRITURE à Enseignant (validation de sa propre feuille, scopée) et
- * à Accueil/Trésorier, alors que cette action — comme annulerSeanceAction et
- * les fermetures ci-dessous — reste strictement Bureau/Administration.
+ * à Accueil, alors que cette action — comme annulerSeanceAction et les
+ * fermetures ci-dessous — reste strictement Bureau/Administration.
  */
 export async function genererSeancesAction(formData: FormData): Promise<void> {
   await requireRole([Role.BUREAU, Role.ADMINISTRATION]);

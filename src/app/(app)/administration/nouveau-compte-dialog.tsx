@@ -22,6 +22,7 @@ export function NouveauCompteDialog({
   titre = "Créer un compte",
   triggerLabel = "+ Nouveau compte",
   sectionsDisponibles,
+  roleLabels = ROLE_LABELS,
 }: {
   ouvrirAuChargement: boolean;
   from?: string;
@@ -31,6 +32,10 @@ export function NouveauCompteDialog({
   // Fourni uniquement depuis Administration > Enseignants (roleFixe =
   // ENSEIGNANT) : affiche les cases à cocher de spécialité.
   sectionsDisponibles?: { id: string; nom: string }[];
+  // Libellés résolus (défaut + personnalisation Administration → Rôles, voir
+  // lib/libelles-role.ts) : composant client, ne peut pas lire la base
+  // lui-même. Retombe sur ROLE_LABELS si non fourni.
+  roleLabels?: Record<Role, string>;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -76,7 +81,7 @@ export function NouveauCompteDialog({
               >
                 {ROLES_STAFF.map((r) => (
                   <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
+                    {roleLabels[r]}
                   </option>
                 ))}
               </ChampSelect>

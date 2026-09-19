@@ -51,7 +51,7 @@ const COMPTES = [
   { email: "sabrina.bureau@oree.test", nom: "Haddad", prenom: "Sabrina", role: "BUREAU" as const },
   { email: "karim.admin@oree.test", nom: "Benali", prenom: "Karim", role: "ADMINISTRATION" as const },
   { email: "fatima.accueil@oree.test", nom: "Moreau", prenom: "Fatima", role: "ACCUEIL" as const },
-  { email: "yacine.tresorier@oree.test", nom: "Lemoine", prenom: "Yacine", role: "TRESORIER" as const },
+  { email: "yacine.bureau@oree.test", nom: "Lemoine", prenom: "Yacine", role: "BUREAU" as const },
   { email: "leila.nadir@oree.test", nom: "Nadir", prenom: "Leila", role: "ENSEIGNANT" as const },
   { email: "omar.cherif@oree.test", nom: "Cherif", prenom: "Omar", role: "ENSEIGNANT" as const },
   { email: "sofia.bensaid@oree.test", nom: "Bensaïd", prenom: "Sofia", role: "ENSEIGNANT" as const },

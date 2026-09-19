@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Role, ROLES_STAFF } from "@/lib/roles";
+import { libellesRoles } from "@/lib/libelles-role";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 import { BackLink } from "@/components/ui/back-link";
 import { Alert } from "@/components/ui/alert";
@@ -31,7 +32,7 @@ export default async function EnseignantsPage({
   const { error, ok, utilisateurId } = await searchParams;
   const message = error ? MESSAGES[error] : undefined;
 
-  const [enseignants, sections] = await Promise.all([
+  const [enseignants, sections, roleLabels] = await Promise.all([
     prisma.utilisateur.findMany({
       where: { role: Role.ENSEIGNANT },
       orderBy: [{ actif: "desc" }, { nom: "asc" }],
@@ -41,6 +42,7 @@ export default async function EnseignantsPage({
       },
     }),
     prisma.section.findMany({ orderBy: { nom: "asc" }, select: { id: true, nom: true } }),
+    libellesRoles(),
   ]);
 
   return (
@@ -51,7 +53,7 @@ export default async function EnseignantsPage({
           <h1 className="mt-2 font-display text-3xl font-semibold text-pine-strong">Enseignants</h1>
           <p className="text-sm text-ink-muted">
             Comptes enseignants, séparés du staff (Bureau, Administration,
-            Accueil, Trésorier) géré depuis Administration → Comptes.
+            Accueil) géré depuis Administration → Comptes.
           </p>
         </div>
         <NouveauCompteDialog
@@ -61,6 +63,7 @@ export default async function EnseignantsPage({
           titre="Créer un compte enseignant"
           triggerLabel="+ Nouveau compte enseignant"
           sectionsDisponibles={sections}
+          roleLabels={roleLabels}
         />
       </div>
 
@@ -93,6 +96,7 @@ export default async function EnseignantsPage({
               rolePlaceholder="Faire passer vers le staff…"
               sectionsDisponibles={sections}
               specialiteIds={u.specialites.map((s) => s.id)}
+              roleLabels={roleLabels}
             />
           ))}
         </div>

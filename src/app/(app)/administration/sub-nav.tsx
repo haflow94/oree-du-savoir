@@ -46,6 +46,7 @@ export async function AdminSubNav({ current }: { current: string }) {
       label: "Comptes & sécurité",
       items: [
         { href: "/administration", label: estBureau ? "Comptes" : "Vue d'ensemble" },
+        ...(estBureau ? [{ href: "/administration/roles", label: "Rôles" }] : []),
         ...(estBureau ? [{ href: "/administration/permissions", label: "Permissions" }] : []),
         ...(estBureau ? [{ href: "/administration/journal", label: "Journal d'audit" }] : []),
       ],

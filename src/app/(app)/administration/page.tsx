@@ -1,6 +1,7 @@
 import { Settings } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Role, ROLES_STAFF } from "@/lib/roles";
+import { libellesRoles } from "@/lib/libelles-role";
 import { requireModule, Module } from "@/lib/permissions";
 import { LONGUEUR_MIN_MOT_DE_PASSE } from "@/lib/comptes";
 import { Alert } from "@/components/ui/alert";
@@ -36,13 +37,16 @@ export default async function AdministrationPage({
 
   // Les enseignants ont leur propre onglet (Administration > Enseignants) :
   // exclus ici pour ne pas mélanger les deux populations de comptes.
-  const utilisateurs = estBureau
-    ? await prisma.utilisateur.findMany({
-        where: { role: { in: ROLES_STAFF } },
-        orderBy: [{ actif: "desc" }, { nom: "asc" }],
-        include: { _count: { select: { sessions: true } } },
-      })
-    : [];
+  const [utilisateurs, roleLabels] = await Promise.all([
+    estBureau
+      ? prisma.utilisateur.findMany({
+          where: { role: { in: ROLES_STAFF } },
+          orderBy: [{ actif: "desc" }, { nom: "asc" }],
+          include: { _count: { select: { sessions: true } } },
+        })
+      : Promise.resolve([]),
+    libellesRoles(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -58,7 +62,9 @@ export default async function AdministrationPage({
             </p>
           </div>
         </div>
-        {estBureau && <NouveauCompteDialog ouvrirAuChargement={!!error && !utilisateurId} />}
+        {estBureau && (
+          <NouveauCompteDialog ouvrirAuChargement={!!error && !utilisateurId} roleLabels={roleLabels} />
+        )}
       </div>
 
       <AdminSubNav current="/administration" />
@@ -83,6 +89,7 @@ export default async function AdministrationPage({
               }}
               soiMeme={u.id === session.id}
               ouvrirAuChargement={!!error && utilisateurId === u.id}
+              roleLabels={roleLabels}
             />
           ))}
           {utilisateurs.length === 0 && (

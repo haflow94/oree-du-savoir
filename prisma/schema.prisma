@@ -32,7 +32,6 @@ enum Role {
   BUREAU
   ADMINISTRATION
   ACCUEIL
-  TRESORIER
   ENSEIGNANT
   // Compte dédié à la gestion des activités associatives (voir
   // (app)/activites, (app)/calendrier et Administration → Responsables
@@ -82,6 +81,20 @@ model PermissionRole {
 
   @@unique([role, module])
   @@map("permissions_role")
+}
+
+// Libellé affiché pour un rôle (ex. "Bureau"), éditable depuis
+// Administration → Rôles — contrairement au rôle lui-même (enum Role
+// ci-dessus), qui reste une liste fixe câblée dans le code (carve-outs de
+// sécurité requireRole([Role.BUREAU]), garde-fou "dernier Bureau actif",
+// etc. — voir CLAUDE.md). Une ligne par rôle personnalisé ; l'absence de
+// ligne retombe sur le libellé par défaut de ROLE_LABELS (lib/roles.ts),
+// donc jamais bloquant si la table est vide.
+model LibelleRole {
+  role    Role   @id
+  libelle String
+
+  @@map("libelles_role")
 }
 
 // Identité de l'association, jusqu'ici éparpillée en constantes codées en
