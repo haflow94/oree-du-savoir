@@ -20,7 +20,7 @@ import { requireSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLE_LABELS, Role } from "@/lib/roles";
 import { peutAccederModule, Module } from "@/lib/permissions";
-import { formaterMontant, totalEncaisse, MOYEN_LABELS } from "@/lib/paiements";
+import { formaterMontant, totalEncaisseMature, MOYEN_LABELS } from "@/lib/paiements";
 import { filtreParReinscription } from "@/lib/sections-etudiant";
 import { activitesARappeler } from "@/lib/activites";
 import { nombreNotificationsPreinscriptionNonLues } from "@/lib/notifications-preinscription";
@@ -152,6 +152,7 @@ export default async function DashboardPage() {
             statutSignature: true,
             echeances: {
               select: {
+                dateEcheance: true,
                 paiements: {
                   select: {
                     montant: true,
@@ -264,13 +265,14 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
   ]);
 
-  // totalEncaisse() (pas une simple somme des montants) : exclut les chèques
-  // et prélèvements REJETE, sans quoi un chèque qui rebondit continuerait à
-  // réduire ce total comme si l'argent avait été reçu (voir la fiche
-  // dossier/statutCotisation, qui utilise la même fonction).
+  // totalEncaisseMature() (pas une simple somme des montants) : exclut les
+  // chèques/prélèvements REJETE (sans quoi un chèque qui rebondit
+  // continuerait à réduire ce total comme si l'argent avait été reçu) ET les
+  // échéances futures déjà payées d'avance (chèques postdatés) — même
+  // fonction que la fiche dossier/statutCotisation, pour rester cohérent.
   const resteAEncaisser = dossiersAnnee.reduce((total, d) => {
     const du = Number.parseFloat(d.montantDu.toString());
-    const encaisse = totalEncaisse(d.echeances.flatMap((e) => e.paiements));
+    const encaisse = totalEncaisseMature(d.echeances, aujourdhui);
     return total + Math.max(0, du - encaisse);
   }, 0);
 

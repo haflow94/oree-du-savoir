@@ -4,6 +4,7 @@ import type {
   StatutPrelevement,
   TypeMouvement,
 } from "@/generated/prisma/enums";
+import { normaliserDateUTC } from "@/lib/presences";
 
 export { MoyenPaiement, StatutCheque, StatutPrelevement, TypeMouvement } from "@/generated/prisma/enums";
 
@@ -128,16 +129,46 @@ export function totalEncaisse(paiements: PaiementPourEncaisse[]): number {
     .reduce((total, p) => total + Number.parseFloat(p.montant.toString()), 0);
 }
 
+// Décision associative du 2026-09-19 : un chèque/prélèvement remis à
+// l'avance pour une échéance future (paiement en plusieurs fois, ex. 3
+// chèques postdatés déposés d'un coup à l'inscription) est bien "reçu" dès
+// sa saisie — voir totalEncaisse, utilisé tel quel pour l'affichage propre à
+// CETTE échéance — mais n'est pas de l'argent réellement disponible en
+// trésorerie avant la date prévue. Une échéance n'est donc "arrivée à
+// échéance" que le jour J (inclus), jamais avant.
+export function echeanceArrivee(dateEcheance: Date, aujourdHui: Date = new Date()): boolean {
+  return normaliserDateUTC(dateEcheance).getTime() <= normaliserDateUTC(aujourdHui).getTime();
+}
+
+// Total encaissé "mature" : ne compte que les échéances déjà arrivées à
+// échéance (voir echeanceArrivee ci-dessus) — c'est ce total, et non
+// totalEncaisse() en brut, qui doit alimenter le solde global d'un dossier
+// (statutCotisation) : un dossier ne doit jamais apparaître "Soldé" grâce à
+// des chèques postdatés dont l'échéance n'est pas encore passée.
+export function totalEncaisseMature(
+  echeances: { dateEcheance: Date; paiements: PaiementPourEncaisse[] }[],
+  aujourdHui: Date = new Date(),
+): number {
+  return totalEncaisse(
+    echeances.filter((e) => echeanceArrivee(e.dateEcheance, aujourdHui)).flatMap((e) => e.paiements),
+  );
+}
+
 // Statut de cotisation d'un dossier annuel : calculé à partir du dû et de
-// l'encaissé, sauf "Remboursé" qui prime (basculé manuellement, voir
-// DossierAnnuel.rembourse) et "Gratuit" quand aucun montant n'est dû.
-export function statutCotisation(dossier: {
-  montantDu: { toString(): string };
-  rembourse?: boolean;
-  echeances: { paiements: PaiementPourEncaisse[] }[];
-}): { du: number; encaisse: number; reste: number; statut: StatutCotisation } {
+// l'encaissé MATURE (voir totalEncaisseMature — les échéances futures déjà
+// payées n'y comptent pas encore), sauf "Remboursé" qui prime (basculé
+// manuellement, voir DossierAnnuel.rembourse) et "Gratuit" quand aucun
+// montant n'est dû.
+export function statutCotisation(
+  dossier: {
+    montantDu: { toString(): string };
+    rembourse?: boolean;
+    echeances: { dateEcheance: Date; paiements: PaiementPourEncaisse[] }[];
+  },
+  aujourdHui: Date = new Date(),
+): { du: number; encaisse: number; reste: number; statut: StatutCotisation } {
   const du = Number.parseFloat(dossier.montantDu.toString());
-  const encaisse = totalEncaisse(dossier.echeances.flatMap((e) => e.paiements));
+  const encaisse = totalEncaisseMature(dossier.echeances, aujourdHui);
   const reste = du - encaisse;
   const statut: StatutCotisation = dossier.rembourse
     ? "Remboursé"

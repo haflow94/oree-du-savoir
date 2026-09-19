@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { Role } from "@/lib/roles";
-import { statutCotisation } from "@/lib/paiements";
+import { totalEncaisse } from "@/lib/paiements";
 import { genererRecuPaiementPdf } from "@/lib/pdf-documents";
 import { nomFichierDocument } from "@/lib/documents";
 import { enTeteContentDisposition } from "@/lib/content-disposition";
@@ -43,9 +43,21 @@ export async function GET(
     return NextResponse.json({ error: "Introuvable" }, { status: 404 });
   }
 
-  const { du, encaisse, reste } = statutCotisation(dossier);
-  const paiements = dossier.echeances
-    .flatMap((e) => e.paiements)
+  // Volontairement PAS statutCotisation() ici : ce reçu atteste à la famille
+  // ce qu'elle a effectivement remis (voir le tableau des paiements
+  // ci-dessous, qui liste tout, y compris un chèque postdaté pour une
+  // échéance future) — le total encaissé/reste doit rester le total BRUT
+  // (totalEncaisse), sans quoi le récapitulatif contredirait le tableau
+  // juste au-dessus (ex. 3 chèques listés pour 300€, mais "reçu 100€,
+  // reste 200€" si un seul est arrivé à échéance). La règle de maturité par
+  // échéance (voir lib/paiements.ts) reste réservée aux vues internes de
+  // trésorerie (dossier, tableau de bord, export), pas à ce document remis
+  // au tiers.
+  const du = Number.parseFloat(dossier.montantDu.toString());
+  const paiementsBruts = dossier.echeances.flatMap((e) => e.paiements);
+  const encaisse = totalEncaisse(paiementsBruts);
+  const reste = du - encaisse;
+  const paiements = paiementsBruts
     .sort((a, b) => a.datePaiement.getTime() - b.datePaiement.getTime())
     .map((p) => ({
       datePaiement: p.datePaiement,

@@ -8,6 +8,7 @@ import {
   MOYEN_LABELS,
   formaterMontant,
   incidentDePaiement,
+  statutCotisation,
   totalEncaisse,
 } from "@/lib/paiements";
 
@@ -56,11 +57,11 @@ export async function GET(request: NextRequest) {
   });
 
   const lignes = dossiers.map((d) => {
-    const du = Number.parseFloat(d.montantDu.toString());
     const paiements = d.echeances.flatMap((e) => e.paiements);
-    const encaisse = totalEncaisse(paiements);
-    const reste = du - encaisse;
-    const statut = reste <= 0 ? "Soldé" : encaisse > 0 ? "Partiel" : "Impayé";
+    // Même fonction que la fiche dossier (statutCotisation) : le solde/reste
+    // exporté doit rester cohérent avec ce qui est affiché dans l'app, y
+    // compris la règle "échéance future déjà payée = pas encore mature".
+    const { du, encaisse, reste, statut } = statutCotisation(d);
     const echeancesReglees = d.echeances.filter((e) => {
       const montantEcheance = Number.parseFloat(e.montant.toString());
       const encaisseEcheance = totalEncaisse(e.paiements);
