@@ -24,14 +24,14 @@ export const MOYEN_LABELS: Record<MoyenPaiement, string> = {
 export const MOYENS_HELLOASSO: MoyenPaiement[] = ["VIREMENT_HELLOASSO", "PRELEVEMENT_HELLOASSO"];
 
 // Décision associative du 2026-09-19 : les familles ne paient plus leur
-// cotisation par virement/prélèvement bancaire classique, uniquement par
-// HelloAsso pour l'instant — masqués du formulaire de saisie d'un paiement
-// (voir ChampsMoyenPaiement, paiements/[id]/champs-moyen-paiement.tsx).
-// Ne s'applique volontairement qu'à la saisie d'un Paiement de cotisation,
-// jamais à MoyenPaiement en général : la Trésorerie (dépenses/recettes de
-// l'association — loyer, salaires...) continue d'utiliser virement/
-// prélèvement bancaires classiques, sans rapport avec HelloAsso.
-export const MOYENS_COTISATION_DESACTIVES: MoyenPaiement[] = ["VIREMENT", "PRELEVEMENT"];
+// cotisation par virement/prélèvement/carte bancaires classiques, uniquement
+// par HelloAsso (+ espèces/chèque en direct) pour l'instant — masqués du
+// formulaire de saisie d'un paiement (voir ChampsMoyenPaiement,
+// paiements/[id]/champs-moyen-paiement.tsx). Ne s'applique volontairement
+// qu'à la saisie d'un Paiement de cotisation, jamais à MoyenPaiement en
+// général : la Trésorerie (dépenses/recettes de l'association — loyer,
+// salaires...) continue d'utiliser ces moyens, sans rapport avec HelloAsso.
+export const MOYENS_COTISATION_DESACTIVES: MoyenPaiement[] = ["VIREMENT", "PRELEVEMENT", "CB"];
 
 export const STATUT_CHEQUE_LABELS: Record<StatutCheque, string> = {
   RECU: "Reçu",
