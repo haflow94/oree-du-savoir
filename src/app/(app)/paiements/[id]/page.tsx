@@ -24,6 +24,7 @@ import {
 } from "./actions";
 import { requireModule, peutAccederModule, Module } from "@/lib/permissions";
 import { ChampsMoyenPaiement } from "./champs-moyen-paiement";
+import { ChoixModePaiement } from "./choix-mode-paiement";
 import { ConfirmerPaiementButton } from "./confirmer-paiement-button";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardTitle } from "@/components/ui/card";
@@ -50,6 +51,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   MONTANT_INVALIDE: "Le montant doit être un nombre strictement positif.",
   TRANSITION_INVALIDE: "Ce changement de statut n'est pas autorisé depuis le statut actuel.",
   MOYEN_DESACTIVE: "Ce moyen de paiement n'est plus proposé pour une cotisation.",
+  DOSSIER_DEJA_INITIALISE: "Ce dossier a déjà une échéance : rechargez la page.",
 };
 
 export default async function DossierPaiementPage({
@@ -67,7 +69,7 @@ export default async function DossierPaiementPage({
   const peutGererCheque = peutSaisir;
   // Un dossier appartient toujours à un seul étudiant : revenir à sa fiche
   // est plus utile que la liste générique "Paiements" — mais seulement si le
-  // rôle courant a accès au module Étudiants (pas garanti, ex. Trésorier),
+  // rôle courant a accès au module Étudiants (pas garanti, ex. Activité),
   // sans quoi le lien retomberait sur /acces-refuse.
   const peutVoirEtudiant = await peutAccederModule(session.role, Module.ETUDIANTS, "LECTURE");
   const { id } = await params;
@@ -93,6 +95,14 @@ export default async function DossierPaiementPage({
   }
 
   const { du, encaisse, reste, statut } = statutCotisation(dossier);
+  // Dossier tout juste créé (aucune échéance, donc aucun paiement) : plutôt
+  // que d'exposer directement le formulaire technique "Ajouter une
+  // échéance" (pensé pour un paiement en plusieurs fois), on demande
+  // d'abord comment la cotisation va être payée (voir ChoixModePaiement) —
+  // sauf s'il n'y a rien à payer (Gratuit) ou pas de droit d'écriture,
+  // auquel cas rien à proposer.
+  const dossierVierge = dossier.echeances.length === 0;
+  const proposerChoixPaiement = dossierVierge && peutSaisir && du > 0;
 
   // Incidents (chèque impayé, prélèvement rejeté) toutes échéances
   // confondues sur ce dossier — voir lib/paiements.ts#incidentDePaiement.
@@ -605,12 +615,20 @@ export default async function DossierPaiementPage({
           );
         })}
 
-        {dossier.echeances.length === 0 && (
+        {dossierVierge && proposerChoixPaiement && (
+          <ChoixModePaiement
+            dossierAnnuelId={dossier.id}
+            montantDu={du}
+            etudiantNom={dossier.etudiant.nom}
+            etudiantPrenom={dossier.etudiant.prenom}
+          />
+        )}
+        {dossierVierge && !proposerChoixPaiement && (
           <EmptyState message="Aucune échéance pour l'instant." />
         )}
       </div>
 
-      {peutSaisir && (
+      {peutSaisir && !proposerChoixPaiement && (
         <Card>
           <CardTitle>Ajouter une échéance</CardTitle>
           <form action={ajouterEcheanceAction} className="mt-3 flex flex-wrap items-end gap-2">

@@ -96,11 +96,58 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
 
   const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
   const echeanceId = champTexte(formData, "echeanceId");
+  if (!dossierAnnuelId) redirect("/paiements");
+  if (!echeanceId) retour(dossierAnnuelId, "CHAMPS_INVALIDES");
+
+  await enregistrerPaiementSurEcheance(session, dossierAnnuelId, echeanceId, formData);
+}
+
+// Dossier tout juste créé (aucune échéance) : plutôt que de forcer la
+// création manuelle d'une échéance pour un cas qui n'a pas lieu d'être vu
+// comme tel par le staff (une famille qui paie sa cotisation en une fois),
+// crée une échéance unique — montant = solde dû, transparente pour
+// l'utilisateur — puis enregistre le paiement dessus via le même chemin que
+// enregistrerPaiementAction (voir ChoixModePaiement, page.tsx). Le dossier
+// redevient ensuite un dossier « normal » : rien à conditionner ailleurs.
+export async function enregistrerPaiementUniqueAction(formData: FormData): Promise<void> {
+  const session = await requireModule(Module.PAIEMENTS, "ECRITURE");
+
+  const dossierAnnuelId = champTexte(formData, "dossierAnnuelId");
+  if (!dossierAnnuelId) redirect("/paiements");
+
+  const dossier = await prisma.dossierAnnuel.findUnique({
+    where: { id: dossierAnnuelId },
+    include: { echeances: { select: { id: true } } },
+  });
+  if (!dossier) retour(dossierAnnuelId, "DOSSIER_INTROUVABLE");
+  // Ce choix ne se pose qu'une fois (voir page.tsx, écran affiché seulement
+  // tant que dossier.echeances.length === 0) : une seconde soumission
+  // (double-clic, retour arrière navigateur) ne doit pas créer une 2e
+  // échéance en double.
+  if (dossier.echeances.length > 0) retour(dossierAnnuelId, "DOSSIER_DEJA_INITIALISE");
+
+  const echeance = await prisma.echeance.create({
+    data: {
+      dossierAnnuelId,
+      montant: dossier.montantDu,
+      dateEcheance: new Date(),
+      libelle: "Réglé en une fois",
+    },
+  });
+
+  await enregistrerPaiementSurEcheance(session, dossierAnnuelId, echeance.id, formData);
+}
+
+async function enregistrerPaiementSurEcheance(
+  session: Awaited<ReturnType<typeof requireModule>>,
+  dossierAnnuelId: string,
+  echeanceId: string,
+  formData: FormData,
+): Promise<void> {
   const montantBrut = champTexte(formData, "montant");
   const moyenBrut = champTexte(formData, "moyen");
   const datePaiementBrut = champTexte(formData, "datePaiement");
-  if (!dossierAnnuelId) redirect("/paiements");
-  if (!echeanceId || !montantBrut || !moyenBrut || !(moyenBrut in MoyenPaiement) || !datePaiementBrut) {
+  if (!montantBrut || !moyenBrut || !(moyenBrut in MoyenPaiement) || !datePaiementBrut) {
     retour(dossierAnnuelId, "CHAMPS_INVALIDES");
   }
   const montant = champMontantPositif(formData, "montant");
