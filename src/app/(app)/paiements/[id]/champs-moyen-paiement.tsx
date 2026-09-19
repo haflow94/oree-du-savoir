@@ -112,6 +112,13 @@ export function ChampsMoyenPaiement({
           </div>
         </>
       )}
+
+      {(moyen === "VIREMENT_HELLOASSO" || moyen === "PRELEVEMENT_HELLOASSO") && (
+        <div>
+          <label htmlFor={`${uid}-helloasso`} className={LABEL_CLASSES}>N° de commande HelloAsso</label>
+          <input id={`${uid}-helloasso`} type="text" name="referenceHelloAsso" className={CHAMP_CLASSES} />
+        </div>
+      )}
     </>
   );
 }

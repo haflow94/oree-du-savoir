@@ -162,6 +162,9 @@ export async function enregistrerPaiementAction(formData: FormData): Promise<voi
             },
           }
         : {}),
+      ...(moyen === "VIREMENT_HELLOASSO" || moyen === "PRELEVEMENT_HELLOASSO"
+        ? { referenceHelloAsso: champTexte(formData, "referenceHelloAsso") }
+        : {}),
     },
     include: { cheque: true },
   });

@@ -1189,6 +1189,15 @@ enum MoyenPaiement {
   VIREMENT
   CB
   PRELEVEMENT
+  // Paiements collectés via la plateforme HelloAsso (cotisations/dons en
+  // ligne) : l'association ne voit jamais les coordonnées bancaires du
+  // payeur, seulement un numéro de commande HelloAsso (voir
+  // Paiement.referenceHelloAsso) — traités comme définitifs à la saisie, au
+  // même titre que VIREMENT/CB/ESPECES (voir lib/paiements.ts), l'argent
+  // étant déjà collecté par HelloAsso au moment où le staff enregistre le
+  // paiement dans l'appli.
+  VIREMENT_HELLOASSO
+  PRELEVEMENT_HELLOASSO
 }
 
 // Réglage éditable (Administration → Relances), une seule ligne, sur le même
@@ -1358,6 +1367,12 @@ model Paiement {
   montant      Decimal       @db.Decimal(10, 2)
   datePaiement DateTime      @default(now())
   creeLe       DateTime      @default(now())
+  // Numéro de commande HelloAsso — uniquement quand moyen = VIREMENT_HELLOASSO
+  // ou PRELEVEMENT_HELLOASSO (voir MoyenPaiement) : contrairement à
+  // Cheque/Prelevement, pas de sous-table dédiée, un simple champ suffit
+  // puisqu'il n'y a ni statut à faire évoluer ni autre information à
+  // capturer pour ces deux moyens.
+  referenceHelloAsso String?
 
   cheque      Cheque?
   prelevement Prelevement?

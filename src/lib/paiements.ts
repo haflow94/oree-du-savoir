@@ -13,7 +13,15 @@ export const MOYEN_LABELS: Record<MoyenPaiement, string> = {
   VIREMENT: "Virement",
   CB: "Carte bancaire",
   PRELEVEMENT: "Prélèvement",
+  VIREMENT_HELLOASSO: "Virement HelloAsso",
+  PRELEVEMENT_HELLOASSO: "Prélèvement HelloAsso",
 };
+
+// Moyens dont le seul détail à saisir est un numéro de commande HelloAsso
+// (voir Paiement.referenceHelloAsso) — pas de sous-table dédiée, contrairement
+// à CHEQUE/PRELEVEMENT, ces deux moyens n'ayant ni statut ni autre champ à
+// suivre (voir IncidentPaiement ci-dessous : ils sont définitifs à la saisie).
+export const MOYENS_HELLOASSO: MoyenPaiement[] = ["VIREMENT_HELLOASSO", "PRELEVEMENT_HELLOASSO"];
 
 export const STATUT_CHEQUE_LABELS: Record<StatutCheque, string> = {
   RECU: "Reçu",
@@ -33,7 +41,8 @@ export const STATUT_PRELEVEMENT_LABELS: Record<StatutPrelevement, string> = {
 // Incident de paiement : chèque impayé (Cheque.statut = REJETE) ou
 // prélèvement rejeté (Prelevement.statut = REJETE) — les deux seuls moyens
 // ayant une sous-table dédiée, donc les deux seuls pouvant échouer après coup
-// (espèces/CB/virement sont considérés définitifs à la saisie).
+// (espèces/CB/virement/virement+prélèvement HelloAsso sont considérés
+// définitifs à la saisie).
 export type IncidentPaiement = { type: "CHEQUE" | "PRELEVEMENT"; motif: string | null };
 
 export const INCIDENT_LABELS: Record<IncidentPaiement["type"], string> = {

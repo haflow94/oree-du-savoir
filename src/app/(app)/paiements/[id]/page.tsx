@@ -389,6 +389,11 @@ export default async function DossierPaiementPage({
                           {p.prelevement.referenceMandat && `Mandat ${p.prelevement.referenceMandat}`}
                         </p>
                       )}
+                      {p.referenceHelloAsso && (
+                        <p className="mt-1 text-sm text-ink-muted">
+                          N° de commande {p.referenceHelloAsso}
+                        </p>
+                      )}
                       {peutGererCheque && (
                         <details className="mt-2">
                           <summary className="cursor-pointer text-xs text-ink-faint hover:underline">
